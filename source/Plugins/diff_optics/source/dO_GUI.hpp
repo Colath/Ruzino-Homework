@@ -12,7 +12,7 @@ class LensSystem;
 }  // namespace USTC_CG
 
 USTC_CG_NAMESPACE_OPEN_SCOPE
-class DiffOpticsGUI : public IWidget {
+class DiffOpticsGUI : public IWidgetDrawable {
    public:
     explicit DiffOpticsGUI(LensSystem* lens_system);
     bool BuildUI() override;

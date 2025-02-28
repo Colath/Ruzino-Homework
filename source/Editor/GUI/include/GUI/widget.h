@@ -77,6 +77,7 @@ class GUI_API IWidget {
 };
 
 class GUI_API IWidgetDrawable : public IWidget {
+   public:
     void DrawCircle(
         ImVec2 center,
         float radius,

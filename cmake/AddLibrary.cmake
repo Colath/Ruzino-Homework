@@ -184,13 +184,13 @@ function(USTC_CG_ADD_LIB LIB_NAME)
             set(Python_EXECUTABLE ${Python3_EXECUTABLE})
         endif()
 
-        nanobind_add_stub(
-            ${name}_py_stub
-            MODULE ${name}_py
-            OUTPUT ${OUT_BINARY_DIR}/${name}_py.pyi
-            PYTHON_PATH ${OUT_BINARY_DIR}
-            DEPENDS ${name}_py
-        )
+        # nanobind_add_stub(
+        #     ${name}_py_stub
+        #     MODULE ${name}_py
+        #     OUTPUT ${OUT_BINARY_DIR}/${name}_py.pyi
+        #     PYTHON_PATH ${OUT_BINARY_DIR}
+        #     DEPENDS ${name}_py
+        # )
     endif()
 
     file(GLOB test_cpp_sources ${folder}/tests/*.cpp)

@@ -88,7 +88,7 @@ class StrokeEditWidget : public USTC_CG::IWidget {
     std::shared_ptr<USTC_CG::StrokeSystem> stroke_system;
 };
 
-class StrokeVisualizeWidget : public USTC_CG::IWidget {
+class StrokeVisualizeWidget : public USTC_CG::IWidgetDrawable {
    public:
     StrokeVisualizeWidget(std::shared_ptr<USTC_CG::StrokeSystem> stroke_system)
         : stroke_system(stroke_system)
