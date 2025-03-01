@@ -2,6 +2,7 @@
 #define IMGUI_DEFINE_MATH_OPERATORS
 #include <cstddef>
 
+#include "glm/ext/matrix_transform.hpp"
 #include "imgui_internal.h"
 
 #endif
@@ -23,6 +24,13 @@
 #include "polyscope_widget/polyscope_renderer.h"
 
 USTC_CG_NAMESPACE_OPEN_SCOPE
+
+// [0]: left Ctrl + left mouse button, [1]: left mouse button, [2]: middle mouse
+// button
+std::vector<std::pair<polyscope::Structure*, size_t>>
+    PolyscopeRenderer::pick_result = { { nullptr, 0 },
+                                       { nullptr, 0 },
+                                       { nullptr, 0 } };
 
 // int nPts = 2000;
 // float anotherParam = 0.0;
@@ -239,85 +247,119 @@ void PolyscopeRenderer::DrawFrame()
     ImGui::EndChild();
 }
 
-// 根据选中的东西的内容，创建一个polyscope::structure，用于突出选中的内容
-void PolyscopeRenderer::VisualizePickResult(
+// 当选中顶点时，生成一个不显示的pointcloud，并显示transformation
+// gizmo，用于控制顶点的位置
+void PolyscopeRenderer::VisualizePickVertexGizmo(
     std::pair<polyscope::Structure*, size_t> pickResult)
 {
-    // 若选中的东西和currPickStructure相同，则不做任何操作
-    // if (currPickStructure != nullptr &&
-    //     pickResult.first == currPickStructure) {
+    // 若选中的东西和curr_visualization_structure相同，则不做任何操作
+    // if (curr_visualization_structure != nullptr &&
+    //     pickResult.first == curr_visualization_structure) {
     //     return;
     // }
 
     // 若选中的东西为空，则删除当前的polyscope::structure
     if (pickResult.first == nullptr) {
-        if (currPickStructure != nullptr) {
-            currPickStructure->remove();
-            currPickStructure = nullptr;
+        if (curr_visualization_structure != nullptr) {
+            curr_visualization_structure->remove();
+            curr_visualization_structure = nullptr;
         }
     }
     else {
         // 若选中的东西不为空，则创建一个polyscope::structure
-        if (currPickStructure != nullptr) {
-            if (currPickStructure == pickResult.first) {
+        if (curr_visualization_structure != nullptr) {
+            if (curr_visualization_structure == pickResult.first) {
                 return;
             }
-            currPickStructure->remove();
+            curr_visualization_structure->remove();
+            curr_visualization_structure = nullptr;
         }
         // 得到选中的东西的类型
         auto type = pickResult.first->typeName();
         auto transform = pickResult.first->getTransform();
         if (type == "Surface Mesh") {
             // 检查选中的是顶点、面、边、半边还是角
-            auto mesh = dynamic_cast<polyscope::SurfaceMesh*>(pickResult.first);
+            auto surface_mesh =
+                dynamic_cast<polyscope::SurfaceMesh*>(pickResult.first);
             auto ind = pickResult.second;
-            if (ind < mesh->nVertices()) {
+            // 仅当选中的是顶点时，才创建一个点云
+            if (ind < surface_mesh->nVertices()) {
                 // 获取顶点坐标
-                auto pos = mesh->vertexPositions.getValue(ind);
+                auto pos = surface_mesh->vertexPositions.getValue(ind);
+                // 根据顶点坐标创建一个transform
+                transform = glm::translate(transform, pos);
                 // 创建一个点云
                 std::vector<glm::vec3> points;
-                points.push_back(pos);
-                currPickStructure =
-                    polyscope::registerPointCloud("picked point", points);
-            }
-            else if (ind < mesh->nVertices() + mesh->nFaces()) {
-                // 获取面的顶点索引和顶点坐标
-                ind = ind - mesh->nVertices();
-                auto start = mesh->faceIndsStart[ind];
-                auto D = mesh->faceIndsStart[ind + 1] - start;
-                std::vector<glm::vec3> vertices;
-                for (size_t j = 0; j < D; j++) {
-                    auto iV = mesh->faceIndsEntries[start + j];
-                    vertices.push_back(mesh->vertexPositions.getValue(iV));
-                }
-                // 创建一个折线
-                currPickStructure = polyscope::registerCurveNetworkLoop(
-                    "picked face", vertices);
-            }
-            else if (
-                ind < mesh->nVertices() + mesh->nFaces() + mesh->nEdges()) {
-                // TODO
-            }
-            else if (
-                ind < mesh->nVertices() + mesh->nFaces() + mesh->nEdges() +
-                          mesh->nHalfedges()) {
-                // TODO
-            }
-            else {
-                // TODO
+                points.push_back({ 0, 0, 0 });
+                curr_visualization_structure =
+                    polyscope::registerPointCloud("picked point", points)
+                        ->setEnabled(false)
+                        ->setTransformationGizmoEnabled(true);
             }
         }
         else if (type == "Point Cloud") {
-            // TODO
+            auto point_cloud =
+                dynamic_cast<polyscope::PointCloud*>(pickResult.first);
+            auto ind = pickResult.second;
+            auto pos = point_cloud->getPointPosition(ind);
+            std::vector<glm::vec3> points;
+            points.push_back(pos);
+            curr_visualization_structure =
+                polyscope::registerPointCloud("picked point", points)
+                    ->setEnabled(false)
+                    ->setTransformationGizmoEnabled(true);
         }
         else if (type == "Curve Network") {
-            // TODO
+            auto curve_network =
+                dynamic_cast<polyscope::CurveNetwork*>(pickResult.first);
+            auto ind = pickResult.second;
+            if (ind < curve_network->nNodes()) {
+                auto pos = curve_network->nodePositions.getValue(ind);
+                std::vector<glm::vec3> points;
+                points.push_back(pos);
+                curr_visualization_structure =
+                    polyscope::registerPointCloud("picked point", points)
+                        ->setEnabled(false)
+                        ->setTransformationGizmoEnabled(true);
+            }
         }
         else {
             // TODO
         }
-        if (currPickStructure != nullptr) {
-            currPickStructure->setTransform(transform);
+        if (curr_visualization_structure != nullptr) {
+            curr_visualization_structure->setTransform(transform);
+        }
+    }
+}
+
+void PolyscopeRenderer::UpdatePickStructure(
+    std::pair<polyscope::Structure*, size_t> pickResult)
+{
+    if (pickResult.first == nullptr ||
+        curr_visualization_structure == nullptr) {
+        return;
+    }
+    auto type = pickResult.first->typeName();
+    if (type == "Surface Mesh") {
+        auto surface_mesh =
+            dynamic_cast<polyscope::SurfaceMesh*>(pickResult.first);
+        auto ind = pickResult.second;
+        // 当选中的是顶点时，用点云的transform更新顶点的位置
+        if (ind < surface_mesh->nVertices()) {
+            // 获取原始网格和点云的变换矩阵
+            glm::mat4 meshTransform = pickResult.first->getTransform();  // T1
+            glm::mat4 pointTransform =
+                curr_visualization_structure->getTransform();  // T2'
+
+            // 新顶点位置 = T1^(-1) * T2' * {0,0,0,1}
+            glm::mat4 invMeshTransform = glm::inverse(meshTransform);
+            glm::vec4 newPos = invMeshTransform * pointTransform *
+                               glm::vec4(0.0f, 0.0f, 0.0f, 1.0f);
+
+            // 更新网格顶点位置
+            auto vertex_pos = surface_mesh->vertexPositions.data;
+            vertex_pos[ind] = newPos;
+            surface_mesh->updateVertexPositions(vertex_pos);
         }
     }
 }
@@ -326,6 +368,7 @@ void PolyscopeRenderer::VisualizePickResult(
 void PolyscopeRenderer::ProcessInputEvents()
 {
     input_transform_triggered = false;
+    input_pick_triggered = false;
 
     ImGuiIO& io = ImGui::GetIO();
 
@@ -355,6 +398,9 @@ void PolyscopeRenderer::ProcessInputEvents()
                     widgetCapturedMouse = tg->interactCustom(windowPos);
                     if (widgetCapturedMouse) {
                         input_transform_triggered = true;
+                        if (curr_visualization_structure) {
+                            UpdatePickStructure(pick_result[2]);
+                        }
                         break;
                     }
                 }
@@ -439,8 +485,10 @@ void PolyscopeRenderer::ProcessInputEvents()
             }
 
             // Click picks
+
+            // Left Ctrl + left click picks
             float dragIgnoreThreshold = 0.01;
-            if (ImGui::IsMouseReleased(0)) {
+            if (io.KeyCtrl && ImGui::IsMouseReleased(0)) {
                 // Don't pick at the end of a long drag
                 if (drag_distSince_last_release < dragIgnoreThreshold) {
                     // ImVec2 p = ImGui::GetMousePos();
@@ -448,8 +496,50 @@ void PolyscopeRenderer::ProcessInputEvents()
                     std::pair<polyscope::Structure*, size_t> pickResult =
                         polyscope::pick::pickAtScreenCoords(
                             glm::vec2{ p.x, p.y });
+                    if (pickResult.first != pick_result[0].first ||
+                        pickResult.second != pick_result[0].second) {
+                        input_pick_triggered = true;
+                    }
+                    pick_result[0] = pickResult;
+                }
+
+                // Reset the drag distance after any release
+                drag_distSince_last_release = 0.0;
+            }
+            // Left click picks
+            else if (ImGui::IsMouseReleased(0)) {
+                // Don't pick at the end of a long drag
+                if (drag_distSince_last_release < dragIgnoreThreshold) {
+                    // ImVec2 p = ImGui::GetMousePos();
+                    ImVec2 p = ImGui::GetMousePos() - window->Pos;
+                    std::pair<polyscope::Structure*, size_t> pickResult =
+                        polyscope::pick::pickAtScreenCoords(
+                            glm::vec2{ p.x, p.y });
+                    if (pickResult.first != pick_result[1].first ||
+                        pickResult.second != pick_result[1].second) {
+                        input_pick_triggered = true;
+                    }
                     polyscope::pick::setSelection(pickResult);
-                    // VisualizePickResult(pickResult);
+                    pick_result[1] = pickResult;
+                }
+
+                // Reset the drag distance after any release
+                drag_distSince_last_release = 0.0;
+            }
+            else if (ImGui::IsMouseReleased(2)) {
+                // Don't pick at the end of a long drag
+                if (drag_distSince_last_release < dragIgnoreThreshold) {
+                    // ImVec2 p = ImGui::GetMousePos();
+                    ImVec2 p = ImGui::GetMousePos() - window->Pos;
+                    std::pair<polyscope::Structure*, size_t> pickResult =
+                        polyscope::pick::pickAtScreenCoords(
+                            glm::vec2{ p.x, p.y });
+                    if (pickResult.first != pick_result[2].first ||
+                        pickResult.second != pick_result[2].second) {
+                        input_pick_triggered = true;
+                    }
+                    pick_result[2] = pickResult;
+                    VisualizePickVertexGizmo(pickResult);
                 }
 
                 // Reset the drag distance after any release
@@ -459,6 +549,13 @@ void PolyscopeRenderer::ProcessInputEvents()
             if (ImGui::IsMouseReleased(1)) {
                 if (drag_distSince_last_release < dragIgnoreThreshold) {
                     polyscope::pick::resetSelection();
+                    pick_result[0] = { nullptr, 0 };
+                    pick_result[1] = { nullptr, 0 };
+                    pick_result[2] = { nullptr, 0 };
+                    if (curr_visualization_structure != nullptr) {
+                        curr_visualization_structure->remove();
+                        curr_visualization_structure = nullptr;
+                    }
                 }
                 drag_distSince_last_release = 0.0;
             }

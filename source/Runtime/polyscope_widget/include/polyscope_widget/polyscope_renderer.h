@@ -34,6 +34,16 @@ class POLYSCOPE_WIDGET_API PolyscopeRenderer final : public IWidget {
         return input_transform_triggered;
     }
 
+    bool GetInputPickTriggered() const
+    {
+        return input_pick_triggered;
+    }
+
+    static std::vector<std::pair<polyscope::Structure*, size_t>> GetPickResult()
+    {
+        return pick_result;
+    }
+
    protected:
     ImGuiWindowFlags GetWindowFlag() override;
     const char* GetWindowName() override;
@@ -51,6 +61,7 @@ class POLYSCOPE_WIDGET_API PolyscopeRenderer final : public IWidget {
 
     bool enable_input_events = true;
     bool input_transform_triggered = false;
+    bool input_pick_triggered = false;
 
     bool is_active = false;
     bool is_hovered = false;
@@ -61,8 +72,12 @@ class POLYSCOPE_WIDGET_API PolyscopeRenderer final : public IWidget {
     void DrawMenuBar();
     void DrawFrame();
 
-    polyscope::Structure* currPickStructure = nullptr;
-    void VisualizePickResult(
+    static std::vector<std::pair<polyscope::Structure*, size_t>> pick_result;
+    polyscope::Structure* curr_visualization_structure = nullptr;
+
+    void VisualizePickVertexGizmo(
+        std::pair<polyscope::Structure*, size_t> pickResult);
+    void UpdatePickStructure(
         std::pair<polyscope::Structure*, size_t> pickResult);
 
     float drag_distSince_last_release = 0.0;

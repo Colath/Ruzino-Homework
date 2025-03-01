@@ -44,9 +44,17 @@ target_include_directories(imgui
     PUBLIC "${imgui_SOURCE_DIR}/backends"
     PUBLIC "${imgui_file_SOURCE_DIR}"
 )
-target_include_directories(imgui PUBLIC  "${CMAKE_CURRENT_SOURCE_DIR}/user_imgui")
+target_include_directories(imgui PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/user_imgui")
 target_compile_definitions(imgui PUBLIC IMGUI_USER_CONFIG="imgui_user_config.h")
-target_compile_definitions(imgui PRIVATE IMGUI_API=__declspec\(dllexport\))
+
+# target_compile_definitions(imgui PRIVATE IMGUI_API=__declspec\(dllexport\))
+if(MSVC)
+    target_compile_definitions(imgui PRIVATE IMGUI_API=__declspec\(dllexport\))
+else()
+    target_compile_definitions(imgui PRIVATE IMGUI_API=__attribute__\(\(visibility\(\"default\"\)\)\))
+    target_compile_options(imgui PRIVATE -fvisibility=hidden)
+endif()
+
 target_link_libraries(imgui PUBLIC glfw Vulkan::Headers)
 target_compile_definitions(imgui PUBLIC IMGUI_IMPL_VULKAN_NO_PROTOTYPES=1)
 set_target_properties(imgui PROPERTIES FOLDER "external" ${OUTPUT_DIR})
@@ -73,7 +81,6 @@ add_subdirectory(stb_image)
 add_subdirectory(polyscope)
 set_target_properties(polyscope PROPERTIES ${OUTPUT_DIR})
 set_target_properties(glad PROPERTIES ${OUTPUT_DIR})
-
 
 # libigl
 set(LIBIGL_RESTRICTED_TRIANGLE ON CACHE BOOL "" FORCE)
