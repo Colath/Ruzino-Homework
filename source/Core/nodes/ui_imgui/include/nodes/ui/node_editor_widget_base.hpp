@@ -25,6 +25,8 @@ class NodeEditorWidgetBase : public IWidget {
     NodeTree* tree_;
 
     static const int m_PinIconSize = 20;
+
+    unsigned _level = 0;
 };
 
 USTC_CG_NAMESPACE_CLOSE_SCOPE

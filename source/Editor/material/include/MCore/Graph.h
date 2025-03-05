@@ -106,7 +106,6 @@ class Graph : public NodeEditorWidgetBase {
         int viewWidth,
         int viewHeight);
 
-    mx::DocumentPtr loadDocument(const mx::FilePath& filename);
     void drawGraph(ImVec2 mousePos);
 
     // RenderViewPtr getRenderer()
@@ -119,6 +118,8 @@ class Graph : public NodeEditorWidgetBase {
         _fontScale = val;
     }
 
+    using UiNode = Node;
+
     ~Graph() { };
 
    private:
@@ -127,8 +128,6 @@ class Graph : public NodeEditorWidgetBase {
 
     // Generate node UI from nodedefs
     void createNodeUIList(mx::DocumentPtr doc);
-
-
 
     // Based on the comment node in the ImGui Node Editor
     // blueprints-example.cpp.
@@ -290,20 +289,10 @@ class Graph : public NodeEditorWidgetBase {
     void showHelp() const;
 
    private:
-    mx::StringVec _geomFilter;
     mx::StringVec _mtlxFilter;
     mx::StringVec _imageFilter;
 
     // RenderViewPtr _renderer;
-
-    // document and initializing information
-    mx::FilePath _materialFilename;
-    mx::DocumentPtr _graphDoc;
-    mx::StringSet _xincludeFiles;
-
-    mx::FileSearchPath _searchPath;
-    mx::FilePathVec _libraryFolders;
-    mx::DocumentPtr _stdLib;
 
     // image information
     mx::ImagePtr _image;
