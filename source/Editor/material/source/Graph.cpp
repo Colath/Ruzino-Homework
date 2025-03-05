@@ -2948,16 +2948,16 @@ void Graph::drawGraph(ImVec2 mousePos)
         _prevUiNode = nullptr;
         _fileDialog.clearSelected();
 
-        _renderer->setDocument(_graphDoc);
-        _renderer->updateMaterials(nullptr);
+        //_renderer->setDocument(_graphDoc);
+        //_renderer->updateMaterials(nullptr);
     }
 
     _fileDialogGeom.display();
     if (_fileDialogGeom.hasSelected()) {
         mx::FilePath fileName = _fileDialogGeom.getSelected();
         _fileDialogGeom.clearSelected();
-        _renderer->loadMesh(fileName);
-        _renderer->updateMaterials(nullptr);
+        //_renderer->loadMesh(fileName);
+        //_renderer->updateMaterials(nullptr);
     }
 
     _fileDialogImage.display();
