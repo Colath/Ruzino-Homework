@@ -127,4 +127,11 @@ MCORE_API std::shared_ptr<MaterialXNodeTree> createMaterialXNodeTree(
 // Create a more user-friendly node definition name
 MCORE_API std::string getUserNodeDefName(const std::string& val);
 
+MCORE_API mx::NodePtr getMaterialXNode(Node* node);
+MCORE_API mx::NodeGraphPtr getMaterialXNodeGraph(Node* node);
+MCORE_API mx::InputPtr getMaterialXInput(Node* node);
+MCORE_API mx::OutputPtr getMaterialXOutput(Node* node);
+MCORE_API mx::InputPtr getMaterialXPinInput(NodeSocket* socket);
+MCORE_API mx::OutputPtr getMaterialXPinOutput(NodeSocket* socket);
+
 USTC_CG_NAMESPACE_CLOSE_SCOPE

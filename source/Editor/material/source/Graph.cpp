@@ -1915,13 +1915,13 @@ void MaterialXNodeTreeWidget::graphButtons()
 
 void MaterialXNodeTreeWidget::propertyEditor()
 {
-    // Get parent dimensions
+    //// Get parent dimensions
     // ImVec2 textPos =
     //     ImGui::GetCursorScreenPos();  // Position for the background
     // float parentWidth =
     //     ImGui::GetContentRegionAvail().x;  // Available width in the parent
 
-    // Draw the title bar
+    //// Draw the title bar
     // const ImGuiStyle& style = ImGui::GetStyle();
     // ImVec4 menuBarBgColor = style.Colors[ImGuiCol_MenuBarBg];
     // ImU32 bgColor = ImGui::ColorConvertFloat4ToU32(
@@ -1947,9 +1947,9 @@ void MaterialXNodeTreeWidget::propertyEditor()
     //    std::string docString = "NodeDef Doc String: \n";
     //    if (getMaterialXNode(_currUiNode)) {
     //        if (temp != original) {
-    //            std::string name =
-    //                getMaterialXNode(_currUiNode)->getParent()->createValidChildName(
-    //                    temp);
+    //            std::string name = getMaterialXNode(_currUiNode)
+    //                                   ->getParent()
+    //                                   ->createValidChildName(temp);
 
     //            std::vector<UiNodePtr> downstreamNodes =
     //                _currUiNode->getOutputConnections();
@@ -2031,7 +2031,8 @@ void MaterialXNodeTreeWidget::propertyEditor()
     //                    std::vector<UiPinPtr> inputs = node->inputPins;
     //                    for (size_t i = 0; i < inputs.size(); i++) {
     //                        const std::string& inputName =
-    //                        inputs[i]->identifier; UiNodePtr inputNode =
+    //                            inputs[i]->identifier;
+    //                        UiNodePtr inputNode =
     //                            node->getConnectedNode(inputName);
     //                        if (inputNode && inputNode->getName() == name &&
     //                            getMaterialXNode(node)) {
@@ -2063,15 +2064,15 @@ void MaterialXNodeTreeWidget::propertyEditor()
     //        ImGuiCol_ButtonHovered, ImVec4(.1f, .1f, .1f, 1.0f));
     //    if (getMaterialXNode(_currUiNode)) {
     //        ImGui::NextColumn();
-    //        ImGui::Text("%s",
-    //        getMaterialXNode(_currUiNode)->getCategory().c_str()); docString
-    //        += getMaterialXNode(_currUiNode)->getCategory(); if
-    //        (getMaterialXNode(_currUiNode)->getNodeDef()) {
+    //        ImGui::Text(
+    //            "%s", getMaterialXNode(_currUiNode)->getCategory().c_str());
+    //        docString += getMaterialXNode(_currUiNode)->getCategory();
+    //        if (getMaterialXNode(_currUiNode)->getNodeDef()) {
     //            docString += ":";
-    //            docString +=
-    //                getMaterialXNode(_currUiNode)->getNodeDef()->getDocString()
-    //                +
-    //                "\n";
+    //            docString += getMaterialXNode(_currUiNode)
+    //                             ->getNodeDef()
+    //                             ->getDocString() +
+    //                         "\n";
     //        }
     //        if (ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled)) {
     //            ImGui::SetTooltip(
@@ -2088,8 +2089,8 @@ void MaterialXNodeTreeWidget::propertyEditor()
     //        for (UiPinPtr input : _currUiNode->inputPins) {
     //            if (_currUiNode->_showAllInputs ||
     //                (input->getConnected() ||
-    //                 getMaterialXNode(_currUiNode)->getInput(input->identifier)))
-    //                 {
+    //                 getMaterialXNode(_currUiNode)
+    //                     ->getInput(input->identifier))) {
     //                count++;
     //            }
     //        }
@@ -2104,21 +2105,22 @@ void MaterialXNodeTreeWidget::propertyEditor()
     //                for (UiPinPtr input : _currUiNode->inputPins) {
     //                    if (_currUiNode->_showAllInputs ||
     //                        (input->getConnected() ||
-    //                         getMaterialXNode(_currUiNode)->getInput(input->identifier)))
-    //                         {
+    //                         getMaterialXNode(_currUiNode)
+    //                             ->getInput(input->identifier))) {
     //                        ImGui::TableNextRow();
     //                        ImGui::TableNextColumn();
 
     //                        mx::UIProperties uiProperties;
     //                        mx::getUIProperties(
-    //                            getMaterialXPinInput(input), mx::EMPTY_STRING,
+    //                            getMaterialXPinInput(input),
+    //                            mx::EMPTY_STRING,
     //                            uiProperties);
     //                        std::string inputLabel =
     //                            !uiProperties.uiName.empty()
     //                                ? uiProperties.uiName
     //                                : getMaterialXPinInput(input)->getName();
-    //                        mx::OutputPtr out =
-    //                            getMaterialXPinInput(input)->getConnectedOutput();
+    //                        mx::OutputPtr out = getMaterialXPinInput(input)
+    //                                                ->getConnectedOutput();
 
     //                        // Set comment help box
     //                        ImGui::PushID(int(input->ID.Get()));
@@ -2126,7 +2128,8 @@ void MaterialXNodeTreeWidget::propertyEditor()
     //                        mx::InputPtr tempInt =
     //                            getMaterialXNode(_currUiNode)
     //                                ->getNodeDef()
-    //                                ->getActiveInput(getMaterialXPinInput(input)->getName());
+    //                                ->getActiveInput(
+    //                                    getMaterialXPinInput(input)->getName());
     //                        docString += input->identifier;
     //                        docString += ": ";
     //                        if (tempInt) {
@@ -2134,7 +2137,8 @@ void MaterialXNodeTreeWidget::propertyEditor()
     //                                getMaterialXNode(_currUiNode)
     //                                    ->getNodeDef()
     //                                    ->getActiveInput(
-    //                                        getMaterialXPinInput(input)->getName())
+    //                                        getMaterialXPinInput(input)
+    //                                            ->getName())
     //                                    ->getDocString();
     //                            if (newStr != mx::EMPTY_STRING) {
     //                                docString += newStr;
@@ -2146,7 +2150,8 @@ void MaterialXNodeTreeWidget::propertyEditor()
     //                        ImGui::TableNextColumn();
     //                        if (!input->getConnected()) {
     //                            setConstant(
-    //                                _currUiNode, getMaterialXPinInput(input),
+    //                                _currUiNode,
+    //                                getMaterialXPinInput(input),
     //                                uiProperties);
     //                        }
     //                        else {
@@ -2229,8 +2234,8 @@ void MaterialXNodeTreeWidget::propertyEditor()
     //        for (UiPinPtr input : inputs) {
     //            if (_currUiNode->_showAllInputs ||
     //                (input->getConnected() ||
-    //                 getMaterialXNodeGraph(_currUiNode)->getInput(input->identifier)))
-    //                 {
+    //                 getMaterialXNodeGraph(_currUiNode)
+    //                     ->getInput(input->identifier))) {
     //                count++;
     //            }
     //        }
@@ -2248,8 +2253,8 @@ void MaterialXNodeTreeWidget::propertyEditor()
     //                for (UiPinPtr input : inputs) {
     //                    if (_currUiNode->_showAllInputs ||
     //                        (input->getConnected() ||
-    //                         getMaterialXNodeGraph(_currUiNode)->getInput(
-    //                             input->identifier))) {
+    //                         getMaterialXNodeGraph(_currUiNode)
+    //                             ->getInput(input->identifier))) {
     //                        ImGui::TableNextRow();
     //                        ImGui::TableNextColumn();
 
@@ -2268,17 +2273,19 @@ void MaterialXNodeTreeWidget::propertyEditor()
 
     //                        docString +=
     //                            getMaterialXNodeGraph(_currUiNode)
-    //                                ->getActiveInput(getMaterialXPinInput(input)->getName())
+    //                                ->getActiveInput(
+    //                                    getMaterialXPinInput(input)->getName())
     //                                ->getDocString();
 
     //                        ImGui::TableNextColumn();
-    //                        if
-    //                        (!getMaterialXPinInput(input)->getConnectedNode()
-    //                        &&
-    //                            getMaterialXNodeGraph(_currUiNode)->getActiveInput(
-    //                                getMaterialXPinInput(input)->getName())) {
+    //                        if (!getMaterialXPinInput(input)
+    //                                 ->getConnectedNode() &&
+    //                            getMaterialXNodeGraph(_currUiNode)
+    //                                ->getActiveInput(getMaterialXPinInput(input)
+    //                                                     ->getName())) {
     //                            setConstant(
-    //                                _currUiNode, getMaterialXPinInput(input),
+    //                                _currUiNode,
+    //                                getMaterialXPinInput(input),
     //                                uiProperties);
     //                        }
     //                        else {
@@ -3056,128 +3063,6 @@ void MaterialXNodeTreeWidget::savePosition()
     //         }
     //     }
     // }
-}
-
-void MaterialXNodeTreeWidget::setRenderMaterial(UiNodePtr node)
-{
-    // For now only surface shaders and materials are considered renderable.
-    // This can be adjusted as desired to include being able to use outputs,
-    // and / a sub-graph in the nodegraph.
-    // const mx::StringSet RENDERABLE_TYPES = { mx::MATERIAL_TYPE_STRING,
-    //                                          mx::SURFACE_SHADER_TYPE_STRING
-    //                                          };
-
-    // Set render node right away is node is renderable
-    // if (getMaterialXNode(node) &&
-    // RENDERABLE_TYPES.count(getMaterialXNode(node)->getType())) {
-    //     // Only set new render node if different material has been selected
-    //     if (_currRenderNode != node) {
-    //         _currRenderNode = node;
-    //         _frameCount = ImGui::GetFrameCount();
-    //         _renderer->setMaterialCompilation(true);
-    //     }
-    // }
-
-    // Traverse downstream looking for the first renderable element.
-    // else {
-    //     mx::NodePtr mtlxNode = getMaterialXNode(node);
-    //     mx::NodeGraphPtr mtlxNodeGraph = getMaterialXNodeGraph(node);
-    //     mx::OutputPtr mtlxOutput = node->getOutput();
-    //     if (mtlxOutput) {
-    //         mx::ElementPtr parent = mtlxOutput->getParent();
-    //         if (parent->isA<mx::NodeGraph>())
-    //             mtlxNodeGraph = parent->asA<mx::NodeGraph>();
-    //         else if (parent->isA<mx::Node>())
-    //             mtlxNode = parent->asA<mx::Node>();
-    //     }
-    //     mx::StringSet testPaths;
-    //     if (mtlxNode) {
-    //         mx::ElementPtr parent = mtlxNode->getParent();
-    //         if (parent->isA<mx::NodeGraph>()) {
-    //             // There is no logic to support traversing from inside a
-    //             // functional graph to it's instance and hence downstream so
-    //             // skip this from consideration. The closest approach would
-    //             be
-    //             // to "flatten" all definitions to compound graphs.
-    //             mx::NodeGraphPtr parentGraph = parent->asA<mx::NodeGraph>();
-    //             if (parentGraph->getNodeDef()) {
-    //                 return;
-    //             }
-    //         }
-    //         testPaths.insert(mtlxNode->getNamePath());
-    //     }
-    //     else if (mtlxNodeGraph) {
-    //         testPaths.insert(mtlxNodeGraph->getNamePath());
-    //     }
-
-    //    mx::NodePtr foundNode = nullptr;
-    //    while (!testPaths.empty() && !foundNode) {
-    //        mx::StringSet nextPaths;
-    //        for (const std::string& testPath : testPaths) {
-    //            mx::ElementPtr testElem = _graphDoc->getDescendant(testPath);
-    //            mx::NodePtr testNode = testElem->asA<mx::Node>();
-    //            std::vector<mx::PortElementPtr> downstreamPorts;
-    //            if (testNode) {
-    //                downstreamPorts = testNode->getDownstreamPorts();
-    //            }
-    //            else {
-    //                mx::NodeGraphPtr testGraph =
-    //                testElem->asA<mx::NodeGraph>(); if (testGraph) {
-    //                    downstreamPorts = testGraph->getDownstreamPorts();
-    //                }
-    //            }
-
-    //            // Test all downstream ports. If the port's node is renderable
-    //            // then stop searching.
-    //            for (mx::PortElementPtr downstreamPort : downstreamPorts) {
-    //                mx::ElementPtr parent = downstreamPort->getParent();
-    //                if (parent) {
-    //                    mx::NodePtr downstreamNode = parent->asA<mx::Node>();
-    //                    if (downstreamNode) {
-    //                        mx::NodeDefPtr nodeDef =
-    //                            downstreamNode->getNodeDef();
-    //                        if (nodeDef) {
-    //                            if (RENDERABLE_TYPES.count(
-    //                                    nodeDef->getType())) {
-    //                                foundNode = downstreamNode;
-    //                                break;
-    //                            }
-    //                        }
-    //                    }
-    //                    if (!foundNode) {
-    //                        nextPaths.insert(parent->getNamePath());
-    //                    }
-    //                }
-    //            }
-    //            if (foundNode) {
-    //                break;
-    //            }
-    //        }
-
-    //        // Set up next set of nodes to search downstream
-    //        testPaths = nextPaths;
-    //    }
-
-    // Update rendering. If found use that node, otherwise
-    // use the current fallback of using the first renderable node.
-    // if (foundNode) {
-    //     for (auto uiNode : _graphNodes) {
-    //         if (getMaterialXNode(uiNode) == foundNode) {
-    //             if (_currRenderNode != uiNode) {
-    //                 _currRenderNode = uiNode;
-    //                 _frameCount = ImGui::GetFrameCount();
-    //                 _renderer->setMaterialCompilation(true);
-    //             }
-    //             break;
-    //         }
-    //     }
-    // }
-    // else {
-    //     _currRenderNode = nullptr;
-    //     _frameCount = ImGui::GetFrameCount();
-    //     _renderer->setMaterialCompilation(true);
-    // }
-    //}
 }
 
 USTC_CG_NAMESPACE_CLOSE_SCOPE

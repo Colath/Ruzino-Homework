@@ -234,9 +234,6 @@ class MCORE_API MaterialXNodeTreeWidget : public NodeEditorWidgetBase {
     // Compiling shaders message
     void shaderPopup();
 
-   // Set the node to display in render view based on selected node or
-    // nodegraph
-    void setRenderMaterial(UiNodePtr node);
 
     void clearGraph();
     void loadGraphFromFile(bool prompt);
