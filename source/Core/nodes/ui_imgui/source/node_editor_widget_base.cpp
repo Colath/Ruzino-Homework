@@ -384,19 +384,68 @@ void NodeEditorWidgetBase::connectLinks()
 
 ImColor NodeEditorWidgetBase::GetIconColor(SocketType type)
 {
-    auto hashColorComponent = [](const std::string& prefix,
-                                 const std::string& typeName) {
-        return static_cast<int>(
+    // Compute a hash for the hue based on type name.
+    auto hashHSVComponent = [](const std::string& prefix,
+                               const std::string& typeName) {
+        return static_cast<unsigned int>(
             entt::hashed_string{ (prefix + typeName).c_str() }.value());
     };
 
     const std::string typeName = get_type_name(type);
-    auto hashValue_r = hashColorComponent("r", typeName);
-    auto hashValue_g = hashColorComponent("g", typeName);
-    auto hashValue_b = hashColorComponent("b", typeName);
+    unsigned int hashHue = hashHSVComponent("h", typeName);
+    // Map the hash to a hue in [0, 360)
+    float hue = static_cast<float>(hashHue % 360);
+    // Set saturation and value to ensure colors are bright and not too dark.
+    float saturation = 0.8f;
+    float value = 0.9f;
 
-    return ImColor(
-        hashValue_r % 192 + 63, hashValue_g % 192 + 63, hashValue_b % 192 + 63);
+    // Lambda to convert HSV (h in degrees, s and v in [0, 1]) to RGB in [0,
+    // 255]
+    auto hsv2rgb = [](float h, float s, float v) -> std::tuple<int, int, int> {
+        float C = v * s;
+        float X = C * (1 - fabs(fmod(h / 60.0f, 2) - 1));
+        float m = v - C;
+        float r1 = 0, g1 = 0, b1 = 0;
+
+        if (h < 60) {
+            r1 = C;
+            g1 = X;
+            b1 = 0;
+        }
+        else if (h < 120) {
+            r1 = X;
+            g1 = C;
+            b1 = 0;
+        }
+        else if (h < 180) {
+            r1 = 0;
+            g1 = C;
+            b1 = X;
+        }
+        else if (h < 240) {
+            r1 = 0;
+            g1 = X;
+            b1 = C;
+        }
+        else if (h < 300) {
+            r1 = X;
+            g1 = 0;
+            b1 = C;
+        }
+        else {
+            r1 = C;
+            g1 = 0;
+            b1 = X;
+        }
+
+        int r = static_cast<int>((r1 + m) * 255);
+        int g = static_cast<int>((g1 + m) * 255);
+        int b = static_cast<int>((b1 + m) * 255);
+        return { r, g, b };
+    };
+
+    auto [r, g, b] = hsv2rgb(hue, saturation, value);
+    return ImColor(r, g, b);
 }
 
 void NodeEditorWidgetBase::DrawPinIcon(

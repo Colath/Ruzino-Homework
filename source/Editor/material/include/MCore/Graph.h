@@ -110,6 +110,8 @@ class MCORE_API MaterialXNodeTreeWidget : public NodeEditorWidgetBase {
 
     std::string GetWindowUniqueName() override;
 
+    void create_new_node(ImVec2 openPopupPosition) override;
+
    public:
     MaterialXNodeTreeWidget(const NodeWidgetSettings& desc);
     void drawGraph();
@@ -126,7 +128,7 @@ class MCORE_API MaterialXNodeTreeWidget : public NodeEditorWidgetBase {
 
     using UiNode = Node;
 
-    ~MaterialXNodeTreeWidget() { };
+    ~MaterialXNodeTreeWidget(){};
 
    private:
     // Generate node UI from nodedefs
@@ -191,7 +193,6 @@ class MCORE_API MaterialXNodeTreeWidget : public NodeEditorWidgetBase {
         UiNodePtr downNode,
         mx::InputPtr connectingInput);
 
-    void saveDocument(mx::FilePath filePath);
 
     // Set position attributes for nodes which changed position
     void savePosition();
@@ -233,14 +234,7 @@ class MCORE_API MaterialXNodeTreeWidget : public NodeEditorWidgetBase {
     // Compiling shaders message
     void shaderPopup();
 
-    void updateMaterials(
-        mx::InputPtr input = nullptr,
-        mx::ValuePtr value = nullptr);
-
-    // Allow for camera manipulation of render view window
-    void handleRenderViewInputs();
-
-    // Set the node to display in render view based on selected node or
+   // Set the node to display in render view based on selected node or
     // nodegraph
     void setRenderMaterial(UiNodePtr node);
 
@@ -279,7 +273,6 @@ class MCORE_API MaterialXNodeTreeWidget : public NodeEditorWidgetBase {
     // current nodes and nodegraphs
     UiNodePtr _currUiNode;
     UiNodePtr _prevUiNode;
-    mx::GraphElementPtr _currGraphElem;
     UiNodePtr _currRenderNode;
     std::vector<std::string> _currGraphName;
 
@@ -328,7 +321,7 @@ class MCORE_API MaterialXNodeTreeWidget : public NodeEditorWidgetBase {
     std::string _pinFilterType;
 
     // DPI scaling for fonts
-    float _fontScale;
+    float _fontScale = 1.0f;
 
     // Options
     bool _saveNodePositions;

@@ -40,6 +40,7 @@ class MCORE_API MaterialXNodeTree : public NodeTree {
 
         if (_graphDoc) {
             buildUiBaseGraph(_graphDoc);
+            _currGraphElem = _graphDoc;
         }
     }
 
@@ -114,9 +115,16 @@ class MCORE_API MaterialXNodeTree : public NodeTree {
 
     SocketType get_unique_socket_type(const char* name);
     unsigned int _uniqueSocketType = 0;
+
+    mx::GraphElementPtr _currGraphElem;
+
+    void saveDocument(mx::FilePath filePath);
 };
 
 MCORE_API std::shared_ptr<MaterialXNodeTree> createMaterialXNodeTree(
     const std::string& materialFilename);
+
+// Create a more user-friendly node definition name
+MCORE_API std::string getUserNodeDefName(const std::string& val);
 
 USTC_CG_NAMESPACE_CLOSE_SCOPE

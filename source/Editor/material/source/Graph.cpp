@@ -98,17 +98,6 @@ auto showLabel = [](const char* label, ImColor color) {
     ImGui::TextUnformatted(label);
 };
 
-// Create a more user-friendly node definition name
-std::string getUserNodeDefName(const std::string& val)
-{
-    const std::string ND_PREFIX = "ND_";
-    std::string result = val;
-    if (mx::stringStartsWith(val, ND_PREFIX)) {
-        result = val.substr(3, val.length());
-    }
-    return result;
-}
-
 //
 // Graph methods
 //
@@ -2372,105 +2361,103 @@ void MaterialXNodeTreeWidget::showHelp() const
 
 void MaterialXNodeTreeWidget::addNodePopup(bool cursor)
 {
-    // bool open_AddPopup = ImGui::IsWindowFocused(ImGuiFocusedFlags_RootWindow)
-    // &&
-    //                      ImGui::IsKeyReleased(ImGuiKey_Tab);
-    // static char input[32]{ "" };
-    // if (open_AddPopup) {
-    //     cursor = true;
-    //     ImGui::OpenPopup("add node");
-    // }
-    // if (ImGui::BeginPopup("add node")) {
-    //     ImGui::Text("Add Node");
-    //     ImGui::Separator();
-    //     if (cursor) {
-    //         ImGui::SetKeyboardFocusHere();
-    //     }
-    //     ImGui::InputText("##input", input, sizeof(input));
-    //     std::string subs(input);
+    bool open_AddPopup = ImGui::IsWindowFocused(ImGuiFocusedFlags_RootWindow) &&
+                         ImGui::IsKeyReleased(ImGuiKey_Tab);
+    static char input[32]{ "" };
+    if (open_AddPopup) {
+        cursor = true;
+        ImGui::OpenPopup("add node");
+    }
+    if (ImGui::BeginPopup("add node")) {
+        ImGui::Text("Add Node");
+        ImGui::Separator();
+        if (cursor) {
+            ImGui::SetKeyboardFocusHere();
+        }
+        ImGui::InputText("##input", input, sizeof(input));
+        std::string subs(input);
 
-    //    // Input string length
-    //    // Filter extra nodes - includes inputs, outputs, groups, and node
-    //    // graphs
-    //    const std::string NODEGRAPH_ENTRY = "Node Graph";
+        // Input string length
+        // Filter extra nodes - includes inputs, outputs, groups, and node
+        // graphs
+        const std::string NODEGRAPH_ENTRY = "Node Graph";
 
-    //    // Filter nodedefs and add to menu if matches filter
-    //    for (auto node : _nodesToAdd) {
-    //        // Filter out list of nodes
-    //        if (subs.size() > 0) {
-    //            ImGui::SetNextWindowSizeConstraints(
-    //                ImVec2(250.0f, 300.0f), ImVec2(-1.0f, 500.0f));
-    //            std::string str(node.getName());
-    //            std::string nodeName = node.getName();
+        auto mtlx_tree = static_cast<MaterialXNodeTree*>(tree_);
+        // Filter nodedefs and add to menu if matches filter
+        for (auto node : _nodesToAdd) {
+            // Filter out list of nodes
+            if (subs.size() > 0) {
+                ImGui::SetNextWindowSizeConstraints(
+                    ImVec2(250.0f, 300.0f), ImVec2(-1.0f, 500.0f));
+                std::string str(node.getName());
+                std::string nodeName = node.getName();
 
-    //            // Disallow creating nested nodegraphs
-    //            if (_isNodeGraph && node.getGroup() == NODEGRAPH_ENTRY) {
-    //                continue;
-    //            }
+                // Disallow creating nested nodegraphs
+                if (_isNodeGraph && node.getGroup() == NODEGRAPH_ENTRY) {
+                    continue;
+                }
 
-    //            // Allow spaces to be used to search for node names
-    //            std::replace(subs.begin(), subs.end(), ' ', '_');
+                // Allow spaces to be used to search for node names
+                std::replace(subs.begin(), subs.end(), ' ', '_');
 
-    //            if (str.find(subs) != std::string::npos) {
-    //                if (ImGui::MenuItem(getUserNodeDefName(nodeName).c_str())
-    //                ||
-    //                    (ImGui::IsItemFocused() &&
-    //                     ImGui::IsKeyPressedMap(ImGuiKey_Enter))) {
-    //                    addNode(
-    //                        node.getCategory(),
-    //                        getUserNodeDefName(nodeName),
-    //                        node.getType());
-    //                    _addNewNode = true;
-    //                    memset(input, '\0', sizeof(input));
-    //                }
-    //            }
-    //        }
-    //        else {
-    //            ImGui::SetNextWindowSizeConstraints(
-    //                ImVec2(100, 10), ImVec2(-1, 300));
-    //            if (ImGui::BeginMenu(node.getGroup().c_str())) {
-    //                ImGui::SetWindowFontScale(_fontScale);
-    //                std::string name = node.getName();
-    //                std::string prefix = "ND_";
-    //                if (name.compare(0, prefix.size(), prefix) == 0 &&
-    //                    name.compare(
-    //                        prefix.size(),
-    //                        std::string::npos,
-    //                        node.getCategory()) == 0) {
-    //                    if (ImGui::MenuItem(getUserNodeDefName(name).c_str())
-    //                    ||
-    //                        (ImGui::IsItemFocused() &&
-    //                         ImGui::IsKeyPressedMap(ImGuiKey_Enter))) {
-    //                        addNode(
-    //                            node.getCategory(),
-    //                            getUserNodeDefName(name),
-    //                            node.getType());
-    //                        _addNewNode = true;
-    //                    }
-    //                }
-    //                else {
-    //                    if (ImGui::BeginMenu(node.getCategory().c_str())) {
-    //                        if (ImGui::MenuItem(
-    //                                getUserNodeDefName(name).c_str()) ||
-    //                            (ImGui::IsItemFocused() &&
-    //                             ImGui::IsKeyPressedMap(ImGuiKey_Enter))) {
-    //                            addNode(
-    //                                node.getCategory(),
-    //                                getUserNodeDefName(name),
-    //                                node.getType());
-    //                            _addNewNode = true;
-    //                        }
-    //                        ImGui::EndMenu();
-    //                    }
-    //                }
+                if (str.find(subs) != std::string::npos) {
+                    if (ImGui::MenuItem(getUserNodeDefName(nodeName).c_str()) ||
+                        (ImGui::IsItemFocused() &&
+                         ImGui::IsKeyPressed(ImGuiKey_Enter))) {
+                        mtlx_tree->addNode(
+                            node.getCategory(),
+                            getUserNodeDefName(nodeName),
+                            node.getType());
+                        _addNewNode = true;
+                        memset(input, '\0', sizeof(input));
+                    }
+                }
+            }
+            else {
+                ImGui::SetNextWindowSizeConstraints(
+                    ImVec2(100, 10), ImVec2(-1, 300));
+                if (ImGui::BeginMenu(node.getGroup().c_str())) {
+                    ImGui::SetWindowFontScale(_fontScale);
+                    std::string name = node.getName();
+                    std::string prefix = "ND_";
+                    if (name.compare(0, prefix.size(), prefix) == 0 &&
+                        name.compare(
+                            prefix.size(),
+                            std::string::npos,
+                            node.getCategory()) == 0) {
+                        if (ImGui::MenuItem(getUserNodeDefName(name).c_str()) ||
+                            (ImGui::IsItemFocused() &&
+                             ImGui::IsKeyPressed(ImGuiKey_Enter))) {
+                            mtlx_tree->addNode(
+                                node.getCategory(),
+                                getUserNodeDefName(name),
+                                node.getType());
+                            _addNewNode = true;
+                        }
+                    }
+                    else {
+                        if (ImGui::BeginMenu(node.getCategory().c_str())) {
+                            if (ImGui::MenuItem(
+                                    getUserNodeDefName(name).c_str()) ||
+                                (ImGui::IsItemFocused() &&
+                                 ImGui::IsKeyPressed(ImGuiKey_Enter))) {
+                                mtlx_tree->addNode(
+                                    node.getCategory(),
+                                    getUserNodeDefName(name),
+                                    node.getType());
+                                _addNewNode = true;
+                            }
+                            ImGui::EndMenu();
+                        }
+                    }
 
-    //                ImGui::EndMenu();
-    //            }
-    //        }
-    //    }
-    //    ImGui::EndPopup();
-    //    open_AddPopup = false;
-    //}
+                    ImGui::EndMenu();
+                }
+            }
+        }
+        ImGui::EndPopup();
+        open_AddPopup = false;
+    }
 }
 
 void MaterialXNodeTreeWidget::searchNodePopup(bool cursor)
@@ -2620,10 +2607,17 @@ std::string MaterialXNodeTreeWidget::GetWindowUniqueName()
     return "MaterialXNodeTreeWidget";
 }
 
+void MaterialXNodeTreeWidget::create_new_node(ImVec2 openPopupPosition)
+{
+    addNodePopup(true);
+}
+
 MaterialXNodeTreeWidget::MaterialXNodeTreeWidget(const NodeWidgetSettings& desc)
     : NodeEditorWidgetBase(desc)
 {
     MaterialXNodeTreeWidget::initialize();
+    auto mtlx_tree = static_cast<MaterialXNodeTree*>(tree_);
+    createNodeUIList(mtlx_tree->get_mtlx_stdlib());
 }
 
 void MaterialXNodeTreeWidget::drawGraph()
@@ -3063,27 +3057,6 @@ void MaterialXNodeTreeWidget::savePosition()
     //     }
     // }
 }
-void MaterialXNodeTreeWidget::saveDocument(mx::FilePath filePath)
-{
-    // if (filePath.getExtension() != mx::MTLX_EXTENSION) {
-    //     filePath.addExtension(mx::MTLX_EXTENSION);
-    // }
-
-    // mx::DocumentPtr writeDoc = _graphDoc;
-
-    // If requested, create a modified version of the document for saving.
-    // if (!_saveNodePositions) {
-    //     writeDoc = _graphDoc->copy();
-    //     for (mx::ElementPtr elem : writeDoc->traverseTree()) {
-    //         elem->removeAttribute(mx::Element::XPOS_ATTRIBUTE);
-    //         elem->removeAttribute(mx::Element::YPOS_ATTRIBUTE);
-    //     }
-    // }
-
-    // mx::XmlWriteOptions writeOptions;
-    // writeOptions.elementPredicate = getElementPredicate();
-    // mx::writeToXmlFile(writeDoc, filePath, &writeOptions);
-}
 
 void MaterialXNodeTreeWidget::setRenderMaterial(UiNodePtr node)
 {
@@ -3207,84 +3180,4 @@ void MaterialXNodeTreeWidget::setRenderMaterial(UiNodePtr node)
     //}
 }
 
-void MaterialXNodeTreeWidget::updateMaterials(
-    mx::InputPtr input /* = nullptr */,
-    mx::ValuePtr value /* = nullptr */)
-{
-    // std::string renderablePath;
-    // if (_currRenderNode) {
-    //     if (getMaterialXNode(_currRenderNode)) {
-    //         renderablePath =
-    //         getMaterialXNode(_currRenderNode)->getNamePath();
-    //     }
-    //     else if (_currRenderNode->getOutput()) {
-    //         renderablePath = _currRenderNode->getOutput()->getNamePath();
-    //     }
-    // }
-
-    // if (renderablePath.empty()) {
-    //     _renderer->updateMaterials(nullptr);
-    // }
-    // else {
-    //     if (!input) {
-    //         mx::ElementPtr elem = nullptr;
-    //         {
-    //             elem = _graphDoc->getDescendant(renderablePath);
-    //         }
-    //         mx::TypedElementPtr typedElem =
-    //             elem ? elem->asA<mx::TypedElement>() : nullptr;
-    //         _renderer->updateMaterials(typedElem);
-    //     }
-    //     else {
-    //         std::string name = input->getNamePath();
-
-    //        // Note that if there is a topogical change due to
-    //        // this value change or a transparency change, then
-    //        // this is not currently caught here.
-    //        _renderer->getMaterials()[0]->modifyUniform(name, value);
-    //    }
-    //}
-}
-
-void MaterialXNodeTreeWidget::handleRenderViewInputs()
-{
-    // ImVec2 mousePos = ImGui::GetMousePos();
-    // mx::Vector2 mxMousePos = mx::Vector2(mousePos.x, mousePos.y);
-    // float scrollAmt = ImGui::GetIO().MouseWheel;
-    // int button = -1;
-    // bool down = false;
-    // if (ImGui::IsMouseDragging(0) || ImGui::IsMouseDragging(1)) {
-    //     _renderer->setMouseMotionEvent(mxMousePos);
-    // }
-    // if (ImGui::IsMouseClicked(0)) {
-    //     button = 0;
-    //     down = true;
-    //     _renderer->setMouseButtonEvent(button, down, mxMousePos);
-    // }
-    // else if (ImGui::IsMouseClicked(1)) {
-    //     button = 1;
-    //     down = true;
-    //     _renderer->setMouseButtonEvent(button, down, mxMousePos);
-    // }
-    // else if (ImGui::IsMouseReleased(0)) {
-    //     button = 0;
-    //     _renderer->setMouseButtonEvent(button, down, mxMousePos);
-    // }
-    // else if (ImGui::IsMouseReleased(1)) {
-    //     button = 1;
-    //     _renderer->setMouseButtonEvent(button, down, mxMousePos);
-    // }
-    // else if (ImGui::IsKeyPressed(ImGuiKey_KeypadAdd)) {
-    //     _renderer->setKeyEvent(ImGuiKey_KeypadAdd);
-    // }
-    // else if (ImGui::IsKeyPressed(ImGuiKey_KeypadSubtract)) {
-    //     _renderer->setKeyEvent(ImGuiKey_KeypadSubtract);
-    // }
-
-    // Scrolling not possible if open or save file dialog is open
-    // if (scrollAmt != 0 && !_fileDialogSave.isOpened() &&
-    //     !_fileDialog.isOpened() && !_fileDialogGeom.isOpened()) {
-    //     _renderer->setScrollEvent(scrollAmt);
-    // }
-}
 USTC_CG_NAMESPACE_CLOSE_SCOPE
