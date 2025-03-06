@@ -97,7 +97,7 @@ class MenuItem {
 // };
 
 class MCORE_API MaterialXNodeTreeWidget : public NodeEditorWidgetBase {
-protected:
+   protected:
     // Graph(
     //     const std::string& materialFilename,
     //     const std::string& meshFilename,
@@ -110,9 +110,7 @@ protected:
 
     std::string GetWindowUniqueName() override;
 
-    bool draw_socket_controllers(NodeSocket* input) override;
-
-public:
+   public:
     MaterialXNodeTreeWidget(const NodeWidgetSettings& desc);
     void drawGraph();
 

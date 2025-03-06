@@ -111,6 +111,9 @@ class MCORE_API MaterialXNodeTree : public NodeTree {
     mx::FileSearchPath _searchPath;
     mx::FilePathVec _libraryFolders;
     mx::DocumentPtr _stdLib;
+
+    SocketType get_unique_socket_type(const char* name);
+    unsigned int _uniqueSocketType = 0;
 };
 
 MCORE_API std::shared_ptr<MaterialXNodeTree> createMaterialXNodeTree(

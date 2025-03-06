@@ -33,7 +33,10 @@ class NODES_UI_IMGUI_API NodeEditorWidgetBase : public IWidget {
     }
     virtual bool draw_socket_controllers(NodeSocket* input)
     {
-        return true;
+        ImGui::TextUnformatted(input->ui_name);
+        ImGui::Spring(0);
+
+        return false;
     }
 
     virtual void execute_tree(Node* node)

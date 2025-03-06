@@ -1,6 +1,9 @@
 #include "MCore/MaterialXNodeTree.hpp"
 
+#include "foo_socket_types.inl"
+
 USTC_CG_NAMESPACE_OPEN_SCOPE
+
 std::shared_ptr<MaterialXNodeTree> createMaterialXNodeTree(
     const std::string& materialFilename)
 {
@@ -75,6 +78,7 @@ NodeSocket* MaterialXSocketDeclaration::build(NodeTree* ntree, Node* node) const
         this->identifier.c_str(),
         this->name.c_str(),
         this->in_out);
+    socket->type_info = type;
     update_default_value(socket);
 
     return socket;
@@ -523,15 +527,13 @@ void MaterialXNodeTree::setUiNodeInfo(
         [&](auto socketElement, PinKind kind, auto& targetVector) {
             auto socketDecl = std::make_shared<MaterialXSocketDeclaration>();
             std::string socketName = socketElement->getName();
-            std::string socketCategory = socketElement->getCategory();
+            std::string socketCategory = socketElement->getType();
 
             socketDecl->name = socketName;
             socketDecl->identifier = socketName;
             // Setup type using socket category.
-            entt::meta<void>(get_entt_ctx())
-                .type(entt::hashed_string(socketCategory.c_str()));
-            socketDecl->type =
-                get_socket_type(entt::hashed_string(socketCategory.c_str()));
+
+            socketDecl->type = get_unique_socket_type(socketCategory.c_str());
             socketDecl->in_out = kind;
 
             node->typeinfo->static_declaration.items.push_back(socketDecl);

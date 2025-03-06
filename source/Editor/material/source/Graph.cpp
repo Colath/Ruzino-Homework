@@ -2620,14 +2620,6 @@ std::string MaterialXNodeTreeWidget::GetWindowUniqueName()
     return "MaterialXNodeTreeWidget";
 }
 
-bool MaterialXNodeTreeWidget::draw_socket_controllers(NodeSocket* input)
-{
-    ImGui::TextUnformatted(input->ui_name);
-    ImGui::Spring(0);
-
-    return false;
-}
-
 MaterialXNodeTreeWidget::MaterialXNodeTreeWidget(const NodeWidgetSettings& desc)
     : NodeEditorWidgetBase(desc)
 {
