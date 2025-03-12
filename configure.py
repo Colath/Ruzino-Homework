@@ -12,7 +12,7 @@ def copytree_common_to_binaries(folder, target="Debug", dst=None, dry_run=False)
     if dry_run:
         print(f"[DRY RUN] Would copy {folder} to {dst_path}")
     else:
-        src_path = os.path.join(root_dir, "SDK", folder)
+        src_path = os.path.join(os.path.dirname(__file__), "SDK", folder)
         for root, dirs, files in os.walk(src_path):
             relative_path = os.path.relpath(root, src_path)
             dst_dir = os.path.join(dst_path, relative_path)
@@ -181,8 +181,8 @@ import concurrent.futures
 
 
 def pack_sdk(dry_run=False):
-    src_dir = os.path.join(os.getcwd(), "SDK")
-    dst_dir = os.path.join(os.getcwd(), "SDK_temp")
+    src_dir = os.path.join(os.path.dirname(__file__), "SDK")
+    dst_dir = os.path.join(os.path.dirname(__file__), "SDK_temp")
 
     def copy_file(src_file, dst_file):
         if dry_run:
