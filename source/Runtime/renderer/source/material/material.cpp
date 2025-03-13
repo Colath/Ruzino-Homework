@@ -3,6 +3,7 @@
 #include <pxr/imaging/hd/material.h>
 #include <pxr/imaging/hd/materialNetwork2Interface.h>
 #include <pxr/imaging/hdMtlx/hdMtlx.h>
+#include <pxr/imaging/hio/image.h>
 #include <pxr/usdImaging/usdImaging/tokens.h>
 
 #include "MaterialX/SlangShaderGenerator.h"
@@ -577,6 +578,57 @@ static void _FixNodeValues(HdMaterialNetwork2Interface* netInterface)
     }
 }
 
+void Hd_USTC_CG_Material::CollectTextures(
+    HdMaterialNetwork2Interface netInterface,
+    HdMtlxTexturePrimvarData hdMtlxData)
+{
+    // Collect texture names and paths into a vector.
+    for (const SdfPath& texturePath : hdMtlxData.hdTextureNodes) {
+        TfToken textureNodeName = texturePath.GetToken();
+        // Get the file parameter from the node.
+        VtValue vFile =
+            netInterface.GetNodeParameterValue(textureNodeName, _tokens->file);
+        std::string path;
+        if (vFile.IsHolding<SdfAssetPath>()) {
+            path = vFile.Get<SdfAssetPath>().GetResolvedPath();
+            if (path.empty()) {
+                path = vFile.Get<SdfAssetPath>().GetAssetPath();
+            }
+        }
+        else if (vFile.IsHolding<std::string>()) {
+            path = vFile.Get<std::string>();
+        }
+        texturePaths[textureNodeName.GetString()] = path;
+    }
+}
+
+void Hd_USTC_CG_Material::LoadTextures()
+{
+    for (const auto& tex : texturePaths) {
+        const std::string& textureName = tex.first;
+        const std::string& filePath = tex.second;
+
+        if (!pxr::HioImage::IsSupportedImageFile(filePath)) {
+            TF_WARN(
+                "Texture '%s': unsupported file format '%s'.",
+                textureName.c_str(),
+                filePath.c_str());
+            continue;
+        }
+
+        HioImageSharedPtr image = pxr::HioImage::OpenForReading(filePath);
+        if (!image) {
+            TF_WARN(
+                "Texture '%s': failed to load image from file '%s'.",
+                textureName.c_str(),
+                filePath.c_str());
+            continue;
+        }
+
+        textureImages[textureName] = image;
+    }
+}
+
 void Hd_USTC_CG_Material::Sync(
     HdSceneDelegate* sceneDelegate,
     HdRenderParam* renderParam,
@@ -623,6 +675,9 @@ void Hd_USTC_CG_Material::Sync(
         _UpdateTextureNodes(
             &netInterface, hdMtlxData.hdTextureNodes, mtlx_document);
 
+        CollectTextures(netInterface, hdMtlxData);
+        LoadTextures();
+
         assert(mtlx_document);
 
         using namespace mx;
@@ -652,14 +707,9 @@ void Hd_USTC_CG_Material::Sync(
 
         ShaderGenerator& shader_generator_ =
             shader_gen_context_->getShaderGenerator();
-        auto shader = shader_generator_.generate(
+        shader = shader_generator_.generate(
             elementName, element, *shader_gen_context_);
-
-        auto source_code = shader->getSourceCode();
-
-        std::cout << "Generated Shader: " << source_code << std::endl;
     }
-
     *dirtyBits = HdChangeTracker::Clean;
 }
 

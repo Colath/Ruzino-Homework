@@ -5,6 +5,8 @@
 #include "map.h"
 #include "pxr/imaging/garch/glApi.h"
 #include "pxr/imaging/hd/material.h"
+#include "pxr/imaging/hd/materialNetwork2Interface.h"
+#include "pxr/imaging/hdMtlx/hdMtlx.h"
 #include "pxr/imaging/hio/image.h"
 
 namespace pxr {
@@ -32,6 +34,16 @@ class HD_USTC_CG_API Hd_USTC_CG_Material : public HdMaterial {
 
    private:
     HdMaterialNetwork2 surfaceNetwork;
+    MaterialX::ShaderPtr shader;
+    std::unordered_map<std::string, std::string> texturePaths;
+
+    std::unordered_map<std::string, HioImageSharedPtr> textureImages;
+
+    void CollectTextures(
+        HdMaterialNetwork2Interface netInterface,
+        HdMtlxTexturePrimvarData hdMtlxData);
+
+    void LoadTextures();
 
     static MaterialX::GenContextPtr shader_gen_context_;
     static MaterialX::DocumentPtr libraries;
