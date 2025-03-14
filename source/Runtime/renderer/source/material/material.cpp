@@ -11,7 +11,9 @@
 #include "MaterialXFormat/Util.h"
 #include "MaterialXGenShader/Shader.h"
 #include "MaterialXGenShader/Util.h"
+#include "RHI/Hgi/format_conversion.hpp"
 #include "api.h"
+#include "nvrhi/nvrhi.h"
 #include "pxr/base/arch/fileSystem.h"
 #include "pxr/base/arch/hash.h"
 #include "pxr/base/arch/library.h"
@@ -516,8 +518,6 @@ static void _FixNodeTypes(HdMaterialNetwork2Interface* netInterface)
     const TfTokenVector nodeNames = netInterface->GetNodeNames();
     for (TfToken const& nodeName : nodeNames) {
         TfToken nodeType = netInterface->GetNodeType(nodeName);
-        std::cout << "node name: " << nodeName.GetString()
-                  << " node type: " << nodeType.GetString() << std::endl;
 
         if (TfStringStartsWith(nodeType.GetText(), "Usd")) {
             if (nodeType == _tokens->UsdPrimvarReader_float2) {
@@ -539,7 +539,6 @@ static void _FixNodeValues(HdMaterialNetwork2Interface* netInterface)
     // Fix textures wrap mode from repeat to periodic, because MaterialX does
     // not support repeat mode.
     const TfTokenVector nodeNames = netInterface->GetNodeNames();
-    std::cout << "Fixing node values" << std::endl;
     for (TfToken const& nodeName : nodeNames) {
         TfToken nodeType = netInterface->GetNodeType(nodeName);
         if (nodeType == _tokens->ND_UsdUVTexture) {
@@ -572,9 +571,6 @@ static void _FixNodeValues(HdMaterialNetwork2Interface* netInterface)
                     nodeName, pxr::TfToken("specular"));
             }
         }
-
-        std::cout << "node name: " << nodeName.GetString()
-                  << " node type: " << nodeType.GetString() << std::endl;
     }
 }
 
@@ -625,7 +621,56 @@ void Hd_USTC_CG_Material::LoadTextures()
             continue;
         }
 
-        textureImages[textureName] = image;
+        textureResources[textureName].filePath = filePath;
+        textureResources[textureName].image = image;
+    }
+}
+
+void Hd_USTC_CG_Material::BuildGPUTextures(Hd_USTC_CG_RenderParam* render_param)
+{
+    auto descriptor_table =
+        render_param->InstanceCollection->get_descriptor_table();
+    auto device = RHI::get_device();
+
+    auto command_list = device->createCommandList();
+
+    for (auto& texture_resource : textureResources) {
+        auto image = texture_resource.second.image;
+        nvrhi::TextureDesc desc;
+        desc.width = image->GetWidth();
+        desc.height = image->GetHeight();
+        desc.format = RHI::ConvertFromHioFormat(image->GetFormat());
+
+        desc.initialState = nvrhi::ResourceStates::ShaderResource;
+        desc.isRenderTarget = false;
+
+        texture_resource.second.texture = device->createTexture(desc);
+
+        auto storage_byte_size = image->GetBytesPerPixel();
+        if (image->GetFormat() == HioFormatUNorm8Vec3srgb)
+            storage_byte_size = 4;
+
+        std::vector<uint8_t> data(
+            image->GetWidth() * image->GetHeight() * storage_byte_size, 0);
+
+        HioImage::StorageSpec storageSpec;
+
+        storageSpec.width = image->GetWidth();
+        storageSpec.height = image->GetHeight();
+        storageSpec.format = image->GetFormat();
+        storageSpec.flipped = false;
+        storageSpec.data = data.data();
+
+        texture_resource.second.image->Read(storageSpec);
+
+        auto [gpu_texture, staging] = RHI::load_texture(desc, storageSpec.data);
+
+        texture_resource.second.texture = gpu_texture;
+
+        texture_resource.second.descriptor =
+            descriptor_table->CreateDescriptorHandle(
+                nvrhi::BindingSetItem::Texture_SRV(
+                    0, texture_resource.second.texture, desc.format));
     }
 }
 
@@ -653,14 +698,6 @@ void Hd_USTC_CG_Material::Sync(
     HdMaterialNode2 const* surfTerminal =
         _GetTerminalNode(hdNetwork, terminalNodeName, &surfTerminalPath);
 
-    std::cout << surfTerminal->nodeTypeId.GetString() << std::endl;
-    std::cout << surfTerminalPath.GetString() << std::endl;
-
-    for (const auto& node : hdNetwork.nodes) {
-        std::cout << node.first.GetString() << std::endl;
-        std::cout << node.second.nodeTypeId.GetString() << std::endl;
-    }
-
     if (surfTerminal) {
         HdMtlxTexturePrimvarData hdMtlxData;
         MaterialX::DocumentPtr mtlx_document =
@@ -677,6 +714,7 @@ void Hd_USTC_CG_Material::Sync(
 
         CollectTextures(netInterface, hdMtlxData);
         LoadTextures();
+        BuildGPUTextures(static_cast<Hd_USTC_CG_RenderParam*>(renderParam));
 
         assert(mtlx_document);
 
@@ -685,11 +723,6 @@ void Hd_USTC_CG_Material::Sync(
 
         auto shaders =
             mtlx_document->getNodesOfType(SURFACE_SHADER_TYPE_STRING);
-
-        std::cout << "Material Document: " << materials[0]->asString()
-                  << std::endl;
-
-        std::cout << "Shader: " << shaders[0]->asString() << std::endl;
 
         auto renderable = mx::findRenderableElements(mtlx_document);
         auto element = renderable[0];
