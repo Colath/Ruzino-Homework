@@ -29,6 +29,7 @@ int main(int argc, char* argv[])
 {
     cmdline::parser parser;
     parser.add<std::string>("stage", 's', "Custom stage file", false, "");
+    parser.add<std::string>("gtest_color", 0x00,"Useless. Don't care", false, "");
     parser.parse_check(argc, argv);
     std::string stage_filename{parser.get<std::string>("stage")};
     // if the length == 0, use the default stage file
