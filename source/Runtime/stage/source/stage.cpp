@@ -49,6 +49,7 @@ Stage::Stage()
         abs_path = executable_path / abs_path;
     }
     abs_path = abs_path.lexically_normal();
+    m_stage_path = abs_path.string();
 
     // if stage.usda exists, load it
     stage = pxr::UsdStage::Open(abs_path.string());
@@ -72,6 +73,7 @@ Stage::Stage(const std::string& stage_path)
         return;
     }
     abs_path = abs_path.lexically_normal();
+    m_stage_path = abs_path.string();
     // if stage.usda exists, load it
     stage = pxr::UsdStage::Open(abs_path.string());
     if (stage) {
@@ -80,6 +82,7 @@ Stage::Stage(const std::string& stage_path)
     stage = pxr::UsdStage::CreateNew(abs_path.string());
     stage->SetMetadata(pxr::UsdGeomTokens->metersPerUnit, 1.0);
     stage->SetMetadata(pxr::UsdGeomTokens->upAxis, pxr::TfToken("Z"));
+
 }
 
 Stage::~Stage()

@@ -27,6 +27,7 @@ using namespace USTC_CG;
  * */
 int main(int argc, char* argv[])
 {
+    // parse the arguments
     cmdline::parser parser;
     parser.add<std::string>("stage", 's', "Custom stage file", false, "");
     parser.add<std::string>("gtest_color", 0x00,"Useless. Don't care", false, "");
@@ -40,7 +41,7 @@ int main(int argc, char* argv[])
     log::EnableOutputToConsole(true);
 
     std::unique_ptr<Stage> stage;
-//    auto stage = create_global_stage();
+    // load the stage file
     if (stage_filename.empty()) {stage = create_global_stage();log::info("Use the default stage file!");}
     else {stage = create_custom_global_stage(stage_filename);log::info("Use the custom stage file! %s", stage_filename.c_str());}
     init(stage.get());
@@ -83,16 +84,17 @@ int main(int argc, char* argv[])
             loaded = system->load_configuration("polyscope_nodes.json");
             loaded = system->load_configuration("optimization.json");
 
+            // loading the submission from students
             namespace fs = std::filesystem;
             std::regex submission_suffix(R"(.*_nodes_hw_submissions\.json)");
-            std::cerr << "[INFO] LOADING SUBMISSIONS"<< "\n";
-
+            log::info("LOADING SUBMISSIONS");
             for (auto &itr: fs::directory_iterator(".")){
                 if (std::regex_match(itr.path().string(), submission_suffix)){
-                    std::cerr << "[INFO] Found:"<< itr.path() <<"\n";
+                    log::info("Found: %s", itr.path().string().c_str());
                     loaded = system->load_configuration(itr.path());
                 }
             }
+            // finished
 
             system->init();
             system->set_node_tree_executor(create_node_tree_executor({}));
@@ -100,7 +102,10 @@ int main(int argc, char* argv[])
             GeomPayload geom_global_params;
             geom_global_params.stage = stage->get_usd_stage();
             geom_global_params.prim_path = json_path;
+            geom_global_params.stage_filepath_ = stage->GetStagePath();
+//            log::warning("Path in the payload is %s", geom_global_params.stage_filepath_.c_str());
 
+            // add the stage path to the payload
             system->set_global_params(geom_global_params);
 
             UsdBasedNodeWidgetSettings desc;

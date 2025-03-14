@@ -57,8 +57,11 @@ class STAGE_API Stage {
     void import_usd(
         const std::string& path_string,
         const pxr::SdfPath& sdf_path);
-
+    const std::string & GetStagePath(){
+        return m_stage_path;
+    }
    private:
+    std::string m_stage_path;
     pxr::UsdStageRefPtr stage;
     pxr::SdfPath create_editor_pending_path;
     pxr::UsdTimeCode current_time_code = pxr::UsdTimeCode::Default();
