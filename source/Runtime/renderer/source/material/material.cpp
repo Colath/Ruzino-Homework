@@ -6,6 +6,9 @@
 #include <pxr/imaging/hio/image.h>
 #include <pxr/usdImaging/usdImaging/tokens.h>
 
+#include <filesystem>
+#include <fstream>
+
 #include "MaterialX/SlangShaderGenerator.h"
 #include "MaterialXCore/Document.h"
 #include "MaterialXFormat/Util.h"
@@ -25,6 +28,71 @@
 #include "pxr/usd/sdr/shaderNode.h"
 
 USTC_CG_NAMESPACE_OPEN_SCOPE
+
+class BinglessContext : public MaterialX::HwResourceBindingContext {
+   public:
+    ~BinglessContext() override;
+    void initialize() override;
+    void emitDirectives(mx::GenContext& context, mx::ShaderStage& stage)
+        override;
+    void emitResourceBindings(
+        mx::GenContext& context,
+        const mx::VariableBlock& uniforms,
+        mx::ShaderStage& stage) override;
+    void emitStructuredResourceBindings(
+        mx::GenContext& context,
+        const mx::VariableBlock& uniforms,
+        mx::ShaderStage& stage,
+        const std::string& structInstanceName,
+        const std::string& arraySuffix) override;
+};
+
+BinglessContext::~BinglessContext()
+{
+}
+
+void BinglessContext::initialize()
+{
+}
+
+void BinglessContext::emitDirectives(
+    mx::GenContext& context,
+    mx::ShaderStage& stage)
+{
+}
+
+void BinglessContext::emitResourceBindings(
+    mx::GenContext& context,
+    const mx::VariableBlock& uniforms,
+    mx::ShaderStage& stage)
+{
+    std::string blockName = uniforms.getName();
+
+    context.getShaderGenerator().emitLine("struct " + blockName, stage, false);
+    context.getShaderGenerator().emitScopeBegin(stage);
+
+    std::cout << "Uniform block: " << blockName << std::endl;
+
+    for (const auto& uniform : uniforms.getVariableOrder()) {
+        std::string uniformName = uniform->getName();
+        std::string uniformType = uniform->getType()->getName();
+        std::string uniformValue = uniform->getValueString();
+
+        std::cout << "Uniform: " << uniformName << " " << uniformType << " "
+                  << uniformValue << std::endl;
+    }
+    context.getShaderGenerator().emitScopeEnd(stage, true);
+}
+
+void BinglessContext::emitStructuredResourceBindings(
+    mx::GenContext& context,
+    const mx::VariableBlock& uniforms,
+    mx::ShaderStage& stage,
+    const std::string& structInstanceName,
+    const std::string& arraySuffix)
+{
+}
+
 namespace mx = MaterialX;
 
 MaterialX::GenContextPtr Hd_USTC_CG_Material::shader_gen_context_ =
@@ -43,6 +111,10 @@ Hd_USTC_CG_Material::Hd_USTC_CG_Material(SdfPath const& id) : HdMaterial(id)
         mx::loadLibraries(
             { "usd/hd_USTC_CG/resources/libraries" }, searchPath, libraries);
         shader_gen_context_->registerSourceCodeSearchPath(searchPath);
+
+        shader_gen_context_->pushUserData(
+            mx::HW::USER_DATA_BINDING_CONTEXT,
+            std::make_shared<BinglessContext>());
     });
 }
 
@@ -192,6 +264,47 @@ void Hd_USTC_CG_Material::MtlxGenerateShader(
         shader_gen_context_->getShaderGenerator();
     shader =
         shader_generator_.generate(elementName, element, *shader_gen_context_);
+
+#ifndef NDEBUG
+    // Ensure the generated_shaders directory exists
+    std::filesystem::create_directories("./generated_shaders");
+    std::string shaderPath = "./generated_shaders/" + elementName + ".slang";
+    std::ofstream shaderFile(shaderPath);
+    if (!shaderFile) {
+        TF_WARN("Failed to open shader file: %s", shaderPath.c_str());
+    }
+    else {
+        shaderFile << shader->getSourceCode();
+        shaderFile.close();
+    }
+    shaderFile.close();
+#endif
+}
+
+HdMaterialNetwork2Interface Hd_USTC_CG_Material::FetchMaterialNetwork(
+    HdSceneDelegate* sceneDelegate,
+    HdMaterialNetwork2& hdNetwork,
+    SdfPath& materialPath,
+    SdfPath& surfTerminalPath,
+    HdMaterialNode2 const*& surfTerminal)
+{
+    VtValue material = sceneDelegate->GetMaterialResource(GetId());
+    HdMaterialNetworkMap networkMap = material.Get<HdMaterialNetworkMap>();
+
+    bool isVolume;
+    hdNetwork = HdConvertToHdMaterialNetwork2(networkMap, &isVolume);
+
+    materialPath = GetId();
+
+    auto netInterface = HdMaterialNetwork2Interface(materialPath, &hdNetwork);
+    _FixNodeTypes(&netInterface);
+    _FixNodeValues(&netInterface);
+
+    const TfToken& terminalNodeName = HdMaterialTerminalTokens->surface;
+
+    surfTerminal =
+        _GetTerminalNode(hdNetwork, terminalNodeName, &surfTerminalPath);
+    return netInterface;
 }
 
 void Hd_USTC_CG_Material::Sync(
@@ -199,24 +312,13 @@ void Hd_USTC_CG_Material::Sync(
     HdRenderParam* renderParam,
     HdDirtyBits* dirtyBits)
 {
-    VtValue material = sceneDelegate->GetMaterialResource(GetId());
-    HdMaterialNetworkMap networkMap = material.Get<HdMaterialNetworkMap>();
+    HdMaterialNetwork2 hdNetwork;
+    SdfPath materialPath;
 
-    bool isVolume;
-    HdMaterialNetwork2 hdNetwork =
-        HdConvertToHdMaterialNetwork2(networkMap, &isVolume);
-
-    auto materialPath = GetId();
-
-    HdMaterialNetwork2Interface netInterface(materialPath, &hdNetwork);
-    _FixNodeTypes(&netInterface);
-    _FixNodeValues(&netInterface);
-
-    const TfToken& terminalNodeName = HdMaterialTerminalTokens->surface;
     SdfPath surfTerminalPath;
-
-    HdMaterialNode2 const* surfTerminal =
-        _GetTerminalNode(hdNetwork, terminalNodeName, &surfTerminalPath);
+    HdMaterialNode2 const* surfTerminal;
+    HdMaterialNetwork2Interface netInterface = FetchMaterialNetwork(
+        sceneDelegate, hdNetwork, materialPath, surfTerminalPath, surfTerminal);
 
     if (surfTerminal) {
         HdMtlxTexturePrimvarData hdMtlxData;

@@ -100,7 +100,6 @@ TfTokenVector Hd_USTC_CG_Mesh::_UpdateComputedPrimvarSources(
             sceneDelegate->GetExtComputationPrimvarDescriptors(GetId(), interp);
 
         for (const auto& pv : compPrimvars) {
-            std::cout << "Checking primvar " << pv.name.GetText() << std::endl;
             if (HdChangeTracker::IsPrimvarDirty(dirtyBits, id, pv.name)) {
                 dirtyCompPrimvars.emplace_back(pv);
             }
@@ -311,6 +310,8 @@ void Hd_USTC_CG_Mesh::updateTLAS(
 
     instanceBuffer = render_param->InstanceCollection->instance_pool.allocate(
         transforms.size());
+
+    auto material_id = GetMaterialId();
 
     for (int i = 0; i < transforms.size(); ++i) {
         // Combine the local transform and the instance transform.
@@ -531,7 +532,6 @@ void Hd_USTC_CG_Mesh::Sync(
             }
             else {
                 // If normals are authored, we use them.
-                std::cout << normal_primvar.GetTypeName() << std::endl;
 
                 normals = normal_primvar.Get<VtVec3fArray>();
             }

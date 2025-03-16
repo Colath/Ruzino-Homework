@@ -62,6 +62,13 @@ class HD_USTC_CG_API Hd_USTC_CG_Material : public HdMaterial {
         SdfPath surfTerminalPath,
         HdMaterialNode2 const* surfTerminal,
         HdMtlxTexturePrimvarData& hdMtlxData);
+    HdMaterialNetwork2Interface FetchMaterialNetwork(
+        HdSceneDelegate* sceneDelegate,
+        HdMaterialNetwork2& hdNetwork,
+        SdfPath& materialPath,
+
+        SdfPath& surfTerminalPath,
+        HdMaterialNode2 const*& surfTerminal);
 
     static MaterialX::GenContextPtr shader_gen_context_;
     static MaterialX::DocumentPtr libraries;

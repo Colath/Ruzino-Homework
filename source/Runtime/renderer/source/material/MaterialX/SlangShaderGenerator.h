@@ -77,7 +77,6 @@ class HD_USTC_CG_API SlangShaderGenerator : public HwShaderGenerator {
     /// Determine the prefix of vertex data variables.
     string getVertexDataPrefix(const VariableBlock& vertexData) const override;
 
-   public:
     /// Unique identifier for this generator target
     static const string TARGET;
 

@@ -617,14 +617,14 @@ void SlangShaderGenerator::emitOutputs(GenContext& context, ShaderStage& stage)
     {
         // emitComment("Pixel shader outputs", stage);
         const VariableBlock& outputs = stage.getOutputBlock(HW::PIXEL_OUTPUTS);
-        // emitVariableDeclarations(
-        //     outputs,
-        //     _syntax->getOutputQualifier(),
-        //     Syntax::SEMICOLON,
-        //     context,
-        //     stage,
-        //     false);
-        // emitLineBreak(stage);
+        emitVariableDeclarations(
+            outputs,
+            _syntax->getOutputQualifier(),
+            Syntax::SEMICOLON,
+            context,
+            stage,
+            false);
+        emitLineBreak(stage);
     }
 }
 
@@ -688,47 +688,47 @@ void SlangShaderGenerator::emitPixelStage(
     emitLibraryInclude("stdlib/genslang/lib/mx_math.slang", context, stage);
     emitLineBreak(stage);
 
-    // Determine whether lighting is required
-    bool lighting = requiresLighting(graph);
+    //// Determine whether lighting is required
+    //bool lighting = requiresLighting(graph);
 
-    // Define directional albedo approach
-    if (lighting || context.getOptions().hwWriteAlbedoTable ||
-        context.getOptions().hwWriteEnvPrefilter) {
-        emitLine(
-            "#define DIRECTIONAL_ALBEDO_METHOD " +
-                std::to_string(
-                    int(context.getOptions().hwDirectionalAlbedoMethod)),
-            stage,
-            false);
-        emitLineBreak(stage);
-    }
+    //// Define directional albedo approach
+    //if (lighting || context.getOptions().hwWriteAlbedoTable ||
+    //    context.getOptions().hwWriteEnvPrefilter) {
+    //    emitLine(
+    //        "#define DIRECTIONAL_ALBEDO_METHOD " +
+    //            std::to_string(
+    //                int(context.getOptions().hwDirectionalAlbedoMethod)),
+    //        stage,
+    //        false);
+    //    emitLineBreak(stage);
+    //}
 
-    // Add lighting support
-    if (lighting) {
-        if (context.getOptions().hwMaxActiveLightSources > 0) {
-            const unsigned int maxLights =
-                std::max(1u, context.getOptions().hwMaxActiveLightSources);
-            emitLine(
-                "#define " + HW::LIGHT_DATA_MAX_LIGHT_SOURCES + " " +
-                    std::to_string(maxLights),
-                stage,
-                false);
-        }
-        emitSpecularEnvironment(context, stage);
-        emitTransmissionRender(context, stage);
+    //// Add lighting support
+    //if (lighting) {
+    //    if (context.getOptions().hwMaxActiveLightSources > 0) {
+    //        const unsigned int maxLights =
+    //            std::max(1u, context.getOptions().hwMaxActiveLightSources);
+    //        emitLine(
+    //            "#define " + HW::LIGHT_DATA_MAX_LIGHT_SOURCES + " " +
+    //                std::to_string(maxLights),
+    //            stage,
+    //            false);
+    //    }
+    //    emitSpecularEnvironment(context, stage);
+    //    emitTransmissionRender(context, stage);
 
-        if (context.getOptions().hwMaxActiveLightSources > 0) {
-            emitLightData(context, stage);
-        }
-    }
+    //    if (context.getOptions().hwMaxActiveLightSources > 0) {
+    //        emitLightData(context, stage);
+    //    }
+    //}
 
-    // Add shadowing support
-    bool shadowing = (lighting && context.getOptions().hwShadowMap) ||
-                     context.getOptions().hwWriteDepthMoments;
-    if (shadowing) {
-        emitLibraryInclude(
-            "pbrlib/genslang/lib/mx_shadow.slang", context, stage);
-    }
+    //// Add shadowing support
+    //bool shadowing = (lighting && context.getOptions().hwShadowMap) ||
+    //                 context.getOptions().hwWriteDepthMoments;
+    //if (shadowing) {
+    //    emitLibraryInclude(
+    //        "pbrlib/genslang/lib/mx_shadow.slang", context, stage);
+    //}
 
     // Emit directional albedo table code.
     if (context.getOptions().hwWriteAlbedoTable) {
@@ -752,11 +752,11 @@ void SlangShaderGenerator::emitPixelStage(
     // depending on the vertical flip flag.
     if (context.getOptions().fileTextureVerticalFlip) {
         _tokenSubstitutions[ShaderGenerator::T_FILE_TRANSFORM_UV] =
-            "mx_transform_uv_vflip.slang";
+            "mx_transform_uv_vflip";
     }
     else {
         _tokenSubstitutions[ShaderGenerator::T_FILE_TRANSFORM_UV] =
-            "mx_transform_uv.slang";
+            "mx_transform_uv";
     }
 
     // Emit uv transform code globally if needed.
@@ -768,7 +768,7 @@ void SlangShaderGenerator::emitPixelStage(
             stage);
     }
 
-    emitLightFunctionDefinitions(graph, context, stage);
+    // emitLightFunctionDefinitions(graph, context, stage);
 
     // Emit function definitions for all nodes in the graph.
     emitFunctionDefinitions(graph, context, stage);
