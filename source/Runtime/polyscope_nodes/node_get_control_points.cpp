@@ -37,12 +37,10 @@ NODE_EXECUTION_FUNCTION(get_control_points)
     for (auto i : control_points) {
         std::cout << i << " ";
     }
-    std::cout << std::endl;
     params.set_output("Control Points Indices", control_points);
 
     return true;
 }
 
-NODE_DECLARATION_REQUIRED(get_control_points);
 NODE_DECLARATION_UI(get_control_points);
 NODE_DEF_CLOSE_SCOPE
