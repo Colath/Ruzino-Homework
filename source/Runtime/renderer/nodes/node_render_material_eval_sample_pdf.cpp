@@ -41,13 +41,13 @@ NODE_EXECUTION_FUNCTION(material_eval_sample_pdf)
     std::unordered_map<unsigned, std::string> callable_shaders;
 
     for (auto material : materials) {
-        program_desc.add_source_code(
-            material.second->GetShader(shader_factory));
-
         auto location = material.second->GetMaterialLocation();
         if (location == -1) {
             continue;
         }
+
+        program_desc.add_source_code(
+            material.second->GetShader(shader_factory));
 
         auto callable = material.second->GetShader(shader_factory);
         callable_shaders[location] = material.second->GetMaterialName();
@@ -105,6 +105,10 @@ NODE_EXECUTION_FUNCTION(material_eval_sample_pdf)
     auto random_seeds = params.get_input<BufferHandle>("Random Seeds");
     // Set the program variables
 
+    SamplerDesc sampler_desc;
+    auto sampler = resource_allocator.create(sampler_desc);
+    MARK_DESTROY_NVRHI_RESOURCE(sampler);
+
     ProgramVars program_vars(resource_allocator, raytrace_compiled);
     program_vars["SceneBVH"] =
         params.get_global_payload<RenderGlobalPayload &>()
@@ -117,6 +121,7 @@ NODE_EXECUTION_FUNCTION(material_eval_sample_pdf)
     program_vars["Weight"] = weight_buffer;
     program_vars["Pdf"] = pdf_buffer;
     program_vars["random_seeds"] = random_seeds;
+    program_vars["sampler"] = sampler;
     //    program_vars["cb"] = create_constant_buffer(params, 1);
 
     program_vars["instanceDescBuffer"] =
@@ -129,10 +134,15 @@ NODE_EXECUTION_FUNCTION(material_eval_sample_pdf)
 
     program_vars.set_descriptor_table(
         "t_BindlessBuffers",
-        instance_collection->bindlessData.descriptorTableManager
+        instance_collection->bindlessData.bufferDescriptorTableManager
             ->GetDescriptorTable(),
-        instance_collection->bindlessData.bindlessLayout);
+        instance_collection->bindlessData.bufferBindlessLayout);
 
+    program_vars.set_descriptor_table(
+        "t_BindlessTextures",
+        instance_collection->bindlessData.textureDescriptorTableManager
+            ->GetDescriptorTable(),
+        instance_collection->bindlessData.textureBindlessLayout);
     program_vars.finish_setting_vars();
 
     RaytracingContext context(resource_allocator, program_vars);

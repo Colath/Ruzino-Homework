@@ -1,7 +1,8 @@
 import stdlib.genslang.lib.mx_transform_uv;
 
 void mx_image_color3(
-    Sampler2D tex_sampler,
+    SamplerState texture_sampler,
+    Texture2D texture,
     int layer,
     float3 defaultval,
     float2 texcoord,
@@ -16,5 +17,5 @@ void mx_image_color3(
     out float3 result)
 {
     float2 uv = mx_transform_uv(texcoord, uv_scale, uv_offset);
-    result = tex_sampler.Sample(uv).rgb;
+    result = texture.Sample(texture_sampler, uv).rgb;
 }

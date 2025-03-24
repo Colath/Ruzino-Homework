@@ -34,14 +34,24 @@ nvrhi::rt::IAccelStruct* Hd_USTC_CG_RenderInstanceCollection::get_tlas()
 Hd_USTC_CG_RenderInstanceCollection::BindlessData::BindlessData()
 {
     auto device = RHI::get_device();
-    nvrhi::BindlessLayoutDesc desc;
-    desc.visibility = nvrhi::ShaderType::All;
-    desc.maxCapacity = 8 * 1024;
-    desc.addRegisterSpace(nvrhi::BindingLayoutItem::RawBuffer_SRV(1));
-    desc.addRegisterSpace(nvrhi::BindingLayoutItem::Texture_SRV(2));
-    bindlessLayout = device->createBindlessLayout(desc);
-    descriptorTableManager =
-        std::make_shared<DescriptorTableManager>(device, bindlessLayout);
+    nvrhi::BindlessLayoutDesc buffer_layout_desc;
+    buffer_layout_desc.visibility = nvrhi::ShaderType::All;
+    buffer_layout_desc.maxCapacity = 8 * 1024;
+    buffer_layout_desc.addRegisterSpace(
+        nvrhi::BindingLayoutItem::RawBuffer_SRV(1));
+    bufferBindlessLayout = device->createBindlessLayout(buffer_layout_desc);
+    bufferDescriptorTableManager =
+        std::make_shared<DescriptorTableManager>(device, bufferBindlessLayout);
+
+    nvrhi::BindlessLayoutDesc texture_layout_desc;
+    texture_layout_desc.visibility = nvrhi::ShaderType::All;
+    texture_layout_desc.maxCapacity = 8 * 1024;
+    texture_layout_desc.addRegisterSpace(
+        nvrhi::BindingLayoutItem::Texture_SRV(2));
+    textureBindlessLayout = device->createBindlessLayout(texture_layout_desc);
+
+    textureDescriptorTableManager =
+        std::make_shared<DescriptorTableManager>(device, textureBindlessLayout);
 }
 
 void Hd_USTC_CG_RenderInstanceCollection::rebuild_tlas()

@@ -2,7 +2,7 @@
 import Scene.SceneTypes;
 import Scene.Scene;
 
-// [[vk::binding(0, 1)]]
+[[vk::binding(0, 1)]]
 ByteAddressBuffer t_BindlessBuffers[] : register(t0, space1);
 
 StructuredBuffer<GeometryInstanceData> instanceDescBuffer;
@@ -28,7 +28,7 @@ StaticVertexData load_vertex(MeshDesc mesh_data, uint vertex_id)
         vertex_buffer.Load2(2 * vertex_id * 4 + mesh_data.texCrdOffset));
 
     StaticVertexData data =
-        StaticVertexData(pos, normal, float4(0, 0, 0, 0), texCrd, 0);
+        StaticVertexData(pos, normal, float4(1, 0, 0, 1), texCrd, 0);
     return data;
 }
 

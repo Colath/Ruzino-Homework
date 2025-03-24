@@ -119,6 +119,8 @@ void CompoundNodeSlang::emitFunctionDefinition(
             delim = ", ";
         }
 
+        shadergen.emitString(delim + "SamplerState sampler", stage);
+
         // Add all inputs
         for (ShaderGraphInputSocket* inputSocket :
              _rootGraph->getInputSockets()) {
@@ -190,6 +192,8 @@ void CompoundNodeSlang::emitFunctionCall(
             shadergen.emitString(delim + vertexData.getInstance(), stage);
             delim = ", ";
         }
+
+        shadergen.emitString(delim + "sampler", stage);
 
         // Emit inputs.
         for (ShaderInput* input : node.getInputs()) {

@@ -15,6 +15,8 @@ struct MaterialDataBlob {
 StructuredBuffer<MaterialDataBlob> materialBuffer;
 
 [[vk::binding(1, 1)]]
-Sampler2D t_BindlessTextures[] : register(t0, space2);
+Texture2D t_BindlessTextures[] : register(t0, space2);
+
+SamplerState sampler;
 
 #endif

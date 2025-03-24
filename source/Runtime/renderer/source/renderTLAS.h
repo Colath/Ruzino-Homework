@@ -7,8 +7,8 @@
 #include "pxr/pxr.h"
 
 // SceneTypes
-#include "../nodes/shaders/shaders/Scene/SceneTypes.slang"
 #include "../nodes/shaders/shaders/Scene/BindlessMaterial.slang"
+#include "../nodes/shaders/shaders/Scene/SceneTypes.slang"
 #include "internal/memory/DeviceMemoryPool.hpp"
 
 USTC_CG_NAMESPACE_OPEN_SCOPE
@@ -19,9 +19,13 @@ class HD_USTC_CG_API Hd_USTC_CG_RenderInstanceCollection {
     ~Hd_USTC_CG_RenderInstanceCollection();
 
     nvrhi::rt::IAccelStruct *get_tlas();
-    DescriptorTableManager *get_descriptor_table() const
+    DescriptorTableManager *get_buffer_descriptor_table() const
     {
-        return bindlessData.descriptorTableManager.get();
+        return bindlessData.bufferDescriptorTableManager.get();
+    }
+    DescriptorTableManager *get_texture_descriptor_table() const
+    {
+        return bindlessData.textureDescriptorTableManager.get();
     }
 
     // DeviceMemoryPool<unsigned> index_pool;
@@ -34,9 +38,11 @@ class HD_USTC_CG_API Hd_USTC_CG_RenderInstanceCollection {
 
     struct BindlessData {
         BindlessData();
-        std::shared_ptr<DescriptorTableManager> descriptorTableManager;
+        std::shared_ptr<DescriptorTableManager> bufferDescriptorTableManager;
+        std::shared_ptr<DescriptorTableManager> textureDescriptorTableManager;
 
-        nvrhi::BindingLayoutHandle bindlessLayout;
+        nvrhi::BindingLayoutHandle bufferBindlessLayout;
+        nvrhi::BindingLayoutHandle textureBindlessLayout;
     };
     BindlessData bindlessData;
 

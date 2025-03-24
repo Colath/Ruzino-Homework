@@ -390,7 +390,7 @@ SlangSyntax::SlangSyntax()
     registerTypeSyntax(
         Type::FILENAME,
         std::make_shared<ScalarTypeSyntax>(
-            "Sampler2D", EMPTY_STRING, EMPTY_STRING));
+            "Texture2D", EMPTY_STRING, EMPTY_STRING));
 
     registerTypeSyntax(
         Type::BSDF,

@@ -193,11 +193,26 @@ void BindlessContext::emitResourceBindings(
                     numComponents = 3;
                 }
                 else if (type == Type::COLOR4) {
-                    auto val = uniform->getValue()->asA<Color4>();
-                    memcpy(
-                        &material_data.data[data_location],
-                        &val,
-                        sizeof(Color4));
+                    if (uniform->getValue()->isA<Color4>()) {
+                        auto val = uniform->getValue()->asA<Color4>();
+                        memcpy(
+                            &material_data.data[data_location],
+                            &val,
+                            sizeof(Color4));
+                    }
+                    else if (uniform->getValue()->isA<Vector4>()) {
+                        auto val = uniform->getValue()->asA<Vector4>();
+                        memcpy(
+                            &material_data.data[data_location],
+                            &val,
+                            sizeof(Vector4));
+                    }
+                    else {
+                        log::warning(
+                            ("Unsupported uniform type: " + type->getName())
+                                .c_str());
+                        assert(false);
+                    }
                     dataFetch = "float4(asfloat(data.data[" +
                                 std::to_string(data_location++) +
                                 "]), asfloat(data.data[" +
@@ -283,7 +298,7 @@ void BindlessContext::emitResourceBindings(
                 //    uniform, EMPTY_STRING, context, stage, true);
                 // generator.emitLineEnd(stage, true);
 
-                fetch_data += "Sampler2D " + uniform->getName() + " = " +
+                fetch_data += "Texture2D " + uniform->getName() + " = " +
                               " t_BindlessTextures[$" + uniform->getName() +
                               "_id];\n";
             }
@@ -547,7 +562,7 @@ HdMaterialNetwork2Interface Hd_USTC_CG_Material::FetchMaterialNetwork(
 void Hd_USTC_CG_Material::BuildGPUTextures(Hd_USTC_CG_RenderParam* render_param)
 {
     auto descriptor_table =
-        render_param->InstanceCollection->get_descriptor_table();
+        render_param->InstanceCollection->get_texture_descriptor_table();
 
     for (auto& texture_resource : textureResources) {
         // Create a thread for asynchronous processing
@@ -573,8 +588,6 @@ void Hd_USTC_CG_Material::BuildGPUTextures(Hd_USTC_CG_RenderParam* render_param)
                         .string();
 
                 auto storage_byte_size = image->GetBytesPerPixel();
-                if (image->GetFormat() == HioFormatUNorm8Vec3srgb)
-                    storage_byte_size = 4;
 
                 std::vector<uint8_t> data(
                     image->GetWidth() * image->GetHeight() * storage_byte_size,
@@ -592,8 +605,22 @@ void Hd_USTC_CG_Material::BuildGPUTextures(Hd_USTC_CG_RenderParam* render_param)
 
                 {
                     std::lock_guard lock(texture_mutex);
+                    if (image->GetFormat() == HioFormatUNorm8Vec3srgb) {
+                        // rearrange the data to be RGBA
+                        std::vector<uint8_t> rgba_data(
+                            image->GetWidth() * image->GetHeight() * 4, 0);
+                        for (size_t i = 0; i < data.size() / 3; i++) {
+                            rgba_data[i * 4] = data[i * 3];
+                            rgba_data[i * 4 + 1] = data[i * 3 + 1];
+                            rgba_data[i * 4 + 2] = data[i * 3 + 2];
+                            rgba_data[i * 4 + 3] = 255;
+                        }
+                        data = std::move(rgba_data);
+                    }
+
                     auto [gpu_texture, staging] =
-                        RHI::load_texture(desc, storageSpec.data);
+                        RHI::load_texture(desc, data.data());
+
                     texture_resource.second.texture = gpu_texture;
                 }
 
@@ -786,21 +813,19 @@ void Hd_USTC_CG_Material::ensure_shader_ready()
         }
     }
 
-    // Create the complete shader with callable entry point
-    auto local_slang_source_code = slang_source_code;
+    final_shader_source = eval_shader_source + slang_source_code;
 
     // Replace the callable function name with the material name in all code
     constexpr char FUNC_PLACEHOLDER[] = "$getColor";
 
     // Replace in local_slang_source_code
-    auto pos = local_slang_source_code.find(FUNC_PLACEHOLDER);
+    auto pos = final_shader_source.find(FUNC_PLACEHOLDER);
     if (pos != std::string::npos) {
-        local_slang_source_code.replace(
+        final_shader_source.replace(
             pos, strlen(FUNC_PLACEHOLDER), material_name);
     }
 
     // Combine shader parts into final source
-    final_shader_source = eval_shader_source + local_slang_source_code;
 
     shader_ready = true;
 }

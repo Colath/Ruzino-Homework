@@ -66,9 +66,9 @@ NODE_EXECUTION_FUNCTION(rasterize)
 
     program_vars.set_descriptor_table(
         "t_BindlessBuffers",
-        instance_collection->bindlessData.descriptorTableManager
+        instance_collection->bindlessData.bufferDescriptorTableManager
             ->GetDescriptorTable(),
-        instance_collection->bindlessData.bindlessLayout);
+        instance_collection->bindlessData.bufferBindlessLayout);
 
     program_vars.finish_setting_vars();
 

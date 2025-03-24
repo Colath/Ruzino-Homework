@@ -165,7 +165,7 @@ void Hd_USTC_CG_Mesh::create_gpu_resources(Hd_USTC_CG_RenderParam* render_param)
         device->createCommandList({ .enableImmediateExecution = false });
 
     auto descriptor_table =
-        render_param->InstanceCollection->get_descriptor_table();
+        render_param->InstanceCollection->get_buffer_descriptor_table();
 
     unsigned index_buffer_offset = 0;
     unsigned normal_buffer_offset = 0;

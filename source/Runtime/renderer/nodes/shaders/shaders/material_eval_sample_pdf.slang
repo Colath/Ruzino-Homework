@@ -74,8 +74,7 @@ struct ShadowPayload {
     float3 shadow_mask;
 };
 
-struct CallableData
-{
+struct CallableData {
     float4 color;
     float3 L;
     float3 V;
@@ -109,7 +108,8 @@ void ClosestHit(
 
     var instance_id = InstanceID();
     var prim_id = PrimitiveIndex();
-    VertexInfo vertex = get_interpolated_vertex(instance_id, prim_id, attrib.barycentric);
+    VertexInfo vertex =
+        get_interpolated_vertex(instance_id, prim_id, attrib.barycentric);
 
     if (dot(WorldRayDirection(), vertex.normalW) >= 0.0) {
         vertex.normalW = -vertex.normalW;
@@ -117,7 +117,8 @@ void ClosestHit(
 
     // UniformSampleGenerator s;
 
-    // result = bsdf.eval(ObjectRayDirection(), ObjectRayDirection(), s, context);
+    // result = bsdf.eval(ObjectRayDirection(), ObjectRayDirection(), s,
+    // context);
 
     var seed = payload.seed;
 
@@ -125,10 +126,15 @@ void ClosestHit(
     ShadowPayload shadowPayload;
     shadowPayload.shadow_mask = float3(1, 1, 1);
     float pdf;
-    float3 ray_dir = sample_cosine_hemisphere_concentric(random_float2(seed), pdf);
+    float3 ray_dir =
+        sample_cosine_hemisphere_concentric(random_float2(seed), pdf);
 
     bool valid;
-    ShadingFrame sf = ShadingFrame.createSafe(vertex.normalW, vertex.tangentW, valid);
+    ShadingFrame sf =
+        ShadingFrame.createSafe(vertex.normalW, vertex.tangentW, valid);
+    vertex.tangentW.xyz = sf.T;
+    vertex.tangentW.w = 1.0f;
+
     var world_ray_dir = sf.fromLocal(ray_dir);
 
     RayDesc shadow_ray_desc;
@@ -137,7 +143,8 @@ void ClosestHit(
     shadow_ray_desc.TMin = 0.01;
     shadow_ray_desc.TMax = 1000.0;
 
-    TraceRay(SceneBVH, RAY_FLAG_NONE, 0xFF, 1, 1, 1, shadow_ray_desc, shadowPayload);
+    TraceRay(
+        SceneBVH, RAY_FLAG_NONE, 0xFF, 1, 1, 1, shadow_ray_desc, shadowPayload);
     result = shadowPayload.shadow_mask;
 
     var material_id = instanceDescBuffer[instance_id].materialID;
@@ -146,7 +153,7 @@ void ClosestHit(
     CallableData callData;
     callData.vertexInfo = vertex;
 
-    callData.L = world_ray_dir; 
+    callData.L = -world_ray_dir;
     callData.V = -WorldRayDirection();
     callData.color = float4(0, 0, 0, 1);
     callData.materialID = material_id;
@@ -154,6 +161,7 @@ void ClosestHit(
     result *= callData.color.rgb;
 
     Eval[id] = float4(result, 1);
+    // Eval[id] = float4(0.5 + 0.5 * vertex.tangentW.xyz, 1);
     // * float4(hitObjects[id].rays.throughput.toFloat3(), 1.0);
 
     // Acquire the material information here.

@@ -91,6 +91,8 @@ void ClosureCompoundNodeSlang::emitFunctionDefinition(
         delim = ", ";
     }
 
+    shadergen.emitString(delim + "SamplerState sampler", stage);
+
     const string& type = syntax.getTypeName(Type::VECTOR3);
     shadergen.emitString(delim + type + " " + HW::DIR_L, stage);
     shadergen.emitString(", " + type + " " + HW::DIR_V, stage);
@@ -233,6 +235,8 @@ void ClosureCompoundNodeSlang::emitFunctionCall(
             shadergen.emitString(delim + vertexData.getInstance(), stage);
             delim = ", ";
         }
+
+        shadergen.emitString(delim + "sampler", stage);
 
         shadergen.emitString(delim + HW::DIR_L + ", " + HW::DIR_V, stage);
 

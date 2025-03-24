@@ -644,6 +644,12 @@ void ShaderFactory::SlangCompile(
                 modules.emplace_back(m);
                 loaded_successfully = true;
             }
+
+            else {
+                if (diagnostics) {
+                    error_string = (const char*)diagnostics->getBufferPointer();
+                }
+            }
         }
     }
 
@@ -653,6 +659,11 @@ void ShaderFactory::SlangCompile(
         if (m) {
             modules.emplace_back(m);
             loaded_successfully = true;
+        }
+        else {
+            if (diagnostics) {
+                error_string = (const char*)diagnostics->getBufferPointer();
+            }
         }
     }
 

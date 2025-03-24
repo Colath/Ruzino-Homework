@@ -36,6 +36,7 @@
 #include "Nodes/GeomColorNodeSlang.h"
 #include "Nodes/GeomPropValueNodeSlang.h"
 #include "Nodes/HeightToNormalNodeSlang.h"
+#include "Nodes/HwImageNodeSlang.h"
 #include "Nodes/LightCompoundNodeSlang.h"
 #include "Nodes/LightNodeSlang.h"
 #include "Nodes/LightSamplerNodeSlang.h"
@@ -297,7 +298,7 @@ SlangShaderGenerator::SlangShaderGenerator()
         "IM_image_vector3_" + SlangShaderGenerator::TARGET,
         "IM_image_vector4_" + SlangShaderGenerator::TARGET,
     };
-    registerImplementation(elementNames, HwImageNode::create);
+    registerImplementation(elementNames, HwImageNodeSlang::create);
 
     // <!-- <layer> -->
     registerImplementation(
@@ -948,9 +949,7 @@ void SlangShaderGenerator::emitPixelStage(
                     outputSocket->getVariable() + " = " + outputValue, stage);
             }
         }
-    }
-
-    emitLine("out1 = float4(Image_Texture_r,Image_Texture_g,Image_Texture_b ,1)", stage);
+    } 
 
     // End main function
     emitFunctionBodyEnd(graph, context, stage);
@@ -1020,7 +1019,7 @@ void SlangShaderGenerator::emitVariableDeclaration(
     if (*variable->getType() == *Type::FILENAME) {
         // Samplers must always be uniforms
         string str = qualifier.empty() ? EMPTY_STRING : qualifier + " ";
-        emitString(str + "Sampler2D " + variable->getVariable(), stage);
+        emitString(str + "Texture2D " + variable->getVariable(), stage);
     }
     else {
         string str = qualifier.empty() ? EMPTY_STRING : qualifier + " ";
