@@ -15,17 +15,32 @@ StaticVertexData load_vertex(MeshDesc mesh_data, uint vertex_id)
     var bindlessIndex = mesh_data.bindlessIndex;
 
     ByteAddressBuffer vertex_buffer = t_BindlessBuffers[bindlessIndex];
-
+    var id = vertex_id;
     if (mesh_data.ibOffset > 0) {
         vertex_id = vertex_buffer.Load(mesh_data.ibOffset + vertex_id * 4);
     }
 
-    var id = vertex_id;
     float3 pos = asfloat(vertex_buffer.Load3(3 * vertex_id * 4 + vb_offset));
-    float3 normal =
-        asfloat(vertex_buffer.Load3(3 * vertex_id * 4 + normal_offset));
-    float2 texCrd = asfloat(
-        vertex_buffer.Load2(2 * vertex_id * 4 + mesh_data.texCrdOffset));
+
+    float3 normal;
+
+    if (mesh_data.normalInterpolation == InterpolationType::FaceVarying) {
+        normal = asfloat(vertex_buffer.Load3(3 * id * 4 + normal_offset));
+    }
+    else {
+        normal =
+            asfloat(vertex_buffer.Load3(3 * vertex_id * 4 + normal_offset));
+    }
+
+    float2 texCrd;
+
+    if (mesh_data.texCrdInterpolation == InterpolationType::FaceVarying) {
+        texCrd =
+            asfloat(vertex_buffer.Load2(2 * id * 4 + mesh_data.texCrdOffset));
+    }
+    else
+        texCrd = asfloat(
+            vertex_buffer.Load2(2 * vertex_id * 4 + mesh_data.texCrdOffset));
 
     StaticVertexData data =
         StaticVertexData(pos, normal, float4(1, 0, 0, 1), texCrd, 0);
@@ -39,9 +54,7 @@ VertexInfo get_interpolated_vertex(
 {
     GeometryInstanceData instance = instanceDescBuffer[instance_id];
     MeshDesc mesh = meshDescBuffer[instance.geometryID];
-    var id_in_indexbuffer = mesh.ibOffset + primitive_id * 3 * 4;
 
-    ByteAddressBuffer vertex_buffer = t_BindlessBuffers[mesh.bindlessIndex];
     uint i0 = primitive_id * 3;
     uint i1 = primitive_id * 3 + 1;
     uint i2 = primitive_id * 3 + 2;

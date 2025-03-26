@@ -110,6 +110,11 @@ enum class GeometryInstanceFlags : uint32_t {
                ///< transform handedness.
 };
 
+enum class InterpolationType : uint32_t {
+    Vertex = 0,       ///< Vertex interpolation.
+    FaceVarying = 1,  ///< Face-varying interpolation.
+};
+
 struct GeometryInstanceData {
     static const uint kTypeBits = 3;
     static const uint kTypeOffset = 32 - kTypeBits;
@@ -174,6 +179,11 @@ struct MeshDesc {
                         ///< neither skinned or animated.
     // uint materialID;        ///< Material ID.
     uint flags;  ///< See MeshFlags.
+
+    InterpolationType texCrdInterpolation;
+    InterpolationType normalInterpolation;
+
+    uint2 padding;
 
     bool use16BitIndices() CONST_FUNCTION
     {

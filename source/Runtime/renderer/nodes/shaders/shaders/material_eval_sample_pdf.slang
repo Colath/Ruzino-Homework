@@ -91,20 +91,6 @@ void ClosestHit(
     uint id = DispatchRaysIndex().x;
     PixelTarget[id] = in_PixelTarget[id];
 
-    BSDFContext context = BSDFContext(1.5f, 1.0f / 1.5f);
-
-    float3 result = { 1, 0, 1 };
-    StandardBSDFData data;
-    data.diffuse = 1;
-    data.metallic = 0;
-    data.specularTransmission = 0;
-    data.diffuseTransmission = 0;
-    data.specular = 1;
-    MaterialHeader header;
-    header.setActiveLobes(uint32_t(LobeType::DiffuseReflection));
-    var dir = ObjectRayDirection();
-
-    StandardBSDF bsdf = StandardBSDF(dir, header, data);
 
     var instance_id = InstanceID();
     var prim_id = PrimitiveIndex();
@@ -115,10 +101,6 @@ void ClosestHit(
         vertex.normalW = -vertex.normalW;
     }
 
-    // UniformSampleGenerator s;
-
-    // result = bsdf.eval(ObjectRayDirection(), ObjectRayDirection(), s,
-    // context);
 
     var seed = payload.seed;
 
@@ -146,7 +128,7 @@ void ClosestHit(
 
     TraceRay(
         SceneBVH, RAY_FLAG_NONE, 0xFF, 1, 1, 1, shadow_ray_desc, shadowPayload);
-    result = shadowPayload.shadow_mask;
+    var result = shadowPayload.shadow_mask;
 
     var material_id = instanceDescBuffer[instance_id].materialID;
 
@@ -159,7 +141,7 @@ void ClosestHit(
     callData.color = float4(0, 0, 0, 1);
     callData.materialID = material_id;
     CallShader(material_id, callData);
-    result *= callData.color.rgb/3.14;
+    result *= callData.color.rgb;
 
     Eval[id] = float4(result, 1);
     // Eval[id] = float4(0.5 + 0.5 * vertex.tangentW.xyz, 1);

@@ -180,10 +180,17 @@ void Hd_USTC_CG_Mesh::create_gpu_resources(Hd_USTC_CG_RenderParam* render_param)
 
     VtVec2fArray texcoords;
 
+    InterpolationType texCrdInterpolation;
     for (auto pv : _primvarSourceMap) {
         if (pv.first == pxr::TfToken("UVMap") ||
             pv.first == pxr::TfToken("st")) {
             texcoords = pv.second.data.Get<VtVec2fArray>();
+            if (pv.second.interpolation == HdInterpolationFaceVarying) {
+                texCrdInterpolation = InterpolationType::FaceVarying;
+            }
+            else {
+                texCrdInterpolation = InterpolationType::Vertex;
+            }
         }
     }
 
@@ -273,6 +280,11 @@ void Hd_USTC_CG_Mesh::create_gpu_resources(Hd_USTC_CG_RenderParam* render_param)
     mesh_desc.normalOffset = normal_buffer_offset;
     mesh_desc.texCrdOffset = texcoord_buffer_offset;
     mesh_desc.bindlessIndex = descriptor_handle.Get();
+
+    mesh_desc.texCrdInterpolation = texCrdInterpolation;
+    mesh_desc.normalInterpolation = normals.size() == points.size()
+                                        ? InterpolationType::Vertex
+                                        : InterpolationType::FaceVarying;
 
     mesh_desc_buffer = render_param->InstanceCollection->mesh_pool.allocate(1);
     mesh_desc_buffer->write_data(&mesh_desc);
@@ -463,48 +475,60 @@ void Hd_USTC_CG_Mesh::Sync(
                                 &primvar.second.data);
                         }
                     }
-                }
 
-                // Then make them per-vertex
-
-                if (primvar.second.interpolation ==
-                    HdInterpolationFaceVarying) {
-                    auto value = primvar.second.data;
-                    if (value.IsArrayValued()) {
-                        if (value.IsHolding<VtVec3fArray>()) {
-                            VtVec3fArray vec3fArray = value.Get<VtVec3fArray>();
-                            VtVec3fArray newVec3fArray =
-                                VtVec3fArray(points.size());
-                            for (int i = 0; i < triangulatedIndices.size();
-                                 i += 1) {
-                                newVec3fArray[triangulatedIndices[i][0]] =
-                                    vec3fArray[i * 3];
-                                newVec3fArray[triangulatedIndices[i][1]] =
-                                    vec3fArray[i * 3 + 1];
-                                newVec3fArray[triangulatedIndices[i][2]] =
-                                    vec3fArray[i * 3 + 2];
-                            }
-
-                            primvar.second.data = VtValue(newVec3fArray);
-                        }
-                        else if (value.IsHolding<VtVec2fArray>()) {
-                            VtVec2fArray vec2fArray = value.Get<VtVec2fArray>();
-                            VtVec2fArray newVec2fArray =
-                                VtVec2fArray(points.size());
-                            for (int i = 0; i < triangulatedIndices.size();
-                                 i += 1) {
-                                newVec2fArray[triangulatedIndices[i][0]] =
-                                    vec2fArray[i * 3];
-                                newVec2fArray[triangulatedIndices[i][1]] =
-                                    vec2fArray[i * 3 + 1];
-                                newVec2fArray[triangulatedIndices[i][2]] =
-                                    vec2fArray[i * 3 + 2];
-                            }
-
-                            primvar.second.data = VtValue(newVec2fArray);
-                        }
+                    if (primvar.second.data.GetArraySize() !=
+                        triangulatedIndices.size() * 3) {
+                        log::error(
+                            "FaceVarying primvar size mismatch: %s, expected "
+                            "%d, have %d",
+                            primvar.first.GetText(),
+                            triangulatedIndices.size() * 3,
+                            primvar.second.data.GetArraySize());
                     }
                 }
+
+                //// Then make them per-vertex
+
+                // if (primvar.second.interpolation ==
+                //     HdInterpolationFaceVarying) {
+                //     auto value = primvar.second.data;
+                //     if (value.IsArrayValued()) {
+                //         if (value.IsHolding<VtVec3fArray>()) {
+                //             VtVec3fArray vec3fArray =
+                //             value.Get<VtVec3fArray>(); VtVec3fArray
+                //             newVec3fArray =
+                //                 VtVec3fArray(points.size());
+                //             for (int i = 0; i < triangulatedIndices.size();
+                //                  i += 1) {
+                //                 newVec3fArray[triangulatedIndices[i][0]] =
+                //                     vec3fArray[i * 3];
+                //                 newVec3fArray[triangulatedIndices[i][1]] =
+                //                     vec3fArray[i * 3 + 1];
+                //                 newVec3fArray[triangulatedIndices[i][2]] =
+                //                     vec3fArray[i * 3 + 2];
+                //             }
+
+                //            primvar.second.data = VtValue(newVec3fArray);
+                //        }
+                //        else if (value.IsHolding<VtVec2fArray>()) {
+                //            VtVec2fArray vec2fArray =
+                //            value.Get<VtVec2fArray>(); VtVec2fArray
+                //            newVec2fArray =
+                //                VtVec2fArray(points.size());
+                //            for (int i = 0; i < triangulatedIndices.size();
+                //                 i += 1) {
+                //                newVec2fArray[triangulatedIndices[i][0]] =
+                //                    vec2fArray[i * 3];
+                //                newVec2fArray[triangulatedIndices[i][1]] =
+                //                    vec2fArray[i * 3 + 1];
+                //                newVec2fArray[triangulatedIndices[i][2]] =
+                //                    vec2fArray[i * 3 + 2];
+                //            }
+
+                //            primvar.second.data = VtValue(newVec2fArray);
+                //        }
+                //    }
+                //}
             }
 
             _normalsValid = false;
