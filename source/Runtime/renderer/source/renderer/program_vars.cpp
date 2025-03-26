@@ -78,6 +78,10 @@ std::tuple<unsigned, unsigned> ProgramVars::get_binding_location(
 {
     unsigned binding_space_id = get_binding_space(name);
 
+    if (binding_space_id == -1) {
+        return std::make_tuple(-1, -1);
+    }
+
     if (binding_spaces.size() <= binding_space_id) {
         binding_spaces.resize(binding_space_id + 1);
     }
@@ -115,9 +119,15 @@ std::tuple<unsigned, unsigned> ProgramVars::get_binding_location(
     return std::make_tuple(binding_space_id, binding_set_location);
 }
 
+static nvrhi::IResource* placeholder;
+
 nvrhi::IResource*& ProgramVars::operator[](const std::string& name)
 {
     auto [binding_space_id, binding_set_location] = get_binding_location(name);
+
+    if (binding_space_id == -1) {
+        return placeholder;
+    }
 
     return binding_spaces[binding_space_id][binding_set_location]
         .resourceHandle;
@@ -129,6 +139,9 @@ void ProgramVars::set_descriptor_table(
     BindingLayoutHandle layout_handle)
 {
     auto [binding_space_id, binding_set_location] = get_binding_location(name);
+    if (binding_space_id == -1) {
+        return;
+    }
     descriptor_tables[binding_space_id] = table;
 
     if (binding_layouts[binding_space_id]) {
@@ -143,6 +156,9 @@ void ProgramVars::set_binding(
     const nvrhi::TextureSubresourceSet& subset)
 {
     auto [binding_space_id, binding_set_location] = get_binding_location(name);
+    if (binding_space_id == -1) {
+        return;
+    }
     auto& binding_set = binding_spaces[binding_space_id][binding_set_location];
 
     binding_set.resourceHandle = resource;

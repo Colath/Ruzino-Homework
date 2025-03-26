@@ -356,11 +356,11 @@ void Hd_USTC_CG_Mesh::updateTLAS(
     draw_indirect =
         render_param->InstanceCollection->draw_indirect_pool.allocate(1);
     nvrhi::DrawIndirectArguments args;
-    args.startInstanceLocation = instanceBuffer->index();
 
     args.vertexCount = triangulatedIndices.size() * 3;
     args.instanceCount = instances.size();
     args.startVertexLocation = 0;
+    args.startInstanceLocation = instanceBuffer->index();
 
     draw_indirect->write_data(&args);
 }
@@ -432,6 +432,11 @@ void Hd_USTC_CG_Mesh::Sync(
 
         if (HdChangeTracker::IsTopologyDirty(*dirtyBits, id)) {
             topology = GetMeshTopology(sceneDelegate);
+
+            auto geom_subsets = topology.GetGeomSubsets();
+            for (auto& subset : geom_subsets) {
+                log::info("Subset: %s", subset.materialId.GetText());
+            }
 
             HdMeshUtil meshUtil(&topology, GetId());
             meshUtil.ComputeTriangleIndices(

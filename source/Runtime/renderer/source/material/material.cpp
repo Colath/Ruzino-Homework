@@ -264,13 +264,9 @@ void BindlessContext::emitResourceBindings(
 
                 if (numComponents > 0) {
                     fetch_data += syntax.getTypeName(type) + " " +
-                                  uniform->getName() + " = " + dataFetch +
+                                  uniform->getVariable() + " = " + dataFetch +
                                   ";\n";
                 }
-            }
-            else {
-                log::warning(
-                    ("Unsupported uniform type: " + type->getName()).c_str());
             }
 
             // generator.emitLineBegin(stage);
@@ -298,7 +294,7 @@ void BindlessContext::emitResourceBindings(
                 //    uniform, EMPTY_STRING, context, stage, true);
                 // generator.emitLineEnd(stage, true);
 
-                fetch_data += "Texture2D " + uniform->getName() + " = " +
+                fetch_data += "Texture2D " + uniform->getVariable() + " = " +
                               " t_BindlessTextures[$" + uniform->getName() +
                               "_id];\n";
             }
@@ -772,7 +768,7 @@ struct CallableData
 [shader("callable")]
 void $getColor(inout CallableData data)
 {
-    data.color = float4(1, 0, 1, 1);
+    data.color = float4(0, 1, 0, 1);
 }
 
 )";

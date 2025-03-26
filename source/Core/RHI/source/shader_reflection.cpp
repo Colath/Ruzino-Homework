@@ -17,7 +17,7 @@ unsigned ShaderReflectionInfo::get_binding_space(const std::string& name)
     if (it != binding_locations.end()) {
         return std::get<0>(it->second);
     }
-    log::error("Binding space not found: %s", name.c_str());
+    log::warning("Binding space not found: %s", name.c_str());
     return -1;
 }
 
