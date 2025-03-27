@@ -44,6 +44,8 @@ struct VertexInfo
     float3 faceNormalW;     ///< Face normal in world space (normalized).
     float  curveRadius;     ///< Curve cross-sectional radius. Valid only for geometry generated from curves.
     float  coneTexLODValue; ///< Texture LOD data for cone tracing. This is zero, unless getVertexDataRayCones() is used.
+
+    uint subsetMaterialID; ///< Subset material ID. This is the material ID of the subset the vertex belongs to.
 };
 
 USTC_CG_NAMESPACE_CLOSE_SCOPE

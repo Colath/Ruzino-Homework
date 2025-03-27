@@ -170,6 +170,7 @@ void Hd_USTC_CG_Mesh::create_gpu_resources(Hd_USTC_CG_RenderParam* render_param)
     unsigned index_buffer_offset = 0;
     unsigned normal_buffer_offset = 0;
     unsigned texcoord_buffer_offset = 0;
+    unsigned subset_mat_id_offset = 0;
 
     unsigned total_buffer_size = points.size() * 3 * sizeof(float);
     index_buffer_offset = total_buffer_size;
@@ -195,6 +196,21 @@ void Hd_USTC_CG_Mesh::create_gpu_resources(Hd_USTC_CG_RenderParam* render_param)
     }
 
     total_buffer_size += texcoords.size() * 2 * sizeof(float);
+
+    VtIntArray subset_material_id;
+
+    if (_primvarSourceMap.find(pxr::TfToken("subset_material_id")) !=
+        _primvarSourceMap.end()) {
+        subset_mat_id_offset = total_buffer_size;
+        subset_material_id =
+            _primvarSourceMap[pxr::TfToken("subset_material_id")]
+                .data.Get<VtIntArray>();
+        total_buffer_size +=
+            _primvarSourceMap[pxr::TfToken("subset_material_id")]
+                .data.Get<VtIntArray>()
+                .size() *
+            sizeof(int);
+    }
 
     nvrhi::BufferDesc desc =
         nvrhi::BufferDesc{}
@@ -234,6 +250,13 @@ void Hd_USTC_CG_Mesh::create_gpu_resources(Hd_USTC_CG_RenderParam* render_param)
             texcoords.data(),
             texcoords.size() * 2 * sizeof(float),
             texcoord_buffer_offset);
+    }
+    if (!subset_material_id.empty()) {
+        copy_commandlist->writeBuffer(
+            vertexBuffer,
+            subset_material_id.data(),
+            subset_material_id.size() * sizeof(int),
+            subset_mat_id_offset);
     }
 
     copy_commandlist->close();
@@ -279,6 +302,7 @@ void Hd_USTC_CG_Mesh::create_gpu_resources(Hd_USTC_CG_RenderParam* render_param)
     mesh_desc.ibOffset = index_buffer_offset;
     mesh_desc.normalOffset = normal_buffer_offset;
     mesh_desc.texCrdOffset = texcoord_buffer_offset;
+    mesh_desc.subsetMatIdOffset = subset_mat_id_offset;
     mesh_desc.bindlessIndex = descriptor_handle.Get();
 
     mesh_desc.texCrdInterpolation = texCrdInterpolation;
@@ -445,14 +469,11 @@ void Hd_USTC_CG_Mesh::Sync(
         if (HdChangeTracker::IsTopologyDirty(*dirtyBits, id)) {
             topology = GetMeshTopology(sceneDelegate);
 
-            auto geom_subsets = topology.GetGeomSubsets();
-            for (auto& subset : geom_subsets) {
-                log::info("Subset: %s", subset.materialId.GetText());
-            }
-
             HdMeshUtil meshUtil(&topology, GetId());
             meshUtil.ComputeTriangleIndices(
                 &triangulatedIndices, &trianglePrimitiveParams);
+
+            auto& geom_subsets = topology.GetGeomSubsets();
 
             for (auto& primvar : _primvarSourceMap) {
                 if (primvar.second.interpolation ==
@@ -461,6 +482,15 @@ void Hd_USTC_CG_Mesh::Sync(
 
                     if (value.IsArrayValued()) {
                         if (value.IsHolding<VtVec3fArray>()) {
+                            if (value.Get<VtVec3fArray>().size() !=
+                                topology.GetFaceVertexIndices().size()) {
+                                log::error(
+                                    "FaceVarying primvar size mismatch: %s, "
+                                    "expected %d, have %d",
+                                    primvar.first.GetText(),
+                                    topology.GetFaceVertexIndices().size(),
+                                    value.Get<VtVec2fArray>().size());
+                            }
                             meshUtil.ComputeTriangulatedFaceVaryingPrimvar(
                                 value.Get<VtVec3fArray>().data(),
                                 value.GetArraySize(),
@@ -468,6 +498,9 @@ void Hd_USTC_CG_Mesh::Sync(
                                 &primvar.second.data);
                         }
                         else if (value.IsHolding<VtVec2fArray>()) {
+                            assert(
+                                value.Get<VtVec2fArray>().size() ==
+                                topology.GetFaceVertexIndices().size());
                             meshUtil.ComputeTriangulatedFaceVaryingPrimvar(
                                 value.Get<VtVec2fArray>().data(),
                                 value.GetArraySize(),
@@ -529,6 +562,58 @@ void Hd_USTC_CG_Mesh::Sync(
                 //        }
                 //    }
                 //}
+            }
+
+            if (!geom_subsets.empty()) {
+                std::unordered_map<int, int> subset_material_id_map;
+
+                for (auto& subset : geom_subsets) {
+                    auto face_ids = subset.indices;
+
+                    auto material_map =
+                        static_cast<Hd_USTC_CG_RenderParam*>(renderParam)
+                            ->material_map;
+
+                    auto p = material_map->find(subset.materialId);
+
+                    if (p == material_map->end()) {
+                        log::error(
+                            "Material not found for subset %s",
+                            subset.materialId.GetText());
+                        continue;
+                    }
+
+                    auto material_id = (*p).second->GetMaterialLocation();
+                    for (auto face_id : face_ids) {
+                        subset_material_id_map[face_id] = material_id;
+                    }
+                }
+
+                VtArray<int> material_id_primvars;
+                material_id_primvars.resize(triangulatedIndices.size() * 3, 0);
+
+                assert(
+                    triangulatedIndices.size() ==
+                    trianglePrimitiveParams.size());
+
+                for (int i = 0; i < triangulatedIndices.size(); i++) {
+                    material_id_primvars[triangulatedIndices[i][0]] =
+                        subset_material_id_map
+                            [HdMeshUtil::DecodeFaceIndexFromCoarseFaceParam(
+                                trianglePrimitiveParams[i])];
+                    material_id_primvars[triangulatedIndices[i][1]] =
+                        subset_material_id_map
+                            [HdMeshUtil::DecodeFaceIndexFromCoarseFaceParam(
+                                trianglePrimitiveParams[i])];
+                    material_id_primvars[triangulatedIndices[i][2]] =
+                        subset_material_id_map
+                            [HdMeshUtil::DecodeFaceIndexFromCoarseFaceParam(
+                                trianglePrimitiveParams[i])];
+                }
+
+                _primvarSourceMap[TfToken("subset_material_id")] = {
+                    VtValue(material_id_primvars), HdInterpolationFaceVarying
+                };
             }
 
             _normalsValid = false;

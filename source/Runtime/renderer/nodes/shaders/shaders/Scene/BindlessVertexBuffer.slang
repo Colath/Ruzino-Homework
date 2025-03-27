@@ -42,8 +42,14 @@ StaticVertexData load_vertex(MeshDesc mesh_data, uint vertex_id)
         texCrd = asfloat(
             vertex_buffer.Load2(2 * vertex_id * 4 + mesh_data.texCrdOffset));
 
-    StaticVertexData data =
-        StaticVertexData(pos, normal, float4(1, 0, 0, 1), texCrd, 0);
+    uint subset_material_id = -1;
+    if (mesh_data.subsetMatIdOffset != 0) {
+        subset_material_id =
+            vertex_buffer.Load(mesh_data.subsetMatIdOffset + id * 4);
+    }
+
+    StaticVertexData data = StaticVertexData(
+        pos, normal, float4(1, 0, 0, 1), texCrd, 0, subset_material_id);
     return data;
 }
 
@@ -70,6 +76,9 @@ VertexInfo get_interpolated_vertex(
 
     float3 baricentric = float3(
         1.0 - baricentric2.x - baricentric2.y, baricentric2.x, baricentric2.y);
-    return computeVertexData(
+    var data = computeVertexData(
         v, worldMat, worldInvTransposeMat, false, baricentric);
+
+    data.subsetMaterialID = v[0].subset_material_id;
+    return data;
 }

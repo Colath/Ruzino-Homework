@@ -178,12 +178,13 @@ struct MeshDesc {
     uint prevVbOffset;  ///< Offset into previous vertex data buffer, or zero if
                         ///< neither skinned or animated.
     // uint materialID;        ///< Material ID.
-    uint flags;  ///< See MeshFlags.
+    uint flags; ///< See MeshFlags.
+    uint subsetMatIdOffset;
 
     InterpolationType texCrdInterpolation;
     InterpolationType normalInterpolation;
 
-    uint2 padding;
+    uint padding;
 
     bool use16BitIndices() CONST_FUNCTION
     {
@@ -225,6 +226,8 @@ struct StaticVertexData {
     float2 texCrd;      ///< Texture coordinates.
     float curveRadius;  ///< Curve cross-sectional radius. Valid only for
                         ///< geometry generated from curves.
+
+    uint subset_material_id; ///< Material ID for the subset.
 };
 
 /** Vertex data packed into 32B for aligned access.

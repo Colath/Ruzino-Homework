@@ -66,11 +66,11 @@ class HD_USTC_CG_API Hd_USTC_CG_Mesh final : public HdMesh {
     DeviceMemoryPool<GeometryInstanceData>::MemoryHandle instanceBuffer;
     DeviceMemoryPool<nvrhi::rt::InstanceDesc>::MemoryHandle rt_instanceBuffer;
     DeviceMemoryPool<MeshDesc>::MemoryHandle mesh_desc_buffer;
-    DeviceMemoryPool<nvrhi::DrawIndirectArguments>::MemoryHandle
-        draw_indirect;
+    DeviceMemoryPool<nvrhi::DrawIndirectArguments>::MemoryHandle draw_indirect;
 
     GfMatrix4f transform;
     VtArray<GfVec3i> triangulatedIndices;
+
     VtIntArray trianglePrimitiveParams;
     VtArray<GfVec3f> points;
     VtVec3fArray normals;

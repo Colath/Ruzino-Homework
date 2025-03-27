@@ -91,7 +91,6 @@ void ClosestHit(
     uint id = DispatchRaysIndex().x;
     PixelTarget[id] = in_PixelTarget[id];
 
-
     var instance_id = InstanceID();
     var prim_id = PrimitiveIndex();
     VertexInfo vertex =
@@ -100,7 +99,6 @@ void ClosestHit(
     if (dot(WorldRayDirection(), vertex.normalW) >= 0.0) {
         vertex.normalW = -vertex.normalW;
     }
-
 
     var seed = payload.seed;
 
@@ -132,6 +130,10 @@ void ClosestHit(
 
     var material_id = instanceDescBuffer[instance_id].materialID;
 
+    if (vertex.subsetMaterialID != -1) {
+        material_id = vertex.subsetMaterialID;
+    }
+
     // Call the callable shader to get color based on material_id
     CallableData callData;
     callData.vertexInfo = vertex;
@@ -141,7 +143,7 @@ void ClosestHit(
     callData.color = float4(0, 0, 0, 1);
     callData.materialID = material_id;
     CallShader(material_id, callData);
-    result *= callData.color.rgb;
+    result *= callData.color.rgb*10;
 
     Eval[id] = float4(result, 1);
     // Eval[id] = float4(0.5 + 0.5 * vertex.tangentW.xyz, 1);
