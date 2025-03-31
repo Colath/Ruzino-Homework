@@ -55,7 +55,6 @@ NODE_EXECUTION_FUNCTION(shadow_mapping)
     for (int light_id = 0; light_id < NN; ++light_id) {
         shader_handle->shader.use();
         if (!lights[light_id]->GetId().IsEmpty()) {
-            std ::cout << "ID:" << lights[light_id]->GetId() << "\n";
             GlfSimpleLight light_params =
                 lights[light_id]->Get(HdTokens->params).Get<GlfSimpleLight>();
 
@@ -68,9 +67,9 @@ NODE_EXECUTION_FUNCTION(shadow_mapping)
             GfMatrix4f light_projection_mat;
 
             bool has_light = false;
-
             if (lights[light_id]->GetLightType() ==
                 HdPrimTypeTokens->sphereLight) {
+
                 GfFrustum frustum;
                 GfVec3f light_position = { light_params.GetPosition()[0],
                                            light_params.GetPosition()[1],

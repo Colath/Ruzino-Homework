@@ -41,7 +41,7 @@ vec3 normal = texture2D(normalMapSampler,uv).xyz;
 vec4 metalnessRoughness = texture2D(metallicRoughnessSampler,uv);
 float metal = metalnessRoughness.x;
 float roughness = metalnessRoughness.y;
-
+Color = vec4(0,0,0,1);
 for(int i = 0; i < light_count; i ++) {
 
 float shadow_map_value = texture(shadow_maps, vec3(uv, lights[i].shadow_map_id)).x;

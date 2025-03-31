@@ -13,6 +13,7 @@
 #include "pxr/usd/usdLux/distantLight.h"
 #include "pxr/usd/usdLux/domeLight.h"
 #include "pxr/usd/usdLux/rectLight.h"
+#include <pxr/usd/usdLux/sphereLight.h>
 #include "stage/api.h"
 
 USTC_CG_NAMESPACE_OPEN_SCOPE
@@ -57,6 +58,12 @@ class STAGE_API Stage {
 
     pxr::UsdLuxDomeLight create_dome_light(
         const pxr::SdfPath& path = pxr::SdfPath::EmptyPath()) const;
+
+    pxr::UsdLuxSphereLight create_sphere_light(
+        const pxr::SdfPath& path) const
+    {
+        return create_prim<pxr::UsdLuxSphereLight>(path, "sphere_light");
+    }
 
     void remove_prim(const pxr::SdfPath& path);
 
