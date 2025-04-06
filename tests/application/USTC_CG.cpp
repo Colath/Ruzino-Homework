@@ -27,8 +27,13 @@ int main()
     auto stage = create_global_stage();
     init(stage.get());
 
+#ifdef REAL_TIME
     window->register_function_before_frame(
         [&stage](Window* window) { stage->tick(window->get_elapsed_time()); });
+#else
+    window->register_function_before_frame(
+        [&stage](Window* window) { stage->tick(1.0f / 30.f); });
+#endif
     // Add a sphere
 
     auto usd_file_viewer = std::make_unique<UsdFileViewer>(stage.get());
@@ -63,19 +68,22 @@ int main()
             auto loaded = system->load_configuration("geometry_nodes.json");
             loaded = system->load_configuration("basic_nodes.json");
             loaded = system->load_configuration("render_nodes.json");
-//            loaded = system->load_configuration("polyscope_nodes.json");
+            //            loaded =
+            //            system->load_configuration("polyscope_nodes.json");
 
-//
-//            namespace fs = std::filesystem;
-//            std::regex submission_suffix(R"(.*_nodes_hw_submissions_render\.json)");
-//            log::info("LOADING SUBMISSIONS [Render]");
-//            for (auto &itr: fs::directory_iterator(".")){
-//                if (std::regex_match(itr.path().string(), submission_suffix)){
-//                    log::info("Found: %s", itr.path().string().c_str());
-//                    loaded = system->load_configuration(itr.path());
-//                }
-//            }
-
+            //
+            //            namespace fs = std::filesystem;
+            //            std::regex
+            //            submission_suffix(R"(.*_nodes_hw_submissions_render\.json)");
+            //            log::info("LOADING SUBMISSIONS [Render]");
+            //            for (auto &itr: fs::directory_iterator(".")){
+            //                if (std::regex_match(itr.path().string(),
+            //                submission_suffix)){
+            //                    log::info("Found: %s",
+            //                    itr.path().string().c_str()); loaded =
+            //                    system->load_configuration(itr.path());
+            //                }
+            //            }
 
             system->init();
             system->set_node_tree_executor(create_node_tree_executor({}));
