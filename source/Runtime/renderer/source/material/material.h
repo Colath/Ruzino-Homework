@@ -62,6 +62,7 @@ class HD_USTC_CG_API Hd_USTC_CG_Material : public HdMaterial {
     bool shader_ready = false;
 
     std::unordered_map<std::string, std::string> texturePaths;
+    ProgramHandle final_program;
 
     struct TextureResource {
         std::string filePath;

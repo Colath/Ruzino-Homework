@@ -8,13 +8,10 @@
 #include <MaterialXGenShader/Nodes/ClosureAddNode.h>
 #include <MaterialXGenShader/Nodes/ClosureCompoundNode.h>
 #include <MaterialXGenShader/Nodes/ClosureLayerNode.h>
-#include <MaterialXGenShader/Nodes/ClosureMixNode.h>
 #include <MaterialXGenShader/Nodes/ClosureMultiplyNode.h>
-#include <MaterialXGenShader/Nodes/ClosureSourceCodeNode.h>
 #include <MaterialXGenShader/Nodes/CombineNode.h>
 #include <MaterialXGenShader/Nodes/ConvertNode.h>
 #include <MaterialXGenShader/Nodes/HwFrameNode.h>
-#include <MaterialXGenShader/Nodes/HwImageNode.h>
 #include <MaterialXGenShader/Nodes/HwPositionNode.h>
 #include <MaterialXGenShader/Nodes/HwTexCoordNode.h>
 #include <MaterialXGenShader/Nodes/HwTimeNode.h>
@@ -916,7 +913,8 @@ void SlangShaderGenerator::emitPixelStage(
                 else {
                     emitLine(
                         outputSocket->getVariable() + " = float4(" +
-                            finalOutput + ".color," + finalOutput + ".transparency.r)",
+                            finalOutput + ".color," + finalOutput +
+                            ".transparency.r)",
                         stage);
                 }
             }
@@ -949,7 +947,7 @@ void SlangShaderGenerator::emitPixelStage(
                     outputSocket->getVariable() + " = " + outputValue, stage);
             }
         }
-    } 
+    }
 
     // End main function
     emitFunctionBodyEnd(graph, context, stage);

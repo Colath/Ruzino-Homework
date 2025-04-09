@@ -63,9 +63,9 @@ function(GEN_NODES_JSON TARGET_NAME)
 
     if (GEN_NODES_JSON_USERNAME)
         list(APPEND COMMAND_ARGS --username ${GEN_NODES_JSON_USERNAME})
-        message(STATUS "[User name] " ${GEN_NODES_JSON_USERNAME})
+        # message(STATUS "[User name] " ${GEN_NODES_JSON_USERNAME})
     else()
-        message(STATUS "[User name] NOT SPECIFIED! Target " ${TARGET_NAME})
+        # message(STATUS "[User name] NOT SPECIFIED! Target " ${TARGET_NAME})
     endif ()
 
     list(APPEND COMMAND_ARGS --output ${GEN_NODES_JSON_OUTPUT_JSON})
