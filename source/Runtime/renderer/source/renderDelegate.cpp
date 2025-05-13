@@ -39,8 +39,6 @@
 #include "node_exec_eager_render.hpp"
 #include "nodes/system/node_system.hpp"
 #include "nvrhi/nvrhi.h"
-#include "nvrhi/validation.h"
-#include "pxr/imaging/hd/camera.h"
 #include "pxr/imaging/hd/extComputation.h"
 #include "renderBuffer.h"
 #include "renderPass.h"
@@ -54,7 +52,7 @@ USTC_CG_NAMESPACE_OPEN_SCOPE
 using namespace pxr;
 TF_DEFINE_PUBLIC_TOKENS(
     Hd_USTC_CG_RenderSettingsTokens,
-    Hd_USTC_CG_RENDER_SETTINGS_TOKENS);
+    Hd_USTC_CG_RENDER_SETTINGS_TOKEN);
 
 const TfTokenVector Hd_USTC_CG_RenderDelegate::SUPPORTED_RPRIM_TYPES = {
     HdPrimTypeTokens->mesh,

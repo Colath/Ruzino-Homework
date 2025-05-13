@@ -28,8 +28,8 @@ NODE_EXECUTION_FUNCTION(rasterize)
 
     ProgramDesc vs_program_desc;
     vs_program_desc.shaderType = nvrhi::ShaderType::Vertex;
-    vs_program_desc.set_path("shaders/rasterize.slang")
-        .set_entry_name("vs_main")
+    vs_program_desc.set_path("shaders/rasterize.vs.slang")
+        .set_entry_name("main")
         .define(macros);
 
     ProgramHandle vs_program = resource_allocator.create(vs_program_desc);
@@ -38,8 +38,8 @@ NODE_EXECUTION_FUNCTION(rasterize)
 
     ProgramDesc ps_program_desc;
     ps_program_desc.shaderType = nvrhi::ShaderType::Pixel;
-    ps_program_desc.set_path("shaders/rasterize.slang")
-        .set_entry_name("ps_main")
+    ps_program_desc.set_path("shaders/rasterize.ps.slang")
+        .set_entry_name("main")
         .define(macros);
     ProgramHandle ps_program = resource_allocator.create(ps_program_desc);
     MARK_DESTROY_NVRHI_RESOURCE(ps_program);

@@ -24,9 +24,6 @@
 // #define __GNUC__
 #include "mesh.h"
 
-#include <iostream>
-
-#include "../api.h"
 #include "../instancer.h"
 #include "../renderParam.h"
 #include "Logger/Logger.h"

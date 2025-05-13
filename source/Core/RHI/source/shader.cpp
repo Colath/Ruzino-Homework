@@ -728,15 +728,11 @@ void ShaderFactory::SlangCompile(
         CHECK_REPORTED_ERROR();
         assert(result == SLANG_OK);
     }
-    else
-
-    {
-        result = linkedProgram->getTargetCode(
-            0, ppResultBlob.writeRef(), diagnostics.writeRef());
-
+    else {
+        result = linkedProgram->getEntryPointCode(
+            0, 0, ppResultBlob.writeRef(), diagnostics.writeRef());
         CHECK_REPORTED_ERROR();
         assert(ppResultBlob);
-
         assert(result == SLANG_OK);
     }
 
