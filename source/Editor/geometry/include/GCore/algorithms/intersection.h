@@ -17,7 +17,7 @@ struct GEOMETRY_API PointSample {
     pxr::GfVec3f position;
     pxr::GfVec3f normal;
     pxr::GfVec2f uv;
-    bool valid;
+    unsigned valid;
 };
 
 // Remember to destroy the geometry explicitly with the resource allocator after

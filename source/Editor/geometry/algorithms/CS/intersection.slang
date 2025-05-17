@@ -37,7 +37,7 @@ void RayGen()
 
     TraceRay(
         SceneBVH,  // Acceleration structure
-        RAY_FLAG_ACCEPT_FIRST_HIT_AND_END_SEARCH,
+        RAY_FLAG_NONE,
         0xFF,    // Instance inclusion mask
         0,       // Hit group index
         1,       // Number of hit groups
