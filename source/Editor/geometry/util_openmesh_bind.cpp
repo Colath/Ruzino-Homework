@@ -126,10 +126,8 @@ std::shared_ptr<PolyMesh> operand_to_openmesh(Geometry* mesh_oeprand)
 
     return openmesh;
 }
-
 std::shared_ptr<Geometry> openmesh_to_operand(PolyMesh* openmesh)
 {
-    // TODO: test
     auto geometry = std::make_shared<Geometry>();
     std::shared_ptr<MeshComponent> mesh =
         std::make_shared<MeshComponent>(geometry.get());
@@ -161,25 +159,43 @@ std::shared_ptr<Geometry> openmesh_to_operand(PolyMesh* openmesh)
     for (const auto& v : openmesh->vertices()) {
         const auto& p = openmesh->point(v);
         points.push_back(pxr::GfVec3f(p[0], p[1], p[2]));
+    }
 
-        // Add per-vertex normal if available
-        if (hasNormals) {
+    // Determine if we should use per-vertex attributes
+    bool usePerVertexNormals = hasNormals;
+    bool usePerVertexTexcoords = hasTexcoords;
+    bool usePerVertexColors = hasColors;
+
+    // If using per-vertex attributes, populate them now
+    if (usePerVertexNormals) {
+        for (const auto& v : openmesh->vertices()) {
             const auto& n = openmesh->normal(v);
             normals.push_back(pxr::GfVec3f(n[0], n[1], n[2]));
         }
+    }
 
-        // Add per-vertex texcoord if available
-        if (hasTexcoords) {
+    if (usePerVertexTexcoords) {
+        for (const auto& v : openmesh->vertices()) {
             const auto& t = openmesh->texcoord2D(v);
             texcoords.push_back(pxr::GfVec2f(t[0], t[1]));
         }
+    }
 
-        // Add per-vertex color if available
-        if (hasColors) {
+    if (usePerVertexColors) {
+        for (const auto& v : openmesh->vertices()) {
             const auto& c = openmesh->color(v);
-            colors.push_back(pxr::GfVec3f(c[0], c[1], c[2]));
+            colors.push_back(
+                pxr::GfVec3f(c[0] / 255.0f, c[1] / 255.0f, c[2] / 255.0f));
         }
     }
+
+    // If we need per-face-vertex attributes, prepare for them
+    pxr::VtArray<pxr::GfVec3f> faceVertexNormals;
+    pxr::VtArray<pxr::GfVec2f> faceVertexTexcoords;
+    pxr::VtArray<pxr::GfVec3f> faceVertexColors;
+    bool hasFaceVertexNormals = hasNormals && !usePerVertexNormals;
+    bool hasFaceVertexTexcoords = hasTexcoords && !usePerVertexTexcoords;
+    bool hasFaceVertexColors = hasColors && !usePerVertexColors;
 
     // Set the topology
     for (const auto& f : openmesh->faces()) {
@@ -187,6 +203,23 @@ std::shared_ptr<Geometry> openmesh_to_operand(PolyMesh* openmesh)
         for (const auto& vf : f.vertices()) {
             faceVertexIndices.push_back(vf.idx());
             count += 1;
+
+            // If we need per-face-vertex attributes, collect them here
+            if (hasFaceVertexNormals) {
+                const auto& n = openmesh->normal(vf);
+                faceVertexNormals.push_back(pxr::GfVec3f(n[0], n[1], n[2]));
+            }
+
+            if (hasFaceVertexTexcoords) {
+                const auto& t = openmesh->texcoord2D(vf);
+                faceVertexTexcoords.push_back(pxr::GfVec2f(t[0], t[1]));
+            }
+
+            if (hasFaceVertexColors) {
+                const auto& c = openmesh->color(vf);
+                faceVertexColors.push_back(
+                    pxr::GfVec3f(c[0] / 255.0f, c[1] / 255.0f, c[2] / 255.0f));
+            }
         }
         faceVertexCounts.push_back(count);
     }
@@ -196,15 +229,16 @@ std::shared_ptr<Geometry> openmesh_to_operand(PolyMesh* openmesh)
     mesh->set_face_vertex_counts(faceVertexCounts);
 
     if (hasNormals) {
-        mesh->set_normals(normals);
+        mesh->set_normals(usePerVertexNormals ? normals : faceVertexNormals);
     }
 
     if (hasTexcoords) {
-        mesh->set_texcoords_array(texcoords);
+        mesh->set_texcoords_array(
+            usePerVertexTexcoords ? texcoords : faceVertexTexcoords);
     }
 
     if (hasColors) {
-        mesh->set_display_color(colors);
+        mesh->set_display_color(usePerVertexColors ? colors : faceVertexColors);
     }
 
     return geometry;

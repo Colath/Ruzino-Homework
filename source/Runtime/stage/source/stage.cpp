@@ -22,7 +22,8 @@ USTC_CG_NAMESPACE_OPEN_SCOPE
 
 Stage::Stage()
 {
-    std::string stage_path = "../../Assets/stage.usdc";
+    std::string stage_path = "../../Assets/demo_stroke.usdc";
+    stage_path = "../../Assets/stage.usdc";
 
     std::filesystem::path executable_path;
 

@@ -539,7 +539,7 @@ NODE_EXECUTION_FUNCTION(create_point)
     widths.push_back(size);
 
     points->set_vertices(vertices);
-    points->set_normals({ pxr::GfVec3f(0.0f, 0.0f, 1.0f) });
+    points->set_normals({ pxr::GfVec3f(0.0f, 1.0f, 0.0f) });
     points->set_width(widths);
 
     params.set_output("Point", std::move(geometry));
