@@ -135,7 +135,7 @@ struct NODES_CORE_API SocketGroup {
 
     std::vector<NodeSocket*> sockets;
 
-    friend class Node;
+    friend struct Node;
 };
 
 USTC_CG_NAMESPACE_CLOSE_SCOPE

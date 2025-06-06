@@ -81,7 +81,7 @@ NODE_EXECUTION_FUNCTION(create_circle)
 
     pxr::GfVec3f center(0.0f, 0.0f, 0.0f);
 
-    float angleStep = 2.0f * M_PI / resolution;
+    float angleStep = 2.0f * static_cast<float>(M_PI) / resolution;
 
     for (int i = 0; i < resolution; ++i) {
         float angle = i * angleStep;
@@ -110,10 +110,10 @@ NODE_EXECUTION_FUNCTION(create_circle)
 
 NODE_DECLARATION_FUNCTION(create_cylinder_section)
 {
-    b.add_input<float>("height").min(0.1).max(20).default_val(1.0);
-    b.add_input<float>("radius").min(0.1).max(20).default_val(1.0);
-    b.add_input<float>("angle").min(0.1).max(6.28).default_val(
-        1.57);  // In radians, up to 2π
+    b.add_input<float>("height").min(0.1f).max(20.0f).default_val(1.0f);
+    b.add_input<float>("radius").min(0.1f).max(20.0f).default_val(1.0f);
+    b.add_input<float>("angle").min(0.1f).max(6.28f).default_val(
+        1.57f);  // In radians, up to 2π
     b.add_input<int>("resolution").min(2).max(100).default_val(16);
     b.add_output<Geometry>("Geometry");
 }
@@ -209,10 +209,10 @@ NODE_EXECUTION_FUNCTION(create_cylinder_section)
 NODE_DECLARATION_FUNCTION(create_spiral)
 {
     b.add_input<int>("resolution").min(1).max(100).default_val(10);
-    b.add_input<float>("R1").min(0.1).max(10).default_val(1);
-    b.add_input<float>("R2").min(0.1).max(10).default_val(1);
-    b.add_input<float>("Circle Count").min(0.1).max(10).default_val(2);
-    b.add_input<float>("Height").min(0.1).max(10).default_val(1);
+    b.add_input<float>("R1").min(0.1f).max(10.0f).default_val(1.0f);
+    b.add_input<float>("R2").min(0.1f).max(10.0f).default_val(1.0f);
+    b.add_input<float>("Circle Count").min(0.1f).max(10.0f).default_val(2.0f);
+    b.add_input<float>("Height").min(0.1f).max(10.0f).default_val(1.0f);
     b.add_output<Geometry>("Curve");
 }
 
@@ -231,7 +231,8 @@ NODE_EXECUTION_FUNCTION(create_spiral)
 
     pxr::VtArray<pxr::GfVec3f> points;
 
-    float angleStep = circleCount * 2.0f * M_PI / resolution;
+    float angleStep =
+        circleCount * 2.0f * static_cast<float>(M_PI) / resolution;
     float radiusIncrement = (R2 - R1) / resolution;
     float heightIncrement = height / resolution;
 
@@ -293,13 +294,14 @@ NODE_EXECUTION_FUNCTION(create_uv_sphere)
 
     // Generate vertices for each ring
     for (int ring = 0; ring < rings - 1; ++ring) {
-        float phi = M_PI * (float)(ring + 1) / rings;
+        float phi = static_cast<float>(M_PI) * (float)(ring + 1) / rings;
         float sinPhi = std::sin(phi);
         float cosPhi = std::cos(phi);
         float v = 1.0f - (float)(ring + 1) / rings;
 
         for (int segment = 0; segment < segments; ++segment) {
-            float theta = 2.0f * M_PI * (float)segment / segments;
+            float theta =
+                2.0f * static_cast<float>(M_PI) * (float)segment / segments;
             float sinTheta = std::sin(theta);
             float cosTheta = std::cos(theta);
             float u = (float)segment / segments;
@@ -584,14 +586,18 @@ NODE_EXECUTION_FUNCTION(create_wave_mesh)
 
             // One side is straight (x-axis), z-axis has wave pattern based on
             // y-coordinate
-            float z =
-                wave_height * std::sin(y * period_count * 2.0f * M_PI / size);
+            float z = wave_height * std::sin(
+                                        y * period_count * 2.0f *
+                                        static_cast<float>(M_PI) / size);
 
             points.push_back(pxr::GfVec3f(x, y, z));
 
             // Calculate normal (using partial derivatives)
-            float dz_dy = wave_height * (2.0f * M_PI * period_count / size) *
-                          std::cos(y * period_count * 2.0f * M_PI / size);
+            float dz_dy =
+                wave_height *
+                (2.0f * static_cast<float>(M_PI) * period_count / size) *
+                std::cos(
+                    y * period_count * 2.0f * static_cast<float>(M_PI) / size);
             pxr::GfVec3f normal(-0.0f, -dz_dy, 1.0f);
             normal.Normalize();
             normals.push_back(-normal);
@@ -667,7 +673,7 @@ NODE_EXECUTION_FUNCTION(create_diamond)
 
     // Add middle ring vertices
     for (int i = 0; i < segments; ++i) {
-        float angle = 2.0f * M_PI * i / segments;
+        float angle = 2.0f * static_cast<float>(M_PI) * i / segments;
         float x = sectionWidth * std::cos(angle);
         float y = sectionWidth * std::sin(angle);
         points.push_back(pxr::GfVec3f(x, y, middleZ));
@@ -679,7 +685,7 @@ NODE_EXECUTION_FUNCTION(create_diamond)
 
     // Add bottom ring vertices
     for (int i = 0; i < segments; ++i) {
-        float angle = 2.0f * M_PI * i / segments;
+        float angle = 2.0f * static_cast<float>(M_PI) * i / segments;
         float x = topWidth * std::cos(angle);
         float y = topWidth * std::sin(angle);
         points.push_back(pxr::GfVec3f(x, y, bottomZ));
@@ -781,7 +787,7 @@ NODE_EXECUTION_FUNCTION(create_trefoil)
     // Generate trefoil knot points
     for (int i = 0; i <= resolution;
          ++i) {  // <= to create an extra point that overlaps with the first
-        float t = 2.0f * M_PI * (i % resolution) /
+        float t = 2.0f * static_cast<float>(M_PI) * (i % resolution) /
                   resolution;  // Use modulo to wrap around
 
         // Trefoil knot parametric equation

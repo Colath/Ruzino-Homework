@@ -91,7 +91,7 @@ class RHI_API ShaderFactory {
     static std::string shader_search_path;
     nvrhi::IDevice* device;
     ResourceAllocator* resource_allocator;
-    friend class ProgramDesc;
+    friend struct ProgramDesc;
 };
 
 USTC_CG_NAMESPACE_CLOSE_SCOPE

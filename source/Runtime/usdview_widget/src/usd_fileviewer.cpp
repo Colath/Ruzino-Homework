@@ -339,49 +339,55 @@ void UsdFileViewer::EditValue()
                 if (ImGui::SliderInt4(label.c_str(), value.data(), -10, 10)) {
                     attr.Set(value);
                 }
-            }
-            else if (v.IsHolding<GfVec2d>()) {
-                GfVec2d value = v.Get<GfVec2d>();
-                float tmp[2] = { value[0], value[1] };
-                if (ImGui::SliderFloat2(label.c_str(), tmp, 0.0f, 1.0f)) {
-                    value[0] = tmp[0];
-                    value[1] = tmp[1];
-                    attr.Set(value);
+                else if (v.IsHolding<GfVec2d>()) {
+                    GfVec2d value = v.Get<GfVec2d>();
+                    float tmp[2] = { static_cast<float>(value[0]),
+                                     static_cast<float>(value[1]) };
+                    if (ImGui::SliderFloat2(label.c_str(), tmp, 0.0f, 1.0f)) {
+                        value[0] = static_cast<double>(tmp[0]);
+                        value[1] = static_cast<double>(tmp[1]);
+                        attr.Set(value);
+                    }
                 }
-            }
-            else if (v.IsHolding<GfVec3d>()) {
-                GfVec3d value = v.Get<GfVec3d>();
-                float tmp[3] = { value[0], value[1], value[2] };
+                else if (v.IsHolding<GfVec3d>()) {
+                    GfVec3d value = v.Get<GfVec3d>();
+                    float tmp[3] = { static_cast<float>(value[0]),
+                                     static_cast<float>(value[1]),
+                                     static_cast<float>(value[2]) };
 
-                if (ImGui::SliderFloat3(label.c_str(), tmp, 0.0f, 1.0f)) {
-                    value[0] = tmp[0];
-                    value[1] = tmp[1];
-                    value[2] = tmp[2];
-                    attr.Set(value);
+                    if (ImGui::SliderFloat3(label.c_str(), tmp, 0.0f, 1.0f)) {
+                        value[0] = static_cast<double>(tmp[0]);
+                        value[1] = static_cast<double>(tmp[1]);
+                        value[2] = static_cast<double>(tmp[2]);
+                        attr.Set(value);
+                    }
                 }
-            }
-            else if (v.IsHolding<GfVec4d>()) {
-                GfVec4d value = v.Get<GfVec4d>();
-                float tmp[4] = { value[0], value[1], value[2], value[3] };
+                else if (v.IsHolding<GfVec4d>()) {
+                    GfVec4d value = v.Get<GfVec4d>();
+                    float tmp[4] = { static_cast<float>(value[0]),
+                                     static_cast<float>(value[1]),
+                                     static_cast<float>(value[2]),
+                                     static_cast<float>(value[3]) };
 
-                if (ImGui::SliderFloat4(label.c_str(), tmp, 0.0f, 1.0f)) {
-                    value[0] = tmp[0];
-                    value[1] = tmp[1];
-                    value[2] = tmp[2];
-                    value[3] = tmp[3];
-                    attr.Set(value);
+                    if (ImGui::SliderFloat4(label.c_str(), tmp, 0.0f, 1.0f)) {
+                        value[0] = static_cast<double>(tmp[0]);
+                        value[1] = static_cast<double>(tmp[1]);
+                        value[2] = static_cast<double>(tmp[2]);
+                        value[3] = static_cast<double>(tmp[3]);
+                        attr.Set(value);
+                    }
                 }
-            }
 
-            //            if (v.IsHolding<VtArray<TfToken>>()){
-            //                std::cout << "1\n";
-            //            }
-            //
-            //            if (label=="xformOpOrder##xformOpOrder") {
-            //                std::cout << v.IsEmpty() << "\n";
-            //                log::warning("[%s]", label.c_str());
-            //
-            //            }
+                //            if (v.IsHolding<VtArray<TfToken>>()){
+                //                std::cout << "1\n";
+                //            }
+                //
+                //            if (label=="xformOpOrder##xformOpOrder") {
+                //                std::cout << v.IsEmpty() << "\n";
+                //                log::warning("[%s]", label.c_str());
+                //
+                //            }
+            }
         }
     }
 }

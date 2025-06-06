@@ -112,3 +112,9 @@ set_target_properties(igl_core PROPERTIES FOLDER "ThirdParty")
 set_target_properties(autodiff PROPERTIES FOLDER "ThirdParty")
 set_target_properties(stb_image PROPERTIES FOLDER "ThirdParty")
 set_target_properties(uninstall PROPERTIES FOLDER "ThirdParty")
+
+# suppress warnings for third-party libraries
+if(MSVC)
+    target_compile_options(igl_core INTERFACE /wd4244 /wd4267)
+    target_compile_options(triangle PRIVATE /wd4311 /wd4302)
+endif()

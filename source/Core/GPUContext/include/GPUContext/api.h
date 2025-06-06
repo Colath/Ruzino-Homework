@@ -1,8 +1,10 @@
 
 #pragma once
 
+#ifndef USTC_CG_NAMESPACE_OPEN_SCOPE
 #define USTC_CG_NAMESPACE_OPEN_SCOPE namespace USTC_CG{
 #define USTC_CG_NAMESPACE_CLOSE_SCOPE }
+#endif
 
 #if defined(_MSC_VER)
 #  define GPUCONTEXT_EXPORT   __declspec(dllexport)

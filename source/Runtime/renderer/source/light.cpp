@@ -103,10 +103,10 @@ void Hd_USTC_CG_Light::Sync(
             // e.g. area light
             auto light =
                 Get(HdLightTokens->params).GetWithDefault<GlfSimpleLight>();
-            GfVec3d p = transform.ExtractTranslation();
+            GfVec3f p = GfVec3f(transform.ExtractTranslation());
             GfVec4f pos(p[0], p[1], p[2], 1.0f);
             // Convention is to emit light along -Z
-            GfVec4d zDir = transform.GetRow(2);
+            GfVec4d zDir = GfVec4f(transform.GetRow(2));
             if (_lightType == HdPrimTypeTokens->rectLight ||
                 _lightType == HdPrimTypeTokens->diskLight) {
                 light.SetSpotDirection(GfVec3f(-zDir[0], -zDir[1], -zDir[2]));

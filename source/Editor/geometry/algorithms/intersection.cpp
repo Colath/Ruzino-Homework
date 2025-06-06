@@ -60,10 +60,10 @@ nvrhi::rt::AccelStructHandle get_geomtry_tlas(
     MeshDesc mesh_desc;
     auto device = RHI::get_device();
 
-    unsigned total_buffer_size = 0;
-    unsigned index_buffer_offset = 0;
-    unsigned normal_buffer_offset = 0;
-    unsigned texcoord_buffer_offset = 0;
+    size_t total_buffer_size = 0;
+    size_t index_buffer_offset = 0;
+    size_t normal_buffer_offset = 0;
+    size_t texcoord_buffer_offset = 0;
 
     auto vertices = mesh_component->get_vertices();
     auto indices = mesh_component->get_face_vertex_indices();

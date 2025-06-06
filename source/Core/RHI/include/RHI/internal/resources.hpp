@@ -108,13 +108,13 @@ struct RHI_API ProgramDesc {
     std::string entry_name;
 
     friend class ShaderFactory;
-    friend class Program;
-    friend class std::hash<ProgramDesc>;
+    friend struct Program;
+    friend struct std::hash<ProgramDesc>;
 };
 
 using ProgramHandle = nvrhi::RefCountPtr<Program>;
 
-class RHI_API IProgram : public nvrhi::IResource {
+class IProgram : public nvrhi::IResource {
    public:
     virtual ProgramDesc get_desc() const = 0;
     virtual nvrhi::ShaderDesc get_shader_desc() const = 0;
@@ -127,7 +127,7 @@ class RHI_API IProgram : public nvrhi::IResource {
 /**
  * A program is a compiled shader program combined with reflection data.
  */
-struct RHI_API Program : nvrhi::RefCounter<IProgram> {
+struct Program : nvrhi::RefCounter<IProgram> {
     ProgramDesc get_desc() const override;
     nvrhi::ShaderDesc get_shader_desc() const override;
     void const* getBufferPointer() const override;

@@ -280,6 +280,18 @@ function(USTC_CG_ADD_LIB LIB_NAME)
         file(MAKE_DIRECTORY ${USTC_CG_ADD_LIB_RESOURCE_COPY_TARGET})
     endif()
 
+    # Suppress C4251 and C4996 warnings for MSVC
+    if(MSVC)
+        target_compile_options(${name} PRIVATE $<$<COMPILE_LANGUAGE:CXX>:/wd4251> $<$<COMPILE_LANGUAGE:CXX>:/wd4996>)
+        if(USTC_CG_ADD_LIB_PYTHON_WRAP_SRC)
+            target_compile_options(${name}_py PRIVATE $<$<COMPILE_LANGUAGE:CXX>:/wd4251> $<$<COMPILE_LANGUAGE:CXX>:/wd4996>)
+        endif()
+        foreach(source ${test_sources})
+            string(REGEX REPLACE "(.*/)([a-zA-Z0-9_ ]+)(\.cpp|\.cu)" "\\2" test_name ${source})
+            target_compile_options(${test_name}_test PRIVATE $<$<COMPILE_LANGUAGE:CXX>:/wd4251> $<$<COMPILE_LANGUAGE:CXX>:/wd4996>)
+        endforeach()
+    endif()
+
     # Copy USD resource directories and files
     foreach(resource_dir ${USTC_CG_ADD_LIB_USD_RESOURCE_DIRS})
         get_filename_component(absolute_resource_dir ${resource_dir} ABSOLUTE)

@@ -2,7 +2,6 @@
 #include <functional>
 #include <memory>
 #include <string>
-#include <variant>
 
 #include "api.hpp"
 #include "entt/core/type_info.hpp"
@@ -165,7 +164,7 @@ struct NODES_CORE_API Node {
     void register_socket_to_node(NodeSocket* socket, PinKind in_out);
 
     friend class NodeTree;
-    friend class SocketGroup;
+    friend struct SocketGroup;
 };
 
 /**
@@ -490,7 +489,7 @@ typename SocketTrait<T>::Builder& NodeDeclarationBuilder::add_socket(
     socket_decl_builder->decl_ = socket_decl.get();
     socket_decl->name = name;
     socket_decl->in_out = in_out;
-    socket_decl_builder->index_ = declaration_.inputs.size();
+    socket_decl_builder->index_ = static_cast<int>(declaration_.inputs.size());
 
     if (in_out == PinKind::Input) {
         socket_decl->identifier = std::string(identifier_in);
@@ -559,7 +558,7 @@ struct NODES_CORE_API NodeTypeInfo {
 
     NodeTypeInfo& set_always_required(bool always_required);
 
-    float color[4] = { 0.3, 0.5, 0.7, 1.0 };
+    float color[4] = { 0.3f, 0.5f, 0.7f, 1.0f };
     ExecFunction node_execute;
 
     bool ALWAYS_REQUIRED = false;

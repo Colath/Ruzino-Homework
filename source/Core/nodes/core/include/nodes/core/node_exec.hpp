@@ -66,7 +66,7 @@ struct NODES_CORE_API ExeParams {
         std::vector<size_t> indices =
             this->get_input_group_indices(group_identifier);
         std::vector<entt::meta_any*> values;
-        for (int index : indices) {
+        for (auto index : indices) {
             values.push_back(inputs_[index]);
         }
         return values;

@@ -125,6 +125,11 @@ function(add_nodes)
         if(ARG_EXTRA_INCLUDE_DIRS)
             target_include_directories(${target_name} PRIVATE ${ARG_EXTRA_INCLUDE_DIRS})
         endif()
+        # Suppress C4251 warning for MSVC
+        if(MSVC)
+            target_compile_options(${target_name} PRIVATE $<$<COMPILE_LANGUAGE:CXX>:/wd4251 /wd4996>)
+        endif()
+
         list(APPEND all_nodes ${target_name})
     endforeach()
 

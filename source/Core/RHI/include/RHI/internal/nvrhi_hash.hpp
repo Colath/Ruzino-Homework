@@ -358,7 +358,7 @@ struct hash<nvrhi::GraphicsPipelineDesc> {
     {
         std::size_t seed = 0;
         if (s.inputLayout != nullptr) {
-            for (int i = 0; i < s.inputLayout->getNumAttributes(); ++i) {
+            for (uint32_t i = 0; i < s.inputLayout->getNumAttributes(); ++i) {
                 auto attrs = s.inputLayout->getAttributeDesc(i);
                 nvrhi::hash_combine(seed, *attrs);
             }

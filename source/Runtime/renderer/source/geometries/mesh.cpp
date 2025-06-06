@@ -164,13 +164,13 @@ void Hd_USTC_CG_Mesh::create_gpu_resources(Hd_USTC_CG_RenderParam* render_param)
     auto descriptor_table =
         render_param->InstanceCollection->get_buffer_descriptor_table();
 
-    unsigned index_buffer_offset = 0;
-    unsigned normal_buffer_offset = 0;
-    unsigned tangent_buffer_offset = 0;
-    unsigned texcoord_buffer_offset = 0;
-    unsigned subset_mat_id_offset = 0;
+    size_t index_buffer_offset = 0;
+    size_t normal_buffer_offset = 0;
+    size_t tangent_buffer_offset = 0;
+    size_t texcoord_buffer_offset = 0;
+    size_t subset_mat_id_offset = 0;
 
-    unsigned total_buffer_size = points.size() * 3 * sizeof(float);
+    size_t total_buffer_size = points.size() * 3 * sizeof(float);
     index_buffer_offset = total_buffer_size;
     total_buffer_size += triangulatedIndices.size() * 3 * sizeof(uint);
     normal_buffer_offset = total_buffer_size;

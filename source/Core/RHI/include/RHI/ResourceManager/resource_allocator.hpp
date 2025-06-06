@@ -191,7 +191,7 @@ class ResourceAllocator {
     struct PAYLOAD_NAME(RESOURCE) {                                   \
         RESOURCE##Handle handle;                                      \
         size_t age = 0;                                               \
-        uint32_t size = 0;                                            \
+        size_t size = 0;                                            \
     };                                                                \
     using RESOURCE##CacheContainer =                                  \
         AssociativeContainer<RESOURCE##Desc, RESOURCE##CachePayload>; \
@@ -199,7 +199,7 @@ class ResourceAllocator {
         AssociativeContainer<RESOURCE##Handle, RESOURCE##Desc>;       \
     RESOURCE##CacheContainer CACHE_NAME(RESOURCE);                    \
     RESOURCE##InUseContainer INUSE_NAME(RESOURCE);                    \
-    uint32_t CACHE_SIZE(RESOURCE) = 0;
+    size_t CACHE_SIZE(RESOURCE) = 0;
 
 #define PURGE(RESOURCE)                                \
     RESOURCE##CacheContainer::iterator purge(          \
@@ -399,7 +399,7 @@ class ResourceAllocator {
         }
     };
 
-    void dump(bool brief = false, uint32_t cacheSize = 0) const noexcept;
+    void dump(bool brief = false, size_t cacheSize = 0) const noexcept;
 
 // #define USE_STD_MAP
 #ifdef USE_STD_MAP

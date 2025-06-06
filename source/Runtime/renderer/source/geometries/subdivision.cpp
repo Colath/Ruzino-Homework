@@ -998,8 +998,8 @@ void HdSt_OsdIndexComputation::_CreateBaseFaceMapping(
         return;
 
     int const *numVertsPtr = _topology->GetFaceVertexCounts().cdata();
-    int const numFaces = _topology->GetFaceVertexCounts().size();
-    int const numVertIndices = _topology->GetFaceVertexIndices().size();
+    size_t const numFaces = _topology->GetFaceVertexCounts().size();
+    size_t const numVertIndices = _topology->GetFaceVertexIndices().size();
 
     result->clear();
     result->reserve(numFaces);

@@ -164,8 +164,8 @@ GraphicsContext& GraphicsContext::finish_setting_frame_buffer()
 GraphicsContext& GraphicsContext::set_viewport(pxr::GfVec2f size)
 {
     viewport.scissorRects.resize(1);
-    viewport.scissorRects[0].maxX = size[0];
-    viewport.scissorRects[0].maxY = size[1];
+    viewport.scissorRects[0].maxX = static_cast<int>(size[0]);
+    viewport.scissorRects[0].maxY = static_cast<int>(size[1]);
     viewport.viewports.resize(1);
     viewport.viewports[0].maxX = size[0];
     viewport.viewports[0].maxY = size[1];

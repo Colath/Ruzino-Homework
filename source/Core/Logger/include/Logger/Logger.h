@@ -1,8 +1,8 @@
 #pragma once
 
-#include <chrono>
 #include <functional>
 #include <iostream>
+#include <memory>
 
 #include "Logger/api.h"
 
@@ -56,7 +56,8 @@ struct LOGGER_API ProfileScope {
     ~ProfileScope();
 
    private:
-    std::chrono::steady_clock::time_point begin_time;
+    struct Impl;
+    std::unique_ptr<Impl> pImpl;
 };
 
 LOGGER_API ProfileScope profile_scope(const char* fmt);

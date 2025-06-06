@@ -95,6 +95,10 @@ message("Looking for OpenUSD in ${pxr_DIR}")
 find_package(pxr)
 
 if(pxr_FOUND)
+  set_target_properties(tf PROPERTIES INTERFACE_COMPILE_DEFINITIONS "TBB_SUPPRESS_DEPRECATED_MESSAGES=1")
+endif()
+
+if(pxr_FOUND)
   message("Found OpenUSD version ${pxr_VERSION}")
   find_package(OpenGL REQUIRED)
   set(USTC_CG_WITH_OPENUSD ON)

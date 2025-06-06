@@ -309,7 +309,7 @@ inline bool operator==(
             rhs.inputLayout->getNumAttributes()) {
             return false;
         }
-        for (int i = 0; i < lhs.inputLayout->getNumAttributes(); ++i) {
+        for (uint32_t i = 0; i < lhs.inputLayout->getNumAttributes(); ++i) {
             auto l_attrs = lhs.inputLayout->getAttributeDesc(i);
             auto r_attrs = rhs.inputLayout->getAttributeDesc(i);
             if (*l_attrs != *r_attrs) {

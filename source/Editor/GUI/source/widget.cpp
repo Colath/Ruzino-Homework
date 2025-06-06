@@ -132,11 +132,11 @@ void IWidget::SetWindow(Window* window)
 void IWidget::SetStatus()
 {
     size_changed = false;
-    if (width != ImGui::GetWindowWidth() ||
-        height != ImGui::GetWindowHeight()) {
+    if (width != static_cast<unsigned>(ImGui::GetWindowWidth()) ||
+        height != static_cast<unsigned>(ImGui::GetWindowHeight())) {
         size_changed = true;
-        width = ImGui::GetWindowWidth();
-        height = ImGui::GetWindowHeight();
+        width = static_cast<unsigned>(ImGui::GetWindowWidth());
+        height = static_cast<unsigned>(ImGui::GetWindowHeight());
         is_focused = ImGui::IsWindowFocused();
     }
 }

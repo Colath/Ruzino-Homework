@@ -32,7 +32,7 @@ NODE_EXECUTION_FUNCTION(func_color_map)
         }
         else {
             float zeroToMaxRange = max - 0;
-            normalizedValue = 0.5 + (input[i] / zeroToMaxRange) * 0.5;
+            normalizedValue = 0.5f + (input[i] / zeroToMaxRange) * 0.5f;
         }
 
         pxr::GfVec3f color(1 - normalizedValue, normalizedValue, 0);

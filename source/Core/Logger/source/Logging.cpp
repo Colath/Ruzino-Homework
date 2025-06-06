@@ -5,6 +5,7 @@
 #include <cstdarg>
 #include <cstdio>
 #include <iterator>
+#include <memory>
 #include <mutex>
 #if _WIN32
 #include <Windows.h>
@@ -244,17 +245,23 @@ void fatal(const char* fmt...)
     va_end(args);
 }
 
-ProfileScope::ProfileScope(const char* name) : name(name)
+struct ProfileScope::Impl {
+    std::chrono::steady_clock::time_point begin_time;
+};
+
+ProfileScope::ProfileScope(const char* name)
+    : name(name),
+      pImpl(std::make_unique<Impl>())
 {
-    begin_time = std::chrono::steady_clock::now();
+    pImpl->begin_time = std::chrono::steady_clock::now();
 }
 
 ProfileScope::~ProfileScope()
 {
     auto now = std::chrono::steady_clock::now();
-    auto duration =
-        std::chrono::duration_cast<std::chrono::milliseconds>(now - begin_time)
-            .count();
+    auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(
+                        now - pImpl->begin_time)
+                        .count();
 
     message(Severity::Info, "%s took %lld ms", name, duration);
 }
