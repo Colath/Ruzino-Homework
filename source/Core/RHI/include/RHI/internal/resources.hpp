@@ -102,7 +102,7 @@ struct RHI_API ProgramDesc {
     std::string get_profile() const;
     std::string path;
     std::vector<std::string> source_code;
-    long long lastWriteTime;
+    long long lastWriteTime = 0;
     std::string entry_name;
 
     friend class ShaderFactory;

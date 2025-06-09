@@ -7,6 +7,9 @@ foreach(source ${test_sources})
     )
 endforeach()
 
+add_dependencies(headless_render hd_USTC_CG)
+add_dependencies(headless_render render_nodes)
+
 add_dependencies(USTC_CG geometry_nodes)
 add_dependencies(USTC_CG basic_nodes)
 add_dependencies(USTC_CG optimization)

@@ -50,9 +50,9 @@ const ShaderReflectionInfo& Program::get_reflection_info() const
 ProgramDesc& ProgramDesc::set_path(const std::string& path)
 {
     this->path = path;
-    // #ifdef _DEBUG
-    update_last_write_time(path);
-    // #endif
+#ifdef _DEBUG
+    // update_last_write_time(path);
+#endif
     return *this;
 }
 
@@ -65,9 +65,9 @@ ProgramDesc& ProgramDesc::set_shader_type(nvrhi::ShaderType shaderType)
 ProgramDesc& ProgramDesc::set_entry_name(const std::string& entry_name)
 {
     this->entry_name = entry_name;
-    // #ifdef _DEBUG
-    update_last_write_time(path);
-    // #endif
+#ifdef _DEBUG
+    // update_last_write_time(path);
+#endif
 
     return *this;
 }
@@ -303,8 +303,7 @@ ShaderReflectionInfo ShaderFactory::shader_reflect(
     slang::IBlob** diagnostic) const
 {
     ShaderReflectionInfo ret;
-    std::map<std::string, std::tuple<unsigned, unsigned>>& binding_locations =
-        ret.binding_locations;
+    auto& binding_locations = ret.binding_locations;
 
     slang::ShaderReflection* programReflection =
         component->getLayout(0, diagnostic);

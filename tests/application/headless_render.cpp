@@ -53,20 +53,22 @@ struct RenderSettings {
     std::string output_image;
     int width = 1920;
     int height = 1080;
+    int spp = 16;
 };
 
 // Command line parsing
 bool ParseCommandLine(int argc, char* argv[], RenderSettings& settings)
 {
     if (argc < 4) {
-        std::cout
-            << "Usage: " << argv[0]
-            << " <usd_file> <json_script> <output_image> [width] [height]\n"
-            << "  usd_file: Path to USD file to render\n"
-            << "  json_script: Path to JSON rendering script\n"
-            << "  output_image: Output image filename (PNG format)\n"
-            << "  width: Image width (default: 1920)\n"
-            << "  height: Image height (default: 1080)\n";
+        std::cout << "Usage: " << argv[0]
+                  << " <usd_file> <json_script> <output_image> [width] "
+                     "[height] [spp]\n"
+                  << "  usd_file: Path to USD file to render\n"
+                  << "  json_script: Path to JSON rendering script\n"
+                  << "  output_image: Output image filename (PNG format)\n"
+                  << "  width: Image width (default: 1920)\n"
+                  << "  height: Image height (default: 1080)\n"
+                  << "  spp: Samples per pixel (default: 16)\n";
         return false;
     }
 
@@ -78,6 +80,8 @@ bool ParseCommandLine(int argc, char* argv[], RenderSettings& settings)
         settings.width = std::atoi(argv[4]);
     if (argc > 5)
         settings.height = std::atoi(argv[5]);
+    if (argc > 6)
+        settings.spp = std::atoi(argv[6]);
 
     // Validate input files
     if (!std::filesystem::exists(settings.usd_file)) {
@@ -136,9 +140,17 @@ bool SaveImageToFile(
     std::vector<uint8_t> rgba_data(width * height * 4);
     const float* float_data = reinterpret_cast<const float*>(data.data());
 
-    for (int i = 0; i < width * height * 4; ++i) {
-        rgba_data[i] = static_cast<uint8_t>(
-            std::clamp(float_data[i] * 255.0f, 0.0f, 255.0f));
+    // Flip the image vertically while converting from float to uint8
+    for (int y = 0; y < height; ++y) {
+        int flipped_y = height - 1 - y;
+        for (int x = 0; x < width; ++x) {
+            for (int c = 0; c < 4; ++c) {
+                int src_idx = (y * width + x) * 4 + c;
+                int dst_idx = (flipped_y * width + x) * 4 + c;
+                rgba_data[dst_idx] = static_cast<uint8_t>(
+                    std::clamp(float_data[src_idx] * 255.0f, 0.0f, 255.0f));
+            }
+        }
     }
 
     return stbi_write_png(
@@ -149,7 +161,6 @@ bool SaveImageToFile(
                rgba_data.data(),
                width * 4) != 0;
 }
-
 // Texture reading methods
 bool ReadTextureDirectly(
     UsdImagingGLEngine* renderer,
@@ -171,38 +182,53 @@ bool ReadTextureDirectly(
 
     texture_data.resize(width * height * 4 * sizeof(float));
 
-    auto command_list = RHI::get_device()->createCommandList();
+    // Create staging texture once and reuse command list
+    static nvrhi::StagingTextureHandle staging_texture;
+    static nvrhi::CommandListHandle command_list;
+
     if (!command_list) {
         command_list = RHI::get_device()->createCommandList();
     }
 
-    // Create staging texture
-    nvrhi::TextureDesc staging_desc;
-    staging_desc.debugName = "headless_staging";
-    staging_desc.width = width;
-    staging_desc.height = height;
-    staging_desc.format = texture->getDesc().format;
-    staging_desc.initialState = nvrhi::ResourceStates::CopyDest;
+    if (!staging_texture || staging_texture->getDesc().width != width ||
+        staging_texture->getDesc().height != height) {
+        nvrhi::TextureDesc staging_desc;
+        staging_desc.debugName = "headless_staging";
+        staging_desc.width = width;
+        staging_desc.height = height;
+        staging_desc.format = texture->getDesc().format;
+        staging_desc.initialState = nvrhi::ResourceStates::CopyDest;
 
-    auto staging_texture = RHI::get_device()->createStagingTexture(
-        staging_desc, nvrhi::CpuAccessMode::Read);
+        staging_texture = RHI::get_device()->createStagingTexture(
+            staging_desc, nvrhi::CpuAccessMode::Read);
+    }
 
-    // Copy and read back
+    // Single command list operation
     command_list->open();
     command_list->copyTexture(staging_texture, {}, texture, {});
     command_list->close();
     RHI::get_device()->executeCommandList(command_list.Get());
     RHI::get_device()->waitForIdle();
 
+    // Direct memory copy without row-by-row iteration
     size_t pitch;
     auto mapped = RHI::get_device()->mapStagingTexture(
         staging_texture, {}, nvrhi::CpuAccessMode::Read, &pitch);
 
-    for (int i = 0; i < height; ++i) {
-        memcpy(
-            texture_data.data() + i * width * 4 * sizeof(float),
-            static_cast<uint8_t*>(mapped) + i * pitch,
-            width * 4 * sizeof(float));
+    size_t row_size = width * 4 * sizeof(float);
+    if (pitch == row_size) {
+        // Contiguous memory - single memcpy
+        memcpy(texture_data.data(), mapped, height * row_size);
+    }
+    else {
+        // Non-contiguous - batch copy rows
+        auto src_ptr = static_cast<uint8_t*>(mapped);
+        auto dst_ptr = texture_data.data();
+        for (int i = 0; i < height; ++i) {
+            memcpy(dst_ptr, src_ptr, row_size);
+            src_ptr += pitch;
+            dst_ptr += row_size;
+        }
     }
 
     RHI::get_device()->unmapStagingTexture(staging_texture);
@@ -272,6 +298,7 @@ int main(int argc, char* argv[])
     log::info("JSON script: %s", settings.json_script.c_str());
     log::info("Output image: %s", settings.output_image.c_str());
     log::info("Resolution: %dx%d", settings.width, settings.height);
+    log::info("SPP: %d", settings.spp);
 
     try {
         // Initialize OpenGL context
@@ -337,11 +364,16 @@ int main(int argc, char* argv[])
         std::string nodes_json = LoadJSONScript(settings.json_script);
         (*node_system)->get_node_tree()->deserialize(nodes_json);
 
-        // Render the scene
+        // Render the scene with multiple samples
         UsdPrim root = stage->get_usd_stage()->GetPseudoRoot();
-        log::info("Starting render...");
-        renderer->Render(root, render_params);
-        renderer->StopRenderer();
+        log::info("Starting render with %d samples...", settings.spp);
+
+        for (int sample = 0; sample < settings.spp; ++sample) {
+            log::info("Rendering sample %d/%d", sample + 1, settings.spp);
+            renderer->Render(root, render_params);
+            renderer->StopRenderer();
+        }
+
         log::info("Render complete.");
 
         // Read back texture data

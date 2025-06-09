@@ -1,6 +1,6 @@
 #pragma once
-#include <map>
 
+#include "RHI/ShaderFactory/vector_map.hpp"
 #include "RHI/api.h"
 #include "RHI/internal/nvrhi_patch.hpp"
 
@@ -18,7 +18,7 @@ class RHI_API ShaderReflectionInfo {
 
    private:
     nvrhi::BindingLayoutDescVector binding_spaces;
-    std::map<std::string, std::tuple<unsigned, unsigned>> binding_locations;
+    VectorMap<std::string, std::tuple<unsigned, unsigned>> binding_locations;
 
     friend class ShaderFactory;
     friend RHI_API std::ostream& operator<<(

@@ -44,6 +44,8 @@ void RayGen()
         SceneBVH, RAY_FLAG_NONE, 0xFF, 0, 0, 0, get_ray_desc(ray), payload);
 
     output[pixel] = float4(payload.color, 1.0);
+
+    random_seeds[DispatchRaysIndex().x] = payload.seed;
 }
 
 [shader("closesthit")]
@@ -105,7 +107,9 @@ void ClosestHit(
     float3 world_ray_dir = sf.fromLocal(ray_dir);
 
     // Update payload
-    payload.throughput *= callData.throughput.rgb / pdf;
+    payload.throughput *= ray_dir.z * callData.throughput / pdf;
+
+    // payload.throughput *= 0.8f;
     payload.hitPosition = vertex.posW;
     payload.hitNormal = vertex.normalW;
     payload.depth++;
@@ -114,9 +118,9 @@ void ClosestHit(
     // Trace next ray (light comes from environment/miss shader)
     if (!payload.terminated) {
         RayDesc nextRay;
-        nextRay.Origin = vertex.posW + vertex.normalW * 0.001;
+        nextRay.Origin = vertex.posW + vertex.normalW * 0.0001;
         nextRay.Direction = world_ray_dir;
-        nextRay.TMin = 0.01;
+        nextRay.TMin = 0.0;
         nextRay.TMax = 1000.0;
 
         TraceRay(SceneBVH, RAY_FLAG_NONE, 0xFF, 0, 0, 0, nextRay, payload);
@@ -153,14 +157,14 @@ void Miss(inout RayPayload payload)
     // Add sun and sunset glow
     float3 sunDir = normalize(float3(0.5, 0.5, 0.5));
     float sunDot = max(0.0, dot(rayDir, sunDir));
-    float sunIntensity = pow(sunDot, 128.0) * 5.0;
+    float sunIntensity = pow(sunDot, 128.0) * 0.1;
     float sunsetIntensity = pow(sunDot, 8.0) * (1.0 - rayDir.z * 0.5);
 
     skyColor += float3(1.0, 0.9, 0.7) * sunIntensity;
     skyColor += sunsetColor * sunsetIntensity * (1.0 - skyBlend) * 0.4;
 
     // Add contribution to path
-    payload.color += payload.throughput * skyColor;
+    payload.color += payload.throughput * skyColor*1.0;
     payload.terminated = true;
 }
 
