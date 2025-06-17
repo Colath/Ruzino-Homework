@@ -55,7 +55,7 @@ void ClosestHit(
 {
     // Check if maximum depth is reached
     if (payload.depth >= 30) {
-        payload.throughput = float3(0, 0, 0);
+        payload.throughput = float3(1, 0, 0);
         payload.color = float3(0, 0, 0);
         payload.terminated = true;
         return;

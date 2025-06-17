@@ -51,7 +51,7 @@ class USDVIEW_WIDGET_API UsdviewEngine final : public IWidget {
     struct Status {
         CamType cam_type =
             CamType::First;  // 0 for 1st personal, 1 for 3rd personal
-        unsigned renderer_id = 1;
+        unsigned renderer_id = 0;
     } engine_status;
 
     bool is_editing_ = false;
@@ -71,6 +71,7 @@ class USDVIEW_WIDGET_API UsdviewEngine final : public IWidget {
     const void* renderer_ui_control = nullptr;
     bool first_draw = true;
     pxr::TfHashMap<pxr::TfToken, pxr::VtValue, pxr::TfHash> settings;
+    ImVec2 mouse_pos_abs;
 
     void DrawMenuBar();
     void OnFrame(float delta_time);

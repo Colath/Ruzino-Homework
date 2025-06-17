@@ -249,7 +249,7 @@ void UsdviewEngine::OnFrame(float delta_time)
     lights[0].SetDiffuse(GfVec4f(1.0f));
     lights[0].SetSpecular(GfVec4f(1.0f));
     GlfSimpleMaterial material;
-    float kA = 6.8f;    
+    float kA = 6.8f;
     float kS = 0.4f;
     float shiness = 0.8f;
     material.SetDiffuse(GfVec4f(kA, kA, kA, 1.0f));
@@ -286,51 +286,67 @@ void UsdviewEngine::OnFrame(float delta_time)
     is_active = ImGui::IsWindowFocused();
     is_hovered = ImGui::IsItemHovered();
 
-    // if (is_hovered_ && is_editing_ &&
-    //     ImGui::IsMouseDown(ImGuiMouseButton_Right)) {
-    //     auto mouse_pos_rel = ImGui::GetMousePos() - ImGui::GetItemRectMin();
-    //     // Normalize the mouse position to be in the range [0, 1]
-    //     ImVec2 mousePosNorm = ImVec2(
-    //         mouse_pos_rel.x / render_buffer_size_[0],
-    //         mouse_pos_rel.y / render_buffer_size_[1]);
+    if (mouse_pos_abs.x > 0 && mouse_pos_abs.y > 0) {
+        auto mouse_pos_rel = ImGui::GetMousePos() - ImGui::GetItemRectMin();
+        // Normalize the mouse position to be in the range [0, 1]
+        ImVec2 mousePosNorm = ImVec2(
+            mouse_pos_rel.x / render_buffer_size_[0],
+            mouse_pos_rel.y / render_buffer_size_[1]);
 
-    //    // Convert to NDC coordinates
-    //    ImVec2 mousePosNDC =
-    //        ImVec2(mousePosNorm.x * 2.0f - 1.0f, 1.0f - mousePosNorm.y
-    //        * 2.0f);
+        // Convert to NDC coordinates
+        ImVec2 mousePosNDC =
+            ImVec2(mousePosNorm.x * 2.0f - 1.0f, 1.0f - mousePosNorm.y * 2.0f);
 
-    // GfVec3d point;
-    // GfVec3d normal;
-    // SdfPath path;
-    // SdfPath instancer;
-    // HdInstancerContext outInstancerContext;
-    // int outHitInstanceIndex;
-    // auto narrowed = frustum.ComputeNarrowedFrustum(
-    //     { mousePosNDC[0], mousePosNDC[1] },
-    //     { 1.0 / render_buffer_size_[0], 1.0 / render_buffer_size_[1] });
+        log::info(
+            "Mouse Position NDC: (%.2f, %.2f)", mousePosNDC.x, mousePosNDC.y);
 
-    // if (renderer_->TestIntersection(
-    //         narrowed.ComputeViewMatrix(),
-    //         narrowed.ComputeProjectionMatrix(),
-    //         root,
-    //         _renderParams,
-    //         &point,
-    //         &normal,
-    //         &path,
-    //         &instancer,
-    //         &outHitInstanceIndex,
-    //         &outInstancerContext)) {
-    //     pick_event = std::make_unique<PickEvent>(
-    //         point,
-    //         normal,
-    //         path,
-    //         instancer,
-    //         outInstancerContext,
-    //         outHitInstanceIndex,
-    //         narrowed.ComputePickRay({ mousePosNDC[0], mousePosNDC[1] }));
+        using namespace pxr;
+        UsdPrim root = stage_->get_usd_stage()->GetPseudoRoot();
 
-    //    log::info("Picked prim " + path.GetAsString(), Info);
-    //}
+        GfVec3d point;
+        GfVec3d normal;
+        SdfPath path;
+        SdfPath instancer;
+        HdInstancerContext outInstancerContext;
+        int outHitInstanceIndex;
+        GfFrustum frustum =
+            free_camera_->GetCamera(UsdTimeCode::Default()).GetFrustum();
+        auto narrowed = frustum.ComputeNarrowedFrustum(
+            { mousePosNDC[0], mousePosNDC[1] },
+            { 1.0 / render_buffer_size_[0], 1.0 / render_buffer_size_[1] });
+
+        if (renderer_->TestIntersection(
+                narrowed.ComputeViewMatrix(),
+                narrowed.ComputeProjectionMatrix(),
+                root,
+                _renderParams,
+                &point,
+                &normal,
+                &path,
+                &instancer,
+                &outHitInstanceIndex,
+                &outInstancerContext)) {
+            // pick_event = std::make_unique<PickEvent>(
+            //     point,
+            //     normal,
+            //     path,
+            //     instancer,
+            //     outInstancerContext,
+            //     outHitInstanceIndex,
+            //     narrowed.ComputePickRay(
+            //         { mousePosNDC[0], mousePosNDC[1] }));
+
+            log::info("Picked prim " + path.GetAsString());
+            log::info(
+                "Picked point: (%.2f, %.2f, %.2f)",
+                point[0],
+                point[1],
+                point[2]);
+        }
+
+        mouse_pos_abs = ImVec2(0, 0);  // Reset mouse position after picking
+    }
+
     ImGui::GetIO().WantCaptureMouse = true;
 
     ImGui::EndChild();
@@ -432,13 +448,22 @@ bool UsdviewEngine::MouseScrollUpdate(double xoffset, double yoffset)
 
 bool UsdviewEngine::MouseButtonUpdate(int button, int action, int mods)
 {
-    if (action == GLFW_PRESS) {
+    if (action == GLFW_PRESS && button == GLFW_MOUSE_BUTTON_LEFT) {
         if (is_hovered) {
             free_camera_->MouseButtonUpdate(button, action, mods);
         }
         return false;
     }
+    if (action == GLFW_PRESS && button == GLFW_MOUSE_BUTTON_RIGHT) {
+        if (is_hovered) {
+            mouse_pos_abs = ImGui::GetMousePos();
+
+            return false;
+        }
+    }
+
     free_camera_->MouseButtonUpdate(button, action, mods);
+
     return false;
 }
 

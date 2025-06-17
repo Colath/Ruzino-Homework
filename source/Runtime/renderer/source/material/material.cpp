@@ -126,12 +126,13 @@ void eval_sample_pdf(
     in MaterialDataBlob blob_data,
     VertexInfo vertexInfo)
 {
-    color = float4(0.8, 0.8, 0.8, 1);
+    float3 color3 = float3(0.8); // Default color for fallback
+    color = float4(color3, 1.0);
     sampled_direction = sample_cosine_hemisphere_concentric(random_float2(seed), pdf);
     bool valid;
-    ShadingFrame sf = ShadingFrame.createSafe(vertexInfo.normalW, float4(0, 0, 0, 1), valid);
+    ShadingFrame sf = ShadingFrame.createSafe(vertexInfo.normalW, float4(1, 0, 0, 1), valid);
     sampled_direction = sf.fromLocal(sampled_direction);
-    sampled_weight = float3(0.8, 0.8, 0.8);
+    sampled_weight = float3(0.8, 0.8, 0.8) / 3.14159; // Default weight for fallback
 }
 
 )";
