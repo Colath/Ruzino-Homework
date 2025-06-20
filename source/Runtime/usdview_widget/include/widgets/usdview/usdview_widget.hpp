@@ -29,12 +29,7 @@ class USDVIEW_WIDGET_API UsdviewEngine final : public IWidget {
     bool BuildUI() override;
     void SetEditMode(bool editing);
 
-    const void* emit_create_renderer_ui_control()
-    {
-        auto temp = renderer_ui_control;
-        renderer_ui_control = nullptr;
-        return temp;
-    }
+    const void* emit_create_renderer_ui_control();
     pxr::VtValue get_renderer_setting(const pxr::TfToken& id) const;
     void set_renderer_setting(
         const pxr::TfToken& id,

@@ -30,6 +30,7 @@ class GEOMETRY_API Geometry {
     Geometry& operator=(Geometry&& operand) noexcept;
 
     static Geometry CreateMesh();
+    static Geometry CreatePoints();
     static Geometry CreateVolume();
 
     friend bool operator==(const Geometry& lhs, const Geometry& rhs)

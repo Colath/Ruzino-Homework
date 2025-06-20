@@ -350,7 +350,6 @@ void UsdviewEngine::OnFrame(float delta_time)
                 point[1],
                 point[2]);
         }
-
     }
 
     ImGui::GetIO().WantCaptureMouse = true;
@@ -533,6 +532,13 @@ bool UsdviewEngine::BuildUI()
 void UsdviewEngine::SetEditMode(bool editing)
 {
     is_editing_ = editing;
+}
+
+const void* UsdviewEngine::emit_create_renderer_ui_control()
+{
+    auto temp = renderer_ui_control;
+    renderer_ui_control = nullptr;
+    return temp;
 }
 
 pxr::VtValue UsdviewEngine::get_renderer_setting(const pxr::TfToken& id) const

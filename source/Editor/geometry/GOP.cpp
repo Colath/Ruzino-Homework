@@ -6,6 +6,7 @@
 #include "GCore/Components/XformComponent.h"
 #include "Logger/Logger.h"
 #include "global_stage.hpp"
+#include "GCore/Components/PointsComponent.h"
 #include "pxr/usd/usdGeom/xform.h"
 
 USTC_CG_NAMESPACE_OPEN_SCOPE
@@ -64,6 +65,15 @@ Geometry Geometry::CreateMesh()
     std::shared_ptr<MeshComponent> mesh =
         std::make_shared<MeshComponent>(&geometry);
     geometry.attach_component(mesh);
+    return std::move(geometry);
+}
+
+Geometry Geometry::CreatePoints()
+{
+    Geometry geometry;
+    std::shared_ptr<PointsComponent> points =
+        std::make_shared<PointsComponent>(&geometry);
+    geometry.attach_component(points);
     return std::move(geometry);
 }
 

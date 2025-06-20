@@ -36,6 +36,7 @@
 #include "instancer.h"
 #include "light.h"
 #include "material/material.h"
+#include "material/materialX.h"
 #include "node_exec_eager_render.hpp"
 #include "nodes/system/node_system.hpp"
 #include "nvrhi/nvrhi.h"
@@ -43,7 +44,6 @@
 #include "renderBuffer.h"
 #include "renderPass.h"
 #include "renderer.h"
-#include "material/materialX.h"
 
 #define HR_RETURN(hr) \
     if (FAILED(hr))   \
@@ -138,6 +138,15 @@ void Hd_USTC_CG_RenderDelegate::_Initialize()
 
     node_system = create_dynamic_loading_system();
     node_system->load_configuration("render_nodes.json");
+    auto plugin_path = std::filesystem::path("./renderer_plugins");
+    if (std::filesystem::exists(plugin_path)) {
+        for (auto& p : std::filesystem::directory_iterator(plugin_path)) {
+            if (p.path().extension() == ".json") {
+                node_system->load_configuration(p.path().string());
+            }
+        }
+    }
+
     node_system->set_node_tree_executor(std::move(render_executor));
     node_system->allow_ui_execution = false;
     node_system->init();

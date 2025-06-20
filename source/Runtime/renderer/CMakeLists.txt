@@ -1,6 +1,8 @@
 add_library(shaders_interface INTERFACE)
 target_include_directories(shaders_interface INTERFACE ${CMAKE_CURRENT_SOURCE_DIR}/nodes/shaders/shaders)
-target_compile_definitions(shaders_interface INTERFACE RENDERER_SHADER_DIR="${CMAKE_CURRENT_SOURCE_DIR}/nodes/shaders/")
+target_include_directories(shaders_interface INTERFACE ${CMAKE_CURRENT_SOURCE_DIR}/nodes/render_node_base)
+target_include_directories(shaders_interface INTERFACE ${CMAKE_CURRENT_SOURCE_DIR}/nodes/)
+target_compile_definitions(shaders_interface INTERFACE RENDERER_SHADER_DIR="${CMAKE_CURRENT_SOURCE_DIR}/nodes/shaders/" NOMINMAX)
 
 USTC_CG_ADD_LIB(
 	hd_USTC_CG
@@ -18,7 +20,7 @@ USTC_CG_ADD_LIB(
 target_compile_definitions(hd_USTC_CG PRIVATE HOST_CODE=1)
 target_compile_definitions(hd_USTC_CG PUBLIC USTC_CG_BACKEND_NVRHI)
 target_include_directories(hd_USTC_CG PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/nodes/shaders/shaders)
-target_include_directories(hd_USTC_CG PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/source)
+target_include_directories(hd_USTC_CG PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/source)
 
 
 add_nodes(
