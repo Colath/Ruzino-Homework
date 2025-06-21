@@ -20,6 +20,9 @@ class GPUCONTEXT_API GPUContext {
         nvrhi::IResource* resource,
         nvrhi::ResourceStates state);
 
+    void uav_barrier(nvrhi::ITexture* texture) const;
+    void uav_barrier(nvrhi::IBuffer* buffer) const;
+
     void write_buffer(
         nvrhi::IBuffer* buffer,
         const void* data,

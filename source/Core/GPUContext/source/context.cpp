@@ -3,6 +3,7 @@
 #include "GPUContext/context.hpp"
 
 #include "RHI/internal/nvrhi_patch.hpp"
+#include "nvrhi/utils.h"
 
 USTC_CG_NAMESPACE_OPEN_SCOPE
 GPUContext::~GPUContext()
@@ -53,6 +54,16 @@ void GPUContext::set_resource_state(
     commandList_->commitBarriers();
     // If we get here, it's an unknown resource type
     assert(false && "Unknown resource type in set_resource_state");
+}
+
+void GPUContext::uav_barrier(nvrhi::ITexture* texture) const
+{
+    nvrhi::utils::TextureUavBarrier(commandList_, texture);
+}
+
+void GPUContext::uav_barrier(nvrhi::IBuffer* buffer) const
+{
+    nvrhi::utils::BufferUavBarrier(commandList_, buffer);
 }
 
 void GPUContext::write_buffer(

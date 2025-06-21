@@ -61,9 +61,5 @@ ComputeContext& ComputeContext::finish_setting_pso()
     return *this;
 }
 
-void ComputeContext::uav_barrier(nvrhi::ITexture* texture) const
-{
-    nvrhi::utils::TextureUavBarrier(commandList_, texture);
-}
 
 USTC_CG_NAMESPACE_CLOSE_SCOPE
