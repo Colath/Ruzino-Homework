@@ -284,12 +284,14 @@ void UsdviewEngine::OnFrame(float delta_time)
     ImGui::BeginChild("ViewPort", imgui_frame_size, 0, ImGuiWindowFlags_NoMove);
 
     ImGui::GetIO().WantCaptureMouse = false;
-    if (data_->nvrhi_texture.Get())
+    if (data_->nvrhi_texture.Get()) {
+        persistent_texture = data_->nvrhi_texture;
         ImGui::Image(
-            static_cast<ImTextureID>(data_->nvrhi_texture.Get()),
+            static_cast<ImTextureID>(persistent_texture.Get()),
             imgui_frame_size,
             ImVec2(0.0f, 1.0f),
             ImVec2(1.0f, 0.0f));
+    }
     else {
         log ::warning("No image!");
     }

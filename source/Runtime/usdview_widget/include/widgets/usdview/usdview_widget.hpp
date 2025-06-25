@@ -3,6 +3,7 @@
 #include <memory>
 
 #include "GUI/widget.h"
+#include "nvrhi/nvrhi.h"
 #include "pxr/base/gf/vec3d.h"
 #include "pxr/base/tf/token.h"
 #include "pxr/usd/sdf/path.h"
@@ -71,6 +72,7 @@ class USDVIEW_WIDGET_API UsdviewEngine final : public IWidget {
     bool first_draw = true;
     pxr::TfHashMap<pxr::TfToken, pxr::VtValue, pxr::TfHash> settings;
     bool right_mouse_pressed = false;
+    nvrhi::TextureHandle persistent_texture;
 
     void DrawMenuBar();
     void OnFrame(float delta_time);
