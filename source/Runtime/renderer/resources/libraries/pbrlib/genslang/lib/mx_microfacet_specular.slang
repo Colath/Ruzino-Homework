@@ -33,6 +33,7 @@ struct FresnelData {
 
     // Generalized Schlick Fresnel
     float3 F0;
+    float3 F82;
     float3 F90;
     float exponent;
 
@@ -49,6 +50,7 @@ struct FresnelData {
         float3 _ior = float3(0.0f),
         float3 _extinction = float3(0.0f),
         float3 _F0 = float3(0.0f),
+        float3 _F82 = float3(0.0f),
         float3 _F90 = float3(0.0f),
         float _exponent = 0.0f,
         float _tf_thickness = 0.0f,
@@ -58,6 +60,7 @@ struct FresnelData {
           ior(_ior),
           extinction(_extinction),
           F0(_F0),
+          F82(_F82),
           F90(_F90),
           exponent(_exponent),
           tf_thickness(_tf_thickness),
@@ -243,6 +246,20 @@ float3 mx_f0_to_ior_colored(float3 F0)
 {
     float3 sqrtF0 = sqrt(clamp(F0, 0.01, 0.99));
     return (float3(1.0) + sqrtF0) / (float3(1.0) - sqrtF0);
+}
+
+// https://renderwonk.com/publications/wp-generalization-adobe/gen-adobe.pdf
+float3 mx_fresnel_hoffman_schlick(float cosTheta, FresnelData fd)
+{
+    const float COS_THETA_MAX = 1.0 / 7.0;
+    const float COS_THETA_FACTOR =
+        1.0 / (COS_THETA_MAX * pow(1.0 - COS_THETA_MAX, 6.0));
+
+    float x = clamp(cosTheta, 0.0, 1.0);
+    float3 a = lerp(fd.F0, fd.F90, pow(1.0 - COS_THETA_MAX, fd.exponent)) *
+               (float3(1.0) - fd.F82) * COS_THETA_FACTOR;
+    return lerp(fd.F0, fd.F90, pow(1.0 - x, fd.exponent)) -
+           a * x * mx_pow6(1.0 - x);
 }
 
 // https://seblagarde.wordpress.com/2013/04/29/memo-on-fresnel-equations/
@@ -555,42 +572,52 @@ FresnelData mx_init_fresnel_data(int model)
         float3(0.0),
         float3(0.0),
         float3(0.0),
+        float3(0.0),
         0.0,
         0.0,
         0.0,
         false);
 }
 
-FresnelData mx_init_fresnel_dielectric(float ior)
+FresnelData
+mx_init_fresnel_dielectric(float ior, float tf_thickness, float tf_ior)
 {
     FresnelData fd = mx_init_fresnel_data(FRESNEL_MODEL_DIELECTRIC);
     fd.ior = float3(ior);
+    fd.tf_thickness = tf_thickness;
+    fd.tf_ior = tf_ior;
     return fd;
 }
 
-FresnelData mx_init_fresnel_conductor(float3 ior, float3 extinction)
+FresnelData mx_init_fresnel_conductor(
+    float3 ior,
+    float3 extinction,
+    float tf_thickness,
+    float tf_ior)
 {
     FresnelData fd = mx_init_fresnel_data(FRESNEL_MODEL_CONDUCTOR);
     fd.ior = ior;
     fd.extinction = extinction;
+    fd.tf_thickness = tf_thickness;
+    fd.tf_ior = tf_ior;
     return fd;
 }
 
-FresnelData mx_init_fresnel_schlick(float3 F0)
+FresnelData mx_init_fresnel_schlick(
+    float3 F0,
+    float3 F82,
+    float3 F90,
+    float exponent,
+    float tf_thickness,
+    float tf_ior)
 {
     FresnelData fd = mx_init_fresnel_data(FRESNEL_MODEL_SCHLICK);
     fd.F0 = F0;
-    fd.F90 = float3(1.0);
-    fd.exponent = 5.0f;
-    return fd;
-}
-
-FresnelData mx_init_fresnel_schlick(float3 F0, float3 F90, float exponent)
-{
-    FresnelData fd = mx_init_fresnel_data(FRESNEL_MODEL_SCHLICK);
-    fd.F0 = F0;
+    fd.F82 = F82;
     fd.F90 = F90;
     fd.exponent = exponent;
+    fd.tf_thickness = tf_thickness;
+    fd.tf_ior = tf_ior;
     return fd;
 }
 
@@ -643,7 +670,7 @@ float3 mx_compute_fresnel(float cosTheta, FresnelData fd)
         return mx_fresnel_conductor(cosTheta, fd.ior, fd.extinction);
     }
     else if (fd.model == FRESNEL_MODEL_SCHLICK) {
-        return mx_fresnel_schlick(cosTheta, fd.F0, fd.F90, fd.exponent);
+        return mx_fresnel_hoffman_schlick(cosTheta, fd);
     }
     else {
         return mx_fresnel_airy(

@@ -12,6 +12,12 @@ float mx_pow5(float x)
     return mx_square(mx_square(x)) * x;
 }
 
+float mx_pow6(float x)
+{
+    float x2 = mx_square(x);
+    return mx_square(x2) * x2;
+}
+
 // Standard Schlick Fresnel
 float mx_fresnel_schlick(float cosTheta, float F0)
 {
@@ -80,6 +86,27 @@ float3 mx_uniform_sample_hemisphere(float2 Xi)
     float cosTheta = 1.0 - Xi.y;
     float sinTheta = sqrt(1.0 - mx_square(cosTheta));
     return float3(cos(phi) * sinTheta, sin(phi) * sinTheta, cosTheta);
+}
+
+// Generate a cosine-weighted sample on the unit hemisphere.
+float3 mx_cosine_sample_hemisphere(float2 Xi)
+{
+    float phi = 2.0 * M_PI * Xi.x;
+    float cosTheta = sqrt(Xi.y);
+    float sinTheta = sqrt(1.0 - Xi.y);
+    return float3(cos(phi) * sinTheta, sin(phi) * sinTheta, cosTheta);
+}
+
+// Construct an orthonormal basis from a unit vector.
+// https://graphics.pixar.com/library/OrthonormalB/paper.pdf
+float3x3 mx_orthonormal_basis(float3 N)
+{
+    float sign = (N.z < 0.0) ? -1.0 : 1.0;
+    float a = -1.0 / (sign + N.z);
+    float b = N.x * N.y * a;
+    float3 X = float3(1.0 + sign * N.x * N.x * a, sign * b, -sign * N.x);
+    float3 Y = float3(b, sign + N.y * N.y * a, -N.y);
+    return float3x3(X, Y, N);
 }
 
 #endif  // MX_MICROFACET

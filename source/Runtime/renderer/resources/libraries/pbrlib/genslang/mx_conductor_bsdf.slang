@@ -22,12 +22,16 @@ void mx_conductor_bsdf(
         return;
     }
 
-
     float3 V = closureData.V;
     float3 L = closureData.L;
 
     N = mx_forward_facing_normal(N, V);
     float NdotV = clamp(dot(N, V), M_FLOAT_EPS, 1.0);
+
+    FresnelData fd = mx_init_fresnel_conductor(
+        ior_n, ior_k, thinfilm_thickness, thinfilm_ior);
+    float2 safeAlpha = clamp(roughness, M_FLOAT_EPS, 1.0);
+    float avgAlpha = mx_average_alpha(safeAlpha);
 
     if (closureData.closureType == CLOSURE_TYPE_REFLECTION) {
         if (dot(N, L) < 0.0) {
@@ -43,16 +47,7 @@ void mx_conductor_bsdf(
         float NdotL = clamp(dot(N, L), M_FLOAT_EPS, 1.0);
         float VdotH = clamp(dot(V, H), M_FLOAT_EPS, 1.0);
 
-        float2 safeAlpha = clamp(roughness, M_FLOAT_EPS, 1.0);
-        float avgAlpha = mx_average_alpha(safeAlpha);
         float3 Ht = float3(dot(H, X), dot(H, Y), dot(H, N));
-
-        FresnelData fd;
-        if (thinfilm_thickness > 0.0)
-            fd = mx_init_fresnel_conductor_airy(
-                ior_n, ior_k, thinfilm_thickness, thinfilm_ior);
-        else
-            fd = mx_init_fresnel_conductor(ior_n, ior_k);
 
         float3 F = mx_compute_fresnel(VdotH, fd);
         float D = mx_ggx_NDF(Ht, safeAlpha);
@@ -65,13 +60,6 @@ void mx_conductor_bsdf(
                         (4.0 * NdotV * NdotL);
     }
     else if (closureData.closureType == CLOSURE_TYPE_INDIRECT) {
-        FresnelData fd;
-        if (thinfilm_thickness > 0.0)
-            fd = mx_init_fresnel_conductor_airy(
-                ior_n, ior_k, thinfilm_thickness, thinfilm_ior);
-        else
-            fd = mx_init_fresnel_conductor(ior_n, ior_k);
-
         float3 F = mx_compute_fresnel(NdotV, fd);
 
         float2 safeAlpha = clamp(roughness, M_FLOAT_EPS, 1.0);
