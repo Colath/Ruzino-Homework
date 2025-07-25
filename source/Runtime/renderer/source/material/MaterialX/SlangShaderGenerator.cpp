@@ -6,7 +6,6 @@
 #include "SlangShaderGenerator.h"
 
 #include <MaterialXGenShader/Nodes/ClosureCompoundNode.h>
-#include <MaterialXGenShader/Nodes/ClosureSourceCodeNode.h>
 #include <MaterialXGenShader/Nodes/HwBitangentNode.h>
 #include <MaterialXGenShader/Nodes/HwBlurNode.h>
 #include <MaterialXGenShader/Nodes/HwFrameNode.h>
@@ -26,12 +25,14 @@
 #include <sstream>
 
 #include "Nodes/ClosureCompoundNodeSlang.h"
+#include "Nodes/ClosureSourceCodeNodeSlang.h"
 #include "Nodes/CompoundNodeSlang.h"
 #include "Nodes/LightCompoundNodeSlang.h"
 #include "Nodes/LightNodeSlang.h"
 #include "Nodes/LightSamplerNodeSlang.h"
 #include "Nodes/LightShaderNodeSlang.h"
 #include "Nodes/NumLightsNodeSlang.h"
+#include "Nodes/SourceCodeNodeSlang.h"
 #include "Nodes/SurfaceNodeSlang.h"
 #include "Nodes/UnlitSurfaceNodeSlang.h"
 #include "SlangSyntax.h"
@@ -650,8 +651,7 @@ void SlangShaderGenerator::emitPixelStage(
     setFunctionName("main", stage);
 
     const VariableBlock& vertexData = stage.getInputBlock(HW::VERTEX_DATA);
-    _tokenSubstitutions[HW::T_VIEW_POSITION] =
-        "vd." + HW::POSITION_WORLD;
+    _tokenSubstitutions[HW::T_VIEW_POSITION] = "vd." + HW::POSITION_WORLD;
 
     emitLine("void eval_sample_pdf(", stage, false);
 
@@ -735,10 +735,6 @@ void SlangShaderGenerator::emitPixelStage(
                          upstream->hasClassification(
                              ShaderNode::Classification::SHADER))) {
                         emitFunctionCall(*upstream, context, stage);
-
-                        // cout upstream name
-                        std::cout << "Emitting function call for: "
-                                  << upstream->getName() << std::endl;
                     }
                 }
             }
@@ -957,10 +953,10 @@ ShaderNodeImplPtr SlangShaderGenerator::getImplementation(
         if (!impl) {
             // Fall back to source code implementation.
             if (outputType.isClosure()) {
-                impl = ClosureSourceCodeNode::create();
+                impl = ClosureSourceCodeNodeSlang::create();
             }
             else {
-                impl = SourceCodeNode::create();
+                impl = SourceCodeNodeSlang::create();
             }
         }
     }

@@ -1,5 +1,5 @@
 import stdlib.genslang.mx_bsdf;
-import pbrlib.genslang.lib.mx_closure_type;
+__exported import pbrlib.genslang.lib.mx_closure_type;
 import pbrlib.genslang.lib.mx_transmission_refract;
 import pbrlib.genslang.lib.mx_microfacet_specular;
 import pbrlib.genslang.lib.mx_environment_prefilter;
@@ -22,6 +22,7 @@ void mx_dielectric_bsdf_reflection(
     if (weight < M_FLOAT_EPS) {
         return;
     }
+
 
     N = mx_forward_facing_normal(N, V);
 

@@ -1,3 +1,4 @@
+import stdlib.genslang.mx_bsdf;
 import pbrlib.genslang.lib.mx_closure_type;
 
 void mx_mix_bsdf(ClosureData closureData, BSDF fg, BSDF bg, float mixValue, out BSDF result)

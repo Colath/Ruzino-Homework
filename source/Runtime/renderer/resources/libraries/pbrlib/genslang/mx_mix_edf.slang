@@ -1,3 +1,4 @@
+#define EDF float3
 import pbrlib.genslang.lib.mx_closure_type;
 
 void mx_mix_edf(ClosureData closureData, EDF fg, EDF bg, float mixValue, out EDF result)

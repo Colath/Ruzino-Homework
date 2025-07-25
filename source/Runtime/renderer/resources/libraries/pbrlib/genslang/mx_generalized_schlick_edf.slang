@@ -1,3 +1,7 @@
+import pbrlib.genslang.lib.mx_closure_type;
+import pbrlib.genslang.lib.mx_microfacet;
+#define EDF float3
+
 void mx_generalized_schlick_edf(
     ClosureData closureData,
     float3 color0,

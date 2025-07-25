@@ -1,6 +1,11 @@
 import pbrlib.genslang.lib.mx_closure_type;
+import stdlib.genslang.mx_bsdf;
 
-void mx_multiply_bsdf_color3(ClosureData closureData, BSDF in1, float3 in2, out BSDF result)
+void mx_multiply_bsdf_color3(
+    ClosureData closureData,
+    BSDF in1,
+    float3 in2,
+    out BSDF result)
 {
     float3 tint = clamp(in2, 0.0, 1.0);
     result.response = in1.response * tint;

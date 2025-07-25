@@ -19,7 +19,7 @@ using namespace USTC_CG;
 int main(int argc, char* argv[])
 {
 #ifdef _DEBUG
-    log::SetMinSeverity(Severity::Debug);
+    log::SetMinSeverity(Severity::Warning);
 #endif
     log::EnableOutputToConsole(true);
     auto window = std::make_unique<Window>();
