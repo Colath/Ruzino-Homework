@@ -12,4 +12,5 @@ USTC_CG_ADD_LIB(
     SHARED
     WITH_CUDA
     PUBLIC_LIBS RHI Eigen3::Eigen CUDA::cublas CUDA::cusparse
+    COMPILE_DEFS NOMINMAX
 )

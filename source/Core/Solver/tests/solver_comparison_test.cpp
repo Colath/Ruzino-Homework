@@ -131,14 +131,17 @@ class SolverComparisonTest : public ::testing::Test {
                         tolerance = 1e-3f;
                 }
 
-                // BiCGSTAB handling for SPD matrices
+                // BiCGSTAB 处理 - 现在允许处理 SPD 矩阵，但调整预期
                 if (solver_name.find("BiCGSTAB") != std::string::npos) {
-                    if (is_spd && A.rows() >= 500) {
-                        EXPECT_TRUE(true) << "BiCGSTAB appropriately avoided "
-                                             "large SPD matrices";
-                        return;
+                    if (is_spd) {
+                        // SPD 矩阵上的 BiCGSTAB 可能收敛较慢，给予更宽松的容差
+                        tolerance = std::max(tolerance, 1e-2f);
+                        if (A.rows() >= 1000) {
+                            tolerance = std::max(tolerance, 5e-2f);  // 大矩阵更宽松
+                        }
+                    } else {
+                        tolerance = 1e-3f;  // 非对称矩阵保持原有容差
                     }
-                    tolerance = 1e-3f;
                 }
 
                 // QR decomposition tolerance
@@ -159,18 +162,15 @@ class SolverComparisonTest : public ::testing::Test {
                 std::cout << "    Note: Solver did not converge - "
                           << result.error_message << std::endl;
 
-                // Some failures are expected
+                // 一些失败是可以预期的，但 BiCGSTAB 在 SPD 上不再强制失败
                 if (solver_name.find("BiCGSTAB") != std::string::npos &&
-                    is_spd && A.rows() >= 500) {
-                    EXPECT_TRUE(true)
-                        << "BiCGSTAB appropriately failed on large SPD matrix";
+                    is_spd && A.rows() >= 5000) {
+                    // 非常大的 SPD 矩阵上 BiCGSTAB 可能确实会失败
+                    EXPECT_TRUE(true) << "BiCGSTAB on very large SPD matrix - acceptable failure";
                 }
-                else if (
-                    !is_spd &&
-                    (solver_name.find("CG") != std::string::npos ||
-                     solver_name.find("Cholesky") != std::string::npos)) {
-                    EXPECT_TRUE(true) << "SPD-only solver appropriately failed "
-                                         "on non-SPD matrix";
+                else if (!is_spd && (solver_name.find("Conjugate Gradient") != std::string::npos ||
+                                    solver_name.find("Cholesky") != std::string::npos)) {
+                    EXPECT_TRUE(true) << "SPD-only solver appropriately failed on non-SPD matrix";
                 }
             }
         }
@@ -300,7 +300,9 @@ TEST_F(SolverComparisonTest, IterativeVsDirectComparison)
         std::vector<SolverType> iterative_methods = {
             SolverType::EIGEN_ITERATIVE_CG,
             SolverType::EIGEN_ITERATIVE_BICGSTAB,
-            SolverType::CUDA_CG
+            SolverType::CUDA_CG,
+            SolverType::CUDA_BICGSTAB,
+            SolverType::CUDA_GMRES  // 新增
         };
 
         // Test direct methods

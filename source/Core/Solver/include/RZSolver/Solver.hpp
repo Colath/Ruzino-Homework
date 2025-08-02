@@ -13,6 +13,8 @@ namespace Solver {
 
 enum class SolverType {
     CUDA_CG,
+    CUDA_BICGSTAB,
+    CUDA_GMRES,             // 新增
     EIGEN_ITERATIVE_CG,
     EIGEN_ITERATIVE_BICGSTAB,
     EIGEN_DIRECT_LU,
