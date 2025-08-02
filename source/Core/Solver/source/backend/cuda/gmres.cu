@@ -63,14 +63,14 @@ class CudaGMRESSolver : public LinearSolver {
             int n = A.rows();
             int nnz = A.nonZeros();
             int restart =
-                std::min(20, n);  // Smaller restart for better performance
+                std::min(30, n);  // Larger restart for better accuracy
 
             if (config.verbose) {
                 std::cout << "CUDA GMRES: n=" << n << ", nnz=" << nnz
                           << ", restart=" << restart << std::endl;
             }
 
-            // Same CSR conversion as BiCGSTAB
+            // CSR conversion (same as BiCGSTAB)
             std::vector<int> csrRowPtr(n + 1, 0);
             std::vector<int> csrColInd(nnz);
             std::vector<float> csrValues(nnz);
@@ -100,7 +100,7 @@ class CudaGMRESSolver : public LinearSolver {
                 std::chrono::duration_cast<std::chrono::microseconds>(
                     setup_end_time - start_time);
 
-            // Minimal GPU setup
+            // GPU setup
             auto d_csrValues =
                 USTC_CG::cuda::create_cuda_linear_buffer(csrValues);
             auto d_csrRowPtr =
@@ -111,8 +111,6 @@ class CudaGMRESSolver : public LinearSolver {
             auto d_x = USTC_CG::cuda::create_cuda_linear_buffer<float>(n);
             auto d_r = USTC_CG::cuda::create_cuda_linear_buffer<float>(n);
             auto d_w = USTC_CG::cuda::create_cuda_linear_buffer<float>(n);
-
-            // Only allocate Krylov vectors for current restart
             auto d_V = USTC_CG::cuda::create_cuda_linear_buffer<float>(
                 n * (restart + 1));
 
@@ -166,8 +164,8 @@ class CudaGMRESSolver : public LinearSolver {
             auto iteration_start_time =
                 std::chrono::high_resolution_clock::now();
 
-            // Simplified GMRES with CPU-based Hessenberg operations
-            result = performSimpleGMRES(
+            // Clean GMRES implementation
+            result = performCleanGMRES(
                 config,
                 n,
                 restart,
@@ -203,7 +201,7 @@ class CudaGMRESSolver : public LinearSolver {
     }
 
    private:
-    SolverResult performSimpleGMRES(
+    SolverResult performCleanGMRES(
         const SolverConfig& config,
         int n,
         int restart,
@@ -231,14 +229,15 @@ class CudaGMRESSolver : public LinearSolver {
             &b_norm);
         b_norm = sqrt(b_norm);
 
-        if (b_norm < 1e-20f) {
-            result.error_message = "Zero right-hand side";
+        if (b_norm == 0.0f) {
+            result.converged = true;
+            result.iterations = 0;
+            result.final_residual = 0.0f;
             return result;
         }
 
         int total_iterations = 0;
-        int max_restarts =
-            std::min(50, config.max_iterations / restart);  // Limit restarts
+        int max_restarts = config.max_iterations / restart;
 
         for (int restart_count = 0; restart_count < max_restarts;
              ++restart_count) {
@@ -307,7 +306,7 @@ class CudaGMRESSolver : public LinearSolver {
                 reinterpret_cast<float*>(d_V->get_device_ptr()),
                 1);
 
-            // Host-based Hessenberg matrix and operations
+            // Host-based Hessenberg operations (simpler and more reliable)
             std::vector<float> H((restart + 1) * restart, 0.0f);
             std::vector<float> g(restart + 1, 0.0f);
             g[0] = r_norm;
@@ -340,7 +339,7 @@ class CudaGMRESSolver : public LinearSolver {
                     CUSPARSE_SPMV_ALG_DEFAULT,
                     (void*)dBuffer->get_device_ptr());
 
-                // Gram-Schmidt orthogonalization
+                // Standard Gram-Schmidt orthogonalization
                 for (int i = 0; i <= m; ++i) {
                     float hij;
                     cublasSdot(
@@ -379,8 +378,8 @@ class CudaGMRESSolver : public LinearSolver {
 
                 H[(m + 1) + m * (restart + 1)] = hmm1;
 
-                if (hmm1 < 1e-20f)
-                    break;  // Lucky breakdown
+                if (hmm1 < 1e-10f)
+                    break;  // Breakdown
 
                 // v_{m+1} = w / h_{m+1,m}
                 if (m + 1 < restart) {
@@ -415,7 +414,7 @@ class CudaGMRESSolver : public LinearSolver {
                 float h_m1m = H[(m + 1) + m * (restart + 1)];
 
                 float norm = sqrt(h_mm * h_mm + h_m1m * h_m1m);
-                if (norm > 1e-20f) {
+                if (norm > 1e-10f) {
                     cs[m] = h_mm / norm;
                     sn[m] = h_m1m / norm;
                 }
@@ -443,7 +442,7 @@ class CudaGMRESSolver : public LinearSolver {
             }
 
             // Solve upper triangular system (back substitution)
-            std::vector<float> y(m);
+            std::vector<float> y(m, 0.0f);
             for (int i = m - 1; i >= 0; --i) {
                 y[i] = g[i];
                 for (int j = i + 1; j < m; ++j) {
@@ -477,9 +476,49 @@ class CudaGMRESSolver : public LinearSolver {
                 break;
         }
 
-        if (!result.converged && result.error_message.empty()) {
-            result.error_message =
-                "Maximum iterations reached without convergence";
+        if (!result.converged) {
+            result.error_message = "Maximum iterations reached";
+            // Compute final residual
+            cublasScopy(
+                cublasHandle,
+                n,
+                reinterpret_cast<float*>(d_b->get_device_ptr()),
+                1,
+                reinterpret_cast<float*>(d_r->get_device_ptr()),
+                1);
+
+            cusparseSpMV(
+                cusparseHandle,
+                CUSPARSE_OPERATION_NON_TRANSPOSE,
+                &one,
+                matA_desc,
+                vecX_desc,
+                &zero,
+                vecW_desc,
+                CUDA_R_32F,
+                CUSPARSE_SPMV_ALG_DEFAULT,
+                (void*)dBuffer->get_device_ptr());
+
+            cublasSaxpy(
+                cublasHandle,
+                n,
+                &minus_one,
+                reinterpret_cast<float*>(d_w->get_device_ptr()),
+                1,
+                reinterpret_cast<float*>(d_r->get_device_ptr()),
+                1);
+
+            float final_r_norm;
+            cublasSdot(
+                cublasHandle,
+                n,
+                reinterpret_cast<float*>(d_r->get_device_ptr()),
+                1,
+                reinterpret_cast<float*>(d_r->get_device_ptr()),
+                1,
+                &final_r_norm);
+
+            result.final_residual = sqrt(final_r_norm) / b_norm;
         }
 
         return result;
@@ -493,5 +532,4 @@ std::unique_ptr<LinearSolver> createCudaGMRESSolver()
 }
 
 }  // namespace Solver
-
 USTC_CG_NAMESPACE_CLOSE_SCOPE
