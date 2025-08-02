@@ -1,41 +1,57 @@
 if(SLANG_FOUND)
-	USTC_CG_ADD_LIB(
-		RHI
-		SHARED
-		WITH_CUDA
-		PUBLIC_LIBS nvrhi SLANG::slang
-		PRIVATE_LIBS Vulkan::Headers Logger glfw glm::glm nodes_core
-		PYTHON_WRAP_DIR python
-		COMPILE_DEFS 
-			NOMINMAX 
-			VULKAN_HPP_STORAGE_SHARED 
-			VULKAN_HPP_STORAGE_SHARED_IMPORT
-			USTC_CG_BACKEND_NVRHI
-	)
+    USTC_CG_ADD_LIB(
+        RHI
+        SHARED
+        WITH_CUDA
+        PUBLIC_LIBS nvrhi SLANG::slang
+        PRIVATE_LIBS Vulkan::Headers Logger glfw glm::glm nodes_core
+        PYTHON_WRAP_DIR python
+        COMPILE_DEFS
+        NOMINMAX
+        VULKAN_HPP_STORAGE_SHARED
+        VULKAN_HPP_STORAGE_SHARED_IMPORT
+        USTC_CG_BACKEND_NVRHI
+    )
 
-	target_compile_definitions(RHI PRIVATE RELATIVE_TO_PROJROOT="${RELATIVE_TO_PROJROOT}")
+    target_compile_definitions(RHI PRIVATE RELATIVE_TO_PROJROOT="${RELATIVE_TO_PROJROOT}")
 
-	if(TARGET hgi)
-		target_link_libraries(RHI PUBLIC hgi)
-		target_compile_definitions(RHI PUBLIC RHI_WITH_OPENUSD_HGI=1)
-	endif()
+    if(TARGET hgi)
+        target_link_libraries(RHI PUBLIC hgi)
+        target_compile_definitions(RHI PUBLIC RHI_WITH_OPENUSD_HGI=1)
+    endif()
 
-	if(WIN32)
-		target_compile_definitions(RHI PUBLIC USTC_CG_WITH_DX12=1)
-		target_link_libraries(RHI PUBLIC d3d12 dxgi)
-	endif()
+    if(WIN32)
+        target_compile_definitions(RHI PUBLIC USTC_CG_WITH_DX12=1)
+        target_link_libraries(RHI PUBLIC d3d12 dxgi)
+    endif()
 
-	if(TARGET garch)
-		target_link_libraries(RHI PUBLIC garch)
-	endif()
+    if(TARGET garch)
+        target_link_libraries(RHI PUBLIC garch)
+    endif()
 
-	if (USTC_CG_WITH_OPENUSD)
-		target_compile_definitions(RHI PUBLIC USTC_CG_WITH_OPENUSD=1)
-	else()
-		target_compile_definitions(RHI PUBLIC USTC_CG_WITH_OPENUSD=0)
-	endif()
+    if(USTC_CG_WITH_OPENUSD)
+        target_compile_definitions(RHI PUBLIC USTC_CG_WITH_OPENUSD=1)
+    else()
+        target_compile_definitions(RHI PUBLIC USTC_CG_WITH_OPENUSD=0)
+    endif()
 
-	if(USTC_CG_WITH_CUDA)
-		include(nvrtc.cmake)
-	endif()
+    if(USTC_CG_WITH_CUDA)
+        include(nvrtc.cmake)
+    endif()
+
+    # Configure cuda_eigen_test if it exists
+    if(TARGET cuda_eigen_test)
+
+        # Remove the /wd5054 flag that Eigen injects into cuda_eigen_test
+        if(MSVC)
+            get_target_property(_cuda_opts eigen INTERFACE_COMPILE_OPTIONS)
+            list(REMOVE_ITEM _cuda_opts "/wd5054")
+            set_target_properties(eigen PROPERTIES
+                INTERFACE_COMPILE_OPTIONS "${_cuda_opts}"
+            )
+        endif()
+
+        # Now link Eigen privately to avoid propagating its flags
+        target_link_libraries(cuda_eigen_test PRIVATE Eigen3::Eigen CUDA::cublas CUDA::cusparse)
+    endif()
 endif()
