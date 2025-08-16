@@ -1,5 +1,7 @@
 #pragma once
 
+#include <pxr/usd/usd/common.h>
+
 #include <memory>
 #include <string>
 #include <vector>
@@ -80,6 +82,12 @@ std::shared_ptr<OperandType> Geometry::get_component(size_t idx) const
 }
 
 void GEOMETRY_API init(Stage* stage);
+
+bool GEOMETRY_API write_geometry_to_usd(
+    const Geometry& geometry,
+    pxr::UsdStageRefPtr stage,
+    const pxr::SdfPath& sdf_path,
+    pxr::UsdTimeCode time);
 
 #if USE_USD_SCRATCH_BUFFER
 void GEOMETRY_API copy_prim(const pxr::UsdPrim& from, const pxr::UsdPrim& to);

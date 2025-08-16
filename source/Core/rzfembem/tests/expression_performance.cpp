@@ -3,7 +3,7 @@
 #include <chrono>
 #include <string>
 
-#include "../../geometry_nodes/fem_bem/Expression.hpp"
+#include "fem_bem/Expression.hpp"
 
 using namespace USTC_CG::fem_bem;
 
@@ -55,7 +55,6 @@ int main()
     // Use local buffer: 200 kflops/s
     // remove range-based for loop: 347.3 kflops/s
     // Use array: 1705.79 kflops/s
-
 
     // Release version: 3174.06 kflops/s
     // Use plain array: 5887.19 kflops/s

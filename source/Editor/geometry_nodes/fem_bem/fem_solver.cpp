@@ -1,4 +1,4 @@
-#include "fem_bem.hpp"
+#include "GCore/GOP.h"
 #include "nodes/core/def/node_def.hpp"
 
 NODE_DEF_OPEN_SCOPE

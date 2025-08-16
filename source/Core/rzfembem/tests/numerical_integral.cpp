@@ -6,7 +6,7 @@
 #include <string>
 #include <vector>
 
-#include "../../geometry_nodes/fem_bem/ElementBasis.hpp"
+#include "fem_bem/ElementBasis.hpp"
 
 using namespace USTC_CG::fem_bem;
 

@@ -1,4 +1,5 @@
-#include "../../geometry_nodes/fem_bem/Expression.hpp"
+
+#include "fem_bem/Expression.hpp"
 
 #include <gtest/gtest.h>
 
