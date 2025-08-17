@@ -1,8 +1,8 @@
 #include "GCore/Components/MeshComponent.h"
 
 #include "GCore/GOP.h"
-#include "global_stage.hpp"
 #include "stage/stage.hpp"
+#include "GCore/Components/MeshViews.h"
 
 USTC_CG_NAMESPACE_OPEN_SCOPE
 MeshComponent::MeshComponent(Geometry* attached_operand)
@@ -55,6 +55,16 @@ std::string MeshComponent::to_string() const
         << ". Face vertices count " << get_face_vertex_counts().size()
         << ". Face vertex indices " << get_face_vertex_indices().size() << ".";
     return out.str();
+}
+
+MeshIGLView MeshComponent::get_igl_view()
+{
+    return MeshIGLView(*this);
+}
+
+ConstMeshIGLView MeshComponent::get_igl_view() const
+{
+    return ConstMeshIGLView(*this);
 }
 
 using namespace pxr;

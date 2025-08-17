@@ -24,7 +24,7 @@ NODE_EXECUTION_FUNCTION(create_grid)
 NODE_DECLARATION_FUNCTION(create_circle)
 {
     b.add_input<int>("resolution").min(1).max(100).default_val(10);
-    b.add_input<float>("radius").min(1).max(20);
+    b.add_input<float>("radius").min(1).max(20).default_val(1.0f);
     b.add_output<Geometry>("Circle");
 }
 
@@ -34,6 +34,22 @@ NODE_EXECUTION_FUNCTION(create_circle)
     float radius = params.get_input<float>("radius");
     Geometry geometry = create_circle(resolution, radius);
     params.set_output("Circle", std::move(geometry));
+    return true;
+}
+
+NODE_DECLARATION_FUNCTION(create_circle_face)
+{
+    b.add_input<int>("resolution").min(1).max(100).default_val(10);
+    b.add_input<float>("radius").min(1).max(20).default_val(1.0f);
+    b.add_output<Geometry>("Circle Face");
+}
+
+NODE_EXECUTION_FUNCTION(create_circle_face)
+{
+    int resolution = params.get_input<int>("resolution");
+    float radius = params.get_input<float>("radius");
+    Geometry geometry = create_circle_face(resolution, radius);
+    params.set_output("Circle Face", std::move(geometry));
     return true;
 }
 
@@ -87,7 +103,7 @@ NODE_DECLARATION_FUNCTION(create_uv_sphere)
 {
     b.add_input<int>("segments").min(3).max(64).default_val(32);
     b.add_input<int>("rings").min(2).max(64).default_val(16);
-    b.add_input<float>("radius").min(0.1).max(20).default_val(1.0);
+    b.add_input<float>("radius").min(0.1).max(20).default_val(1.0f);
     b.add_output<Geometry>("Geometry");
 }
 
@@ -105,7 +121,7 @@ NODE_EXECUTION_FUNCTION(create_uv_sphere)
 NODE_DECLARATION_FUNCTION(create_ico_sphere)
 {
     b.add_input<int>("subdivisions").min(0).max(5).default_val(2);
-    b.add_input<float>("radius").min(0.1).max(20).default_val(1.0);
+    b.add_input<float>("radius").min(0.1).max(20).default_val(1.0f);
     b.add_output<Geometry>("Geometry");
 }
 
@@ -143,9 +159,9 @@ NODE_EXECUTION_FUNCTION(create_point)
 NODE_DECLARATION_FUNCTION(create_wave_mesh)
 {
     b.add_input<int>("resolution").min(2).max(100).default_val(16);
-    b.add_input<float>("size").min(0.1).max(20).default_val(1.0);
-    b.add_input<float>("period_count").min(0.1).max(10).default_val(2.0);
-    b.add_input<float>("wave_height").min(0.1).max(5).default_val(0.5);
+    b.add_input<float>("size").min(0.1).max(20).default_val(1.0f);
+    b.add_input<float>("period_count").min(0.1).max(10).default_val(2.0f);
+    b.add_input<float>("wave_height").min(0.1).max(5).default_val(0.5f);
     b.add_output<Geometry>("Geometry");
 }
 
@@ -164,10 +180,10 @@ NODE_EXECUTION_FUNCTION(create_wave_mesh)
 
 NODE_DECLARATION_FUNCTION(create_diamond)
 {
-    b.add_input<float>("height").min(0.1).max(20).default_val(2.0);
-    b.add_input<float>("section height").min(0.1).max(20).default_val(0.8);
-    b.add_input<float>("top width").min(0.1).max(20).default_val(1.0);
-    b.add_input<float>("section width").min(0.1).max(20).default_val(1.2);
+    b.add_input<float>("height").min(0.1).max(20).default_val(2.0f);
+    b.add_input<float>("section height").min(0.1).max(20).default_val(0.8f);
+    b.add_input<float>("top width").min(0.1).max(20).default_val(1.0f);
+    b.add_input<float>("section width").min(0.1).max(20).default_val(1.2f);
     b.add_input<int>("segments").min(3).max(32).default_val(8);
     b.add_output<Geometry>("Geometry");
 }
@@ -189,8 +205,8 @@ NODE_EXECUTION_FUNCTION(create_diamond)
 NODE_DECLARATION_FUNCTION(create_trefoil)
 {
     b.add_input<int>("resolution").min(10).max(200).default_val(100);
-    b.add_input<float>("radius").min(0.1).max(10).default_val(1.0);
-    b.add_input<float>("tube_radius").min(0.1).max(5).default_val(0.2);
+    b.add_input<float>("radius").min(0.1).max(10).default_val(1.0f);
+    b.add_input<float>("tube_radius").min(0.1).max(5).default_val(0.2f);
     b.add_output<Geometry>("Curve");
 }
 NODE_EXECUTION_FUNCTION(create_trefoil)
@@ -206,9 +222,9 @@ NODE_EXECUTION_FUNCTION(create_trefoil)
 
 NODE_DECLARATION_FUNCTION(create_cube)
 {
-    b.add_input<float>("width").min(0.1).max(20).default_val(2.0);
-    b.add_input<float>("height").min(0.1).max(20).default_val(2.0);
-    b.add_input<float>("depth").min(0.1).max(20).default_val(2.0);
+    b.add_input<float>("width").min(0.1).max(20).default_val(2.0f);
+    b.add_input<float>("height").min(0.1).max(20).default_val(2.0f);
+    b.add_input<float>("depth").min(0.1).max(20).default_val(2.0f);
     b.add_output<Geometry>("Geometry");
 }
 

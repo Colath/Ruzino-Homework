@@ -7,6 +7,7 @@ USTC_CG_NAMESPACE_OPEN_SCOPE
 
 Geometry GEOMETRY_API create_grid(int resolution, float size);
 Geometry GEOMETRY_API create_circle(int resolution, float radius);
+Geometry GEOMETRY_API create_circle_face(int resolution, float radius);
 Geometry GEOMETRY_API create_cylinder_section(float height, float radius, float angle, int resolution);
 Geometry GEOMETRY_API create_spiral(int resolution, float R1, float R2, float circle_count, float height);
 Geometry GEOMETRY_API create_uv_sphere(int segments, int rings, float radius);

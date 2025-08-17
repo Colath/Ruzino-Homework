@@ -88,6 +88,50 @@ Geometry create_circle(int resolution, float radius)
 
     return geometry;
 }
+Geometry create_circle_face(int resolution, float radius)
+{
+    Geometry geometry;
+    std::shared_ptr<MeshComponent> mesh =
+        std::make_shared<MeshComponent>(&geometry);
+    geometry.attach_component(mesh);
+
+    pxr::VtArray<pxr::GfVec3f> points;
+    pxr::VtArray<pxr::GfVec2f> texcoord;
+    pxr::VtArray<pxr::GfVec3f> normals;
+    pxr::VtArray<int> faceVertexIndices;
+    pxr::VtArray<int> faceVertexCounts;
+
+    for (int i = 0; i < resolution; ++i) {
+        float angle = static_cast<float>(i) * 2.0f * static_cast<float>(M_PI) /
+                      resolution;
+        float x = radius * std::cos(angle);
+        float y = radius * std::sin(angle);
+        points.push_back(pxr::GfVec3f(x, y, 0.0f));
+        texcoord.push_back(pxr::GfVec2f(
+            0.5f + x / (2.0f * radius), 0.5f + y / (2.0f * radius)));
+        normals.push_back(pxr::GfVec3f(0.0f, 0.0f, 1.0f));
+    }
+
+    // Center point
+    points.push_back(pxr::GfVec3f(0.0f, 0.0f, 0.0f));
+    texcoord.push_back(pxr::GfVec2f(0.5f, 0.5f));
+    normals.push_back(pxr::GfVec3f(0.0f, 0.0f, 1.0f));
+
+    for (int i = 0; i < resolution; ++i) {
+        faceVertexCounts.push_back(3);
+        faceVertexIndices.push_back(i);
+        faceVertexIndices.push_back((i + 1) % resolution);
+        faceVertexIndices.push_back(resolution);  // Center point index
+    }
+
+    mesh->set_vertices(points);
+    mesh->set_face_vertex_indices(faceVertexIndices);
+    mesh->set_face_vertex_counts(faceVertexCounts);
+    mesh->set_texcoords_array(texcoord);
+    mesh->set_normals(normals);
+
+    return geometry;
+}
 
 Geometry
 create_cylinder_section(float height, float radius, float angle, int resolution)

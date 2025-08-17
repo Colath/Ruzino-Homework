@@ -349,6 +349,26 @@ bool write_geometry_to_usd(
 #if USE_USD_SCRATCH_BUFFER
             copy_prim(curve->get_usd_curve().GetPrim(), usd_curve.GetPrim());
 #else
+            // Set curve type and basis first
+            usd_curve.CreateTypeAttr().Set(
+                curve->get_type() == CurveComponent::CurveType::Linear
+                    ? pxr::UsdGeomTokens->linear
+                    : pxr::UsdGeomTokens->cubic,
+                time);
+
+            // Set basis for cubic curves
+            if (curve->get_type() != CurveComponent::CurveType::Linear) {
+                usd_curve.CreateBasisAttr().Set(
+                    pxr::UsdGeomTokens->bspline, time);
+            }
+
+            // Set wrap mode
+            if (curve->get_periodic())
+                usd_curve.CreateWrapAttr().Set(pxr::UsdGeomTokens->periodic);
+            else
+                usd_curve.CreateWrapAttr().Set(pxr::UsdGeomTokens->nonperiodic);
+
+            // Set geometry data
             usd_curve.CreatePointsAttr().Set(curve->get_vertices(), time);
             usd_curve.CreateWidthsAttr().Set(curve->get_width(), time);
             usd_curve.CreateCurveVertexCountsAttr().Set(
@@ -356,15 +376,6 @@ bool write_geometry_to_usd(
             usd_curve.CreateNormalsAttr().Set(curve->get_curve_normals(), time);
             usd_curve.CreateDisplayColorAttr().Set(
                 curve->get_display_color(), time);
-            usd_curve.CreateWrapAttr().Set(
-                curve->get_periodic() ? pxr::UsdGeomTokens->periodic
-                                      : pxr::UsdGeomTokens->nonperiodic,
-                time);
-            usd_curve.CreateTypeAttr().Set(
-                curve->get_type() == CurveComponent::CurveType::Linear
-                    ? pxr::UsdGeomTokens->linear
-                    : pxr::UsdGeomTokens->cubic,
-                time);
 #endif
         }
     }

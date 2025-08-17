@@ -3,18 +3,22 @@
 #include <pxr/base/gf/vec3f.h>
 #include <pxr/base/vt/array.h>
 
+#include <Eigen/Eigen>
 #include <string>
 
 #include "GCore/Components.h"
 #include "GCore/GOP.h"
+#include "MeshViews.h"
 
 #if USE_USD_SCRATCH_BUFFER
 #include <pxr/usd/usdGeom/mesh.h>
+
 #include "pxr/usd/usdGeom/primvarsAPI.h"
 #include "pxr/usd/usdGeom/xform.h"
 #endif
 
 USTC_CG_NAMESPACE_OPEN_SCOPE
+
 struct GEOMETRY_API MeshComponent : public GeometryComponent {
     explicit MeshComponent(Geometry* attached_operand);
 
@@ -24,6 +28,9 @@ struct GEOMETRY_API MeshComponent : public GeometryComponent {
 
     std::string to_string() const override;
     GeometryComponentHandle copy(Geometry* operand) const override;
+
+    MeshIGLView get_igl_view();
+    ConstMeshIGLView get_igl_view() const;
 
     [[nodiscard]] pxr::VtArray<pxr::GfVec3f> get_vertices() const
     {
