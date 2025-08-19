@@ -52,59 +52,6 @@ namespace fem_bem {
         return result;
     }
 
-    // Integration of product of two expressions
-    template<typename T>
-    inline T integrate_product_simplex(
-        const exprtk::expression<T>& expr1,
-        const exprtk::expression<T>& expr2,
-        const std::vector<std::string>& barycentric_names,
-        const std::size_t number_of_intervals = 100)
-    {
-        if (barycentric_names.empty())
-            return T(0);
-
-        const std::size_t dim = barycentric_names.size();
-        const exprtk::symbol_table<T>& sym_table1 = expr1.get_symbol_table();
-        const exprtk::symbol_table<T>& sym_table2 = expr2.get_symbol_table();
-
-        if (!sym_table1.valid() || !sym_table2.valid())
-            return std::numeric_limits<T>::quiet_NaN();
-
-        // Get variable references for both expressions
-        std::vector<exprtk::details::variable_node<T>*> vars1(dim);
-        std::vector<exprtk::details::variable_node<T>*> vars2(dim);
-        std::vector<T> original_values1(dim), original_values2(dim);
-
-        for (std::size_t i = 0; i < dim; ++i) {
-            vars1[i] = sym_table1.get_variable(barycentric_names[i]);
-            vars2[i] = sym_table2.get_variable(barycentric_names[i]);
-            if (!vars1[i] || !vars2[i])
-                return std::numeric_limits<T>::quiet_NaN();
-            original_values1[i] = vars1[i]->ref();
-            original_values2[i] = vars2[i]->ref();
-        }
-
-        // Create evaluator for product
-        auto evaluator = [&](const std::vector<T>& coords) -> T {
-            for (std::size_t i = 0; i < dim; ++i) {
-                vars1[i]->ref() = coords[i];
-                vars2[i]->ref() = coords[i];
-            }
-            return expr1.value() * expr2.value();
-        };
-
-        T result = integrate_simplex_generic<T>(
-            evaluator, barycentric_names, number_of_intervals);
-
-        // Restore original values
-        for (std::size_t i = 0; i < dim; ++i) {
-            vars1[i]->ref() = original_values1[i];
-            vars2[i]->ref() = original_values2[i];
-        }
-
-        return result;
-    }
-
     // Generic simplex integration framework
     template<typename T, typename EvaluatorFunc>
     inline T integrate_simplex_generic(

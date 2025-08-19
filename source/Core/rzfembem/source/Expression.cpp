@@ -3,6 +3,7 @@
 
 namespace USTC_CG {
 namespace fem_bem {
+    static exprtk::parser<real> parser;
 
     real numerical_derivative(
         const exprtk::expression<real>& expr,
@@ -44,7 +45,6 @@ namespace fem_bem {
             // Create a temporary expression for derivative computation
             exprtk::symbol_table<real> symbol_table;
             exprtk::expression<real> expr;
-            exprtk::parser<real> parser;
 
             // Create a mutable copy of values for symbol table
             ParameterMap<real> temp_values = values;
@@ -484,7 +484,6 @@ namespace fem_bem {
         // Register symbol table with expression
         compiled_expression_->register_symbol_table(*symbol_table_);
 
-        parser_type parser;
         if (!parser.compile(expression_string_, *compiled_expression_)) {
             throw std::runtime_error(
                 "Failed to parse expression: " + expression_string_);
