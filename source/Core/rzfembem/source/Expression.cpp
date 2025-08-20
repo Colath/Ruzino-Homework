@@ -15,7 +15,8 @@ namespace fem_bem {
     {
         return [compound_evaluator, variable_name, h](
                    const ParameterMap<real>& values) -> real {
-            const real* var_value = values.find(variable_name.c_str());
+            ParameterMap<real> values_ = values;
+            real* var_value = values_.find(variable_name.c_str());
             if (!var_value) {
                 return real(0);  // Variable not found
             }
@@ -23,28 +24,25 @@ namespace fem_bem {
             const real x_init = *var_value;
 
             // Create modified value maps for derivative computation
-            ParameterMap<real> values_plus = values;
-            ParameterMap<real> values_minus = values;
+            // ParameterMap<real> values_ = values;
 
             // Use 2-point central difference
-            values_plus.insert_or_assign(variable_name.c_str(), x_init + h);
-            const real y_plus = compound_evaluator(values_plus);
+            *var_value = x_init + h;
+            const real y_plus = compound_evaluator(values_);
 
-            values_minus.insert_or_assign(variable_name.c_str(), x_init - h);
-            const real y_minus = compound_evaluator(values_minus);
+            *var_value = x_init - h;
+            const real y_minus = compound_evaluator(values_);
 
             real derivative = (y_plus - y_minus) / (real(2) * h);
 
             // Check for numerical issues and use adaptive step if needed
             if (std::abs(derivative) > real(1e6)) {
                 real smaller_h = h * real(0.1);
-                values_plus.insert_or_assign(
-                    variable_name.c_str(), x_init + smaller_h);
-                const real y_plus_small = compound_evaluator(values_plus);
+                *var_value = x_init + smaller_h;
+                const real y_plus_small = compound_evaluator(values_);
 
-                values_minus.insert_or_assign(
-                    variable_name.c_str(), x_init - smaller_h);
-                const real y_minus_small = compound_evaluator(values_minus);
+                *var_value = x_init - smaller_h;
+                const real y_minus_small = compound_evaluator(values_);
 
                 derivative =
                     (y_plus_small - y_minus_small) / (real(2) * smaller_h);
