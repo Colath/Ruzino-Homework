@@ -64,7 +64,7 @@ namespace fem_bem {
         DerivativeExpression derivative(const std::string& variable_name) const;
 
         std::vector<DerivativeExpression> gradient(
-            const std::vector<std::string>& variable_names) const;
+            const std::vector<const char*>& variable_names) const;
 
         // Closure methods - bind specific variables to values
         void bind_variables(const ParameterMap<real>& bound_values);
@@ -122,7 +122,7 @@ namespace fem_bem {
         template<typename MappingFunc>
         friend real integrate_over_simplex(
             const Expression& expr,
-            const std::vector<std::string>& barycentric_names,
+            const std::vector<const char*>& barycentric_names,
             const MappingFunc& mapping,
             std::size_t intervals);
 
@@ -130,7 +130,7 @@ namespace fem_bem {
         friend real integrate_simplex_with_mapping(
             const Expression& expr,
             MappingFunc mapping,
-            const std::vector<std::string>& barycentric_names,
+            const std::vector<const char*>& barycentric_names,
             std::size_t intervals);
     };
 
@@ -175,7 +175,7 @@ namespace fem_bem {
     // Direct numerical integration for expressions
     inline real integrate_expression_numerically(
         const Expression& expr,
-        const std::vector<std::string>& barycentric_names,
+        const std::vector<const char*>& barycentric_names,
         std::size_t intervals)
     {
         if (barycentric_names.empty())
@@ -198,15 +198,15 @@ namespace fem_bem {
 
                 // Simpson's rule over [u1, u2]
                 values.clear();
-                values.insert_unchecked(barycentric_names[0].c_str(), u1);
+                values.insert_unchecked(barycentric_names[0], u1);
                 const real y1 = expr.evaluate_at(values);
 
                 values.clear();
-                values.insert_unchecked(barycentric_names[0].c_str(), u_mid);
+                values.insert_unchecked(barycentric_names[0], u_mid);
                 const real y_mid = expr.evaluate_at(values);
 
                 values.clear();
-                values.insert_unchecked(barycentric_names[0].c_str(), u2);
+                values.insert_unchecked(barycentric_names[0], u2);
                 const real y2 = expr.evaluate_at(values);
 
                 total_integral += h * (y1 + real(4) * y_mid + y2) / real(6);
@@ -238,10 +238,8 @@ namespace fem_bem {
                             weight = real(0.25);
 
                         values.clear();
-                        values.insert_unchecked(
-                            barycentric_names[0].c_str(), u1);
-                        values.insert_unchecked(
-                            barycentric_names[1].c_str(), u2);
+                        values.insert_unchecked(barycentric_names[0], u1);
+                        values.insert_unchecked(barycentric_names[1], u2);
 
                         total_integral += weight * expr.evaluate_at(values) *
                                           h * h * real(2.0);
@@ -277,12 +275,9 @@ namespace fem_bem {
                                 weight = real(1) / real(1 << boundary_count);
 
                             values.clear();
-                            values.insert_unchecked(
-                                barycentric_names[0].c_str(), u1);
-                            values.insert_unchecked(
-                                barycentric_names[1].c_str(), u2);
-                            values.insert_unchecked(
-                                barycentric_names[2].c_str(), u3);
+                            values.insert_unchecked(barycentric_names[0], u1);
+                            values.insert_unchecked(barycentric_names[1], u2);
+                            values.insert_unchecked(barycentric_names[2], u3);
 
                             total_integral += weight *
                                               expr.evaluate_at(values) * h * h *
@@ -299,7 +294,7 @@ namespace fem_bem {
     template<typename MappingExpr = std::nullptr_t>
     real integrate_over_simplex(
         const Expression& expr,
-        const std::vector<std::string>& barycentric_names,
+        const std::vector<const char*>& barycentric_names,
         const MappingExpr& mapping_expr = nullptr,
         std::size_t intervals = 100)
     {
@@ -311,9 +306,8 @@ namespace fem_bem {
             return integrate_expression_numerically(
                 final_expr, barycentric_names, intervals);
         }
-
         for (const auto& barycentric_name : barycentric_names) {
-            expr.set_variable(barycentric_name.c_str(), real(0));
+            expr.set_variable(barycentric_name, real(0));
         }
         return integrate_expression_numerically(
             expr, barycentric_names, intervals);
@@ -324,7 +318,7 @@ namespace fem_bem {
     Expression compose_with_mapping(
         const Expression& expr,
         const MappingExpr& mapping_expr,
-        const std::vector<std::string>& barycentric_names)
+        const std::vector<const char*>& barycentric_names)
     {
         if constexpr (std::is_same_v<MappingExpr, std::nullptr_t>) {
             return expr;
@@ -345,27 +339,27 @@ namespace fem_bem {
 
     // Create coordinate mapping expressions that bind world vertex coordinates
     RZFEMBEM_API ParameterMap<Expression> create_coordinate_mapping(
-        const std::vector<std::string>& barycentric_names,
+        const std::vector<const char*>& barycentric_names,
         const std::vector<pxr::GfVec2d>& world_vertices);
 
     RZFEMBEM_API ParameterMap<Expression> create_coordinate_mapping(
-        const std::vector<std::string>& barycentric_names,
+        const std::vector<const char*>& barycentric_names,
         const std::vector<pxr::GfVec3d>& world_vertices);
 
     // Helper to create mapped expression using coordinate mapping
     RZFEMBEM_API Expression create_mapped_expression_with_coord_mapping(
         const Expression& expr,
         const ParameterMap<Expression>& coord_mapping,
-        const std::vector<std::string>& barycentric_names);
+        const std::vector<const char*>& barycentric_names);
 
     // Create mapping expression from barycentric to physical coordinates
     // (legacy)
     Expression create_mapping_expression(
-        const std::vector<std::string>& barycentric_names,
+        const std::vector<const char*>& barycentric_names,
         const std::vector<pxr::GfVec2d>& world_vertices);
 
     Expression create_mapping_expression(
-        const std::vector<std::string>& barycentric_names,
+        const std::vector<const char*>& barycentric_names,
         const std::vector<pxr::GfVec3d>& world_vertices);
 
     // Generic mapping expression creation template
@@ -373,7 +367,7 @@ namespace fem_bem {
     Expression create_mapped_expression(
         const Expression& expr,
         const MappingExpr& mapping_expr,
-        const std::vector<std::string>& barycentric_names)
+        const std::vector<const char*>& barycentric_names)
     {
         // For now, return the original expression as fallback
         // This would need specific implementation based on MappingExpr type

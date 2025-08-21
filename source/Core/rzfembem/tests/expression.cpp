@@ -100,7 +100,7 @@ TEST(ExpressionFocusedTest, IntegrationInterface)
     Expression expr("x*x + y*y");
 
     // Test that integration methods exist and can be called
-    std::vector<std::string> barycentric_vars;
+    std::vector<const char*> barycentric_vars;
     barycentric_vars.push_back("u");
     barycentric_vars.push_back("v");
     barycentric_vars.push_back("w");

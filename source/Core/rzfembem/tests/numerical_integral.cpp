@@ -22,8 +22,8 @@ std::vector<double> integrate_vertex_against_str(
     results.reserve(vertex_exprs.size());
 
     // Create the expression to integrate against
-    std::vector<std::string> all_vars = { "u1", "u2", "u3", "x", "y", "z" };
-    Expression expr(expr_str, all_vars);
+    std::vector<const char*> all_vars = { "u1", "u2", "u3", "x", "y", "z" };
+    Expression expr(expr_str);
 
     for (const auto& shape_func : vertex_exprs) {
         // Multiply shape function with the expression and integrate
@@ -48,8 +48,8 @@ std::vector<double> integrate_edge_against_str(
     const auto& edge_exprs = basis.get_edge_expressions();
     results.reserve(edge_exprs.size());
 
-    std::vector<std::string> all_vars = { "u1", "u2", "u3", "x", "y", "z" };
-    Expression expr(expr_str, all_vars);
+    std::vector<const char*> all_vars = { "u1", "u2", "u3", "x", "y", "z" };
+    Expression expr(expr_str);
 
     for (const auto& shape_func : edge_exprs) {
         Expression product = shape_func * expr;
@@ -73,8 +73,8 @@ std::vector<double> integrate_face_against_str(
     const auto& face_exprs = basis.get_face_expressions();
     results.reserve(face_exprs.size());
 
-    std::vector<std::string> all_vars = { "u1", "u2", "u3", "x", "y", "z" };
-    Expression expr(expr_str, all_vars);
+    std::vector<const char*> all_vars = { "u1", "u2", "u3", "x", "y", "z" };
+    Expression expr(expr_str);
 
     for (const auto& shape_func : face_exprs) {
         Expression product = shape_func * expr;
@@ -98,8 +98,8 @@ std::vector<double> integrate_volume_against_str(
     const auto& volume_exprs = basis.get_volume_expressions();
     results.reserve(volume_exprs.size());
 
-    std::vector<std::string> all_vars = { "u1", "u2", "u3", "x", "y", "z" };
-    Expression expr(expr_str, all_vars);
+    std::vector<const char*> all_vars = { "u1", "u2", "u3", "x", "y", "z" };
+    Expression expr(expr_str);
 
     for (const auto& shape_func : volume_exprs) {
         Expression product = shape_func * expr;
@@ -123,8 +123,8 @@ std::vector<double> integrate_vertex_against_with_mapping(
 
     // Create coordinate mapping
     auto mapping = basis.create_coordinate_mapping(world_vertices);
-    std::vector<std::string> all_vars = { "u1", "u2", "u3", "x", "y", "z" };
-    Expression expr(expr_str, all_vars);
+    std::vector<const char*> all_vars = { "u1", "u2", "u3", "x", "y", "z" };
+    Expression expr(expr_str);
 
     for (const auto& shape_func : vertex_exprs) {
         Expression product = shape_func * expr;
@@ -146,8 +146,8 @@ std::vector<double> integrate_vertex_against_with_mapping(
     results.reserve(vertex_exprs.size());
 
     auto mapping = basis.create_coordinate_mapping(world_vertices);
-    std::vector<std::string> all_vars = { "u1", "u2", "u3", "x", "y", "z" };
-    Expression expr(expr_str, all_vars);
+    std::vector<const char*> all_vars = { "u1", "u2", "u3", "x", "y", "z" };
+    Expression expr(expr_str);
 
     for (const auto& shape_func : vertex_exprs) {
         Expression product = shape_func * expr;

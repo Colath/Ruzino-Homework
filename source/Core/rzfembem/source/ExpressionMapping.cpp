@@ -7,7 +7,7 @@ namespace fem_bem {
 
     // Create coordinate mapping expressions that bind world vertex coordinates
     ParameterMap<Expression> create_coordinate_mapping(
-        const std::vector<std::string>& barycentric_names,
+        const std::vector<const char*>& barycentric_names,
         const std::vector<pxr::GfVec2d>& world_vertices)
     {
         ParameterMap<Expression> coord_mapping;
@@ -33,7 +33,7 @@ namespace fem_bem {
         // u1*y1
         if (barycentric_names.size() == 1 && world_vertices.size() >= 2) {
             // Create x mapping: (1-u1)*x0 + u1*x1
-            std::vector<std::string> x_vars = { "u1", "x0", "x1" };
+            std::vector<const char*> x_vars = { "u1", "x0", "x1" };
             Expression x_expr("(1 - u1) * x0 + u1 * x1");
             ParameterMap<real> x_bindings;
             x_bindings.insert_or_assign(
@@ -43,7 +43,7 @@ namespace fem_bem {
             x_expr.bind_variables(x_bindings);
 
             // Create y mapping: (1-u1)*y0 + u1*y1
-            std::vector<std::string> y_vars = { "u1", "y0", "y1" };
+            std::vector<const char*> y_vars = { "u1", "y0", "y1" };
             Expression y_expr("(1 - u1) * y0 + u1 * y1");
             ParameterMap<real> y_bindings;
             y_bindings.insert_or_assign(
@@ -61,7 +61,7 @@ namespace fem_bem {
         // coordinates u1, u2 The mapping is: x = (1-u1-u2)*x0 + u1*x1 + u2*x2
         if (barycentric_names.size() == 2 && world_vertices.size() >= 3) {
             // Create x mapping: (1-u1-u2)*x0 + u1*x1 + u2*x2
-            std::vector<std::string> x_vars = { "u1", "u2", "x0", "x1", "x2" };
+            std::vector<const char*> x_vars = { "u1", "u2", "x0", "x1", "x2" };
             Expression x_expr("(1 - u1 - u2) * x0 + u1 * x1 + u2 * x2");
             ParameterMap<real> x_bindings;
             x_bindings.insert_or_assign(
@@ -73,7 +73,7 @@ namespace fem_bem {
             x_expr.bind_variables(x_bindings);
 
             // Create y mapping: (1-u1-u2)*y0 + u1*y1 + u2*y2
-            std::vector<std::string> y_vars = { "u1", "u2", "y0", "y1", "y2" };
+            std::vector<const char*> y_vars = { "u1", "u2", "y0", "y1", "y2" };
             Expression y_expr("(1 - u1 - u2) * y0 + u1 * y1 + u2 * y2");
             ParameterMap<real> y_bindings;
             y_bindings.insert_or_assign(
@@ -96,21 +96,15 @@ namespace fem_bem {
         // Build the base expression string for x coordinate
         std::string x_base = "(1";
         for (std::size_t i = 0; i < barycentric_names.size(); ++i) {
-            x_base += " - " + barycentric_names[i];
+            x_base += std::string(" - ") + barycentric_names[i];
         }
         x_base += ") * x0";
 
         for (std::size_t i = 0;
              i < std::min(barycentric_names.size(), actual_vertices - 1);
              ++i) {
-            x_base +=
-                " + " + barycentric_names[i] + " * x" + std::to_string(i + 1);
-        }
-
-        // Create variable list including all coordinate variables
-        std::vector<std::string> x_vars = barycentric_names;
-        for (std::size_t i = 0; i < actual_vertices; ++i) {
-            x_vars.push_back("x" + std::to_string(i));
+            x_base += std::string(" + ") + barycentric_names[i] + " * x" +
+                      std::to_string(i + 1);
         }
 
         Expression x_expr(x_base);
@@ -125,21 +119,15 @@ namespace fem_bem {
         // Build the base expression string for y coordinate
         std::string y_base = "(1";
         for (std::size_t i = 0; i < barycentric_names.size(); ++i) {
-            y_base += " - " + barycentric_names[i];
+            y_base += std::string(" - ") + barycentric_names[i];
         }
         y_base += ") * y0";
 
         for (std::size_t i = 0;
              i < std::min(barycentric_names.size(), actual_vertices - 1);
              ++i) {
-            y_base +=
-                " + " + barycentric_names[i] + " * y" + std::to_string(i + 1);
-        }
-
-        // Create variable list including all coordinate variables
-        std::vector<std::string> y_vars = barycentric_names;
-        for (std::size_t i = 0; i < actual_vertices; ++i) {
-            y_vars.push_back("y" + std::to_string(i));
+            y_base += std::string(" + ") + barycentric_names[i] + " * y" +
+                      std::to_string(i + 1);
         }
 
         Expression y_expr(y_base);
@@ -158,7 +146,7 @@ namespace fem_bem {
     }
 
     ParameterMap<Expression> create_coordinate_mapping(
-        const std::vector<std::string>& barycentric_names,
+        const std::vector<const char*>& barycentric_names,
         const std::vector<pxr::GfVec3d>& world_vertices)
     {
         ParameterMap<Expression> coord_mapping;
@@ -185,7 +173,7 @@ namespace fem_bem {
         // coordinate u1
         if (barycentric_names.size() == 1 && world_vertices.size() >= 2) {
             // Create x mapping: (1-u1)*x0 + u1*x1
-            std::vector<std::string> x_vars = { "u1", "x0", "x1" };
+            std::vector<const char*> x_vars = { "u1", "x0", "x1" };
             Expression x_expr("(1 - u1) * x0 + u1 * x1");
             ParameterMap<real> x_bindings;
             x_bindings.insert_or_assign(
@@ -195,7 +183,7 @@ namespace fem_bem {
             x_expr.bind_variables(x_bindings);
 
             // Create y mapping
-            std::vector<std::string> y_vars = { "u1", "y0", "y1" };
+            std::vector<const char*> y_vars = { "u1", "y0", "y1" };
             Expression y_expr("(1 - u1) * y0 + u1 * y1");
             ParameterMap<real> y_bindings;
             y_bindings.insert_or_assign(
@@ -205,7 +193,7 @@ namespace fem_bem {
             y_expr.bind_variables(y_bindings);
 
             // Create z mapping
-            std::vector<std::string> z_vars = { "u1", "z0", "z1" };
+            std::vector<const char*> z_vars = { "u1", "z0", "z1" };
             Expression z_expr("(1 - u1) * z0 + u1 * z1");
             ParameterMap<real> z_bindings;
             z_bindings.insert_or_assign(
@@ -224,7 +212,7 @@ namespace fem_bem {
         // coordinates u1, u2
         if (barycentric_names.size() == 2 && world_vertices.size() >= 3) {
             // Create x mapping: (1-u1-u2)*x0 + u1*x1 + u2*x2
-            std::vector<std::string> x_vars = { "u1", "u2", "x0", "x1", "x2" };
+            std::vector<const char*> x_vars = { "u1", "u2", "x0", "x1", "x2" };
             Expression x_expr("(1 - u1 - u2) * x0 + u1 * x1 + u2 * x2");
             ParameterMap<real> x_bindings;
             x_bindings.insert_or_assign(
@@ -236,7 +224,7 @@ namespace fem_bem {
             x_expr.bind_variables(x_bindings);
 
             // Create y mapping
-            std::vector<std::string> y_vars = { "u1", "u2", "y0", "y1", "y2" };
+            std::vector<const char*> y_vars = { "u1", "u2", "y0", "y1", "y2" };
             Expression y_expr("(1 - u1 - u2) * y0 + u1 * y1 + u2 * y2");
             ParameterMap<real> y_bindings;
             y_bindings.insert_or_assign(
@@ -248,7 +236,7 @@ namespace fem_bem {
             y_expr.bind_variables(y_bindings);
 
             // Create z mapping
-            std::vector<std::string> z_vars = { "u1", "u2", "z0", "z1", "z2" };
+            std::vector<const char*> z_vars = { "u1", "u2", "z0", "z1", "z2" };
             Expression z_expr("(1 - u1 - u2) * z0 + u1 * z1 + u2 * z2");
             ParameterMap<real> z_bindings;
             z_bindings.insert_or_assign(
@@ -269,7 +257,7 @@ namespace fem_bem {
         // coordinates u1, u2, u3
         if (barycentric_names.size() == 3 && world_vertices.size() >= 4) {
             // Create x mapping: (1-u1-u2-u3)*x0 + u1*x1 + u2*x2 + u3*x3
-            std::vector<std::string> x_vars = { "u1", "u2", "u3", "x0",
+            std::vector<const char*> x_vars = { "u1", "u2", "u3", "x0",
                                                 "x1", "x2", "x3" };
             Expression x_expr(
                 "(1 - u1 - u2 - u3) * x0 + u1 * x1 + u2 * x2 + u3 * x3");
@@ -285,7 +273,7 @@ namespace fem_bem {
             x_expr.bind_variables(x_bindings);
 
             // Similar for y and z
-            std::vector<std::string> y_vars = { "u1", "u2", "u3", "y0",
+            std::vector<const char*> y_vars = { "u1", "u2", "u3", "y0",
                                                 "y1", "y2", "y3" };
             Expression y_expr(
                 "(1 - u1 - u2 - u3) * y0 + u1 * y1 + u2 * y2 + u3 * y3");
@@ -300,7 +288,7 @@ namespace fem_bem {
                 "y3", static_cast<real>(world_vertices[3][1]));
             y_expr.bind_variables(y_bindings);
 
-            std::vector<std::string> z_vars = { "u1", "u2", "u3", "z0",
+            std::vector<const char*> z_vars = { "u1", "u2", "u3", "z0",
                                                 "z1", "z2", "z3" };
             Expression z_expr(
                 "(1 - u1 - u2 - u3) * z0 + u1 * z1 + u2 * z2 + u3 * z3");
@@ -335,21 +323,15 @@ namespace fem_bem {
             // Build the base expression string
             std::string expr_str = "(1";
             for (std::size_t i = 0; i < barycentric_names.size(); ++i) {
-                expr_str += " - " + barycentric_names[i];
+                expr_str += std::string(" - ") + barycentric_names[i];
             }
             expr_str += ") * " + var_prefix + "0";
 
             for (std::size_t i = 0;
                  i < std::min(barycentric_names.size(), actual_vertices - 1);
                  ++i) {
-                expr_str += " + " + barycentric_names[i] + " * " + var_prefix +
-                            std::to_string(i + 1);
-            }
-
-            // Create variable list including all coordinate variables
-            std::vector<std::string> coord_vars = barycentric_names;
-            for (std::size_t i = 0; i < actual_vertices; ++i) {
-                coord_vars.push_back(var_prefix + std::to_string(i));
+                expr_str += std::string(" + ") + barycentric_names[i] + " * " +
+                            var_prefix + std::to_string(i + 1);
             }
 
             Expression coord_expr(expr_str);
@@ -374,7 +356,7 @@ namespace fem_bem {
     Expression create_mapped_expression_with_coord_mapping(
         const Expression& expr,
         const ParameterMap<Expression>& coord_mapping,
-        const std::vector<std::string>& barycentric_names)
+        const std::vector<const char*>& barycentric_names)
     {
         // Create substitution map from coordinate mapping
         ParameterMap<Expression> substitutions;

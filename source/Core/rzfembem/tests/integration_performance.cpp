@@ -66,7 +66,7 @@ TEST_F(IntegrationPerformanceTest, SimpleExpressionIntegration)
               << std::endl;
 
     Expression simple_expr("1");
-    std::vector<std::string> vars = { "u1", "u2", "u3" };
+    std::vector<const char*> vars = { "u1", "u2", "u3" };
 
     // Test with different integration intervals
     std::vector<int> intervals = { 10, 50, 100, 200 };
@@ -86,7 +86,7 @@ TEST_F(IntegrationPerformanceTest, PolynomialExpressionIntegration)
     std::cout << "\n=== Polynomial Expression Integration Performance ==="
               << std::endl;
 
-    std::vector<std::string> expressions = { "u1",
+    std::vector<const char*> expressions = { "u1",
                                              "u1 + u2",
                                              "u1*u2",
                                              "u1*u2 + u2*u3",
@@ -94,11 +94,11 @@ TEST_F(IntegrationPerformanceTest, PolynomialExpressionIntegration)
                                              "u1*u1*u2 + u2*u2*u3 + u3*u3*u1",
                                              "u1*u1*u1 + u2*u2*u2 + u3*u3*u3" };
 
-    std::vector<std::string> vars = { "u1", "u2", "u3" };
+    std::vector<const char*> vars = { "u1", "u2", "u3" };
 
     for (const auto& expr_str : expressions) {
         Expression expr(expr_str);  // Add variable list
-        auto test_name = "Polynomial_" + expr_str;
+        auto test_name = std::string("Polynomial_") + expr_str;
         benchmark_function(test_name, [&]() {
             integrate_over_simplex(expr, vars, nullptr, 50);
         });
@@ -116,7 +116,7 @@ TEST_F(IntegrationPerformanceTest, CompoundExpressionIntegration)
     Expression element2("u1*u2 + u2*u3");
     Expression compound(outer, { { "x", element1 }, { "y", element2 } });
 
-    std::vector<std::string> vars = { "u1", "u2", "u3" };
+    std::vector<const char*> vars = { "u1", "u2", "u3" };
 
     benchmark_function("Simple_compound_expression", [&]() {
         integrate_over_simplex(compound, vars, nullptr, 50);
@@ -146,15 +146,15 @@ TEST_F(IntegrationPerformanceTest, CoordinateMappingIntegration)
     auto fem2d = make_fem_2d();
     auto mapping = fem2d->create_coordinate_mapping(triangle_2d);
 
-    std::vector<std::string> spatial_expressions = {
+    std::vector<const char*> spatial_expressions = {
         "x", "y", "x + y", "x*y", "x*x + y*y", "x*x*y + y*y*x"
     };
 
-    std::vector<std::string> vars = { "u1", "u2", "u3" };
+    std::vector<const char*> vars = { "u1", "u2", "u3" };
 
     for (const auto& expr_str : spatial_expressions) {
         Expression expr(expr_str);
-        auto test_name = "Mapping_" + expr_str;
+        auto test_name = std::string("Mapping_") + expr_str;
         benchmark_function(test_name, [&]() {
             integrate_over_simplex(expr, vars, mapping, 50);
         });
@@ -167,8 +167,7 @@ TEST_F(IntegrationPerformanceTest, DerivativeIntegration)
     std::cout << "\n=== Derivative Integration Performance ===" << std::endl;
 
     Expression base_expr("u1*u1 + u2*u2 + u3*u3");  // Add variable list
-    std::vector<std::string> vars = { "u1", "u2", "u3" };
-
+    std::vector vars = { "u1", "u2", "u3" };
     // Test derivative computation and integration
     benchmark_function("Base_expression_integration", [&]() {
         integrate_over_simplex(base_expr, vars, nullptr, 10);
@@ -257,8 +256,7 @@ TEST_F(IntegrationPerformanceTest, ArithmeticOperationsIntegration)
 
     Expression expr1("u1 + 2");
     Expression expr2("u2 * 3");
-    std::vector<std::string> vars = { "u1", "u2", "u3" };
-
+    std::vector vars = { "u1", "u2", "u3" };
     benchmark_function("Addition_integration", [&]() {
         auto sum = expr1 + expr2;
         integrate_over_simplex(sum, vars, nullptr, 50);
@@ -294,7 +292,7 @@ TEST_F(IntegrationPerformanceTest, IntegrationIntervalScaling)
               << std::endl;
 
     Expression test_expr("u1*u2 + u2*u3 + u3*u1");  // Add variable list
-    std::vector<std::string> vars = { "u1", "u2", "u3" };
+    std::vector vars = { "u1", "u2", "u3" };
 
     std::vector<int> intervals = { 5, 10, 20, 30 };
 
@@ -316,9 +314,9 @@ TEST_F(IntegrationPerformanceTest, MemoryAllocationPerformance)
 {
     std::cout << "\n=== Memory Allocation Performance ===" << std::endl;
 
-    std::vector<std::string> vars = { "u1", "u2", "u3" };
+    std::vector vars = { "u1", "u2", "u3" };
 
-    // Test repeated expression creation and integration
+    // Tevector<const char*>ion creation and integration
     benchmark_function("Expression_creation_and_integration", [&]() {
         Expression temp_expr("u1*u1 + u2*u2");  // Add variable list
         integrate_over_simplex(temp_expr, vars, nullptr, 20);

@@ -29,7 +29,7 @@ void ElementBasis::add_vertex_expression(const std::string& expr_str)
     vertex_expressions_.push_back(create_expression(expr_str));
 }
 void ElementBasis::set_vertex_expressions(
-    const std::vector<std::string>& expr_strs)
+    const std::vector<const char*>& expr_strs)
 {
     vertex_expressions_.clear();
     vertex_expressions_.reserve(expr_strs.size());
@@ -70,7 +70,7 @@ void ElementBasis::add_edge_expression(const std::string& expr_str)
     }
 }
 void ElementBasis::set_edge_expressions(
-    const std::vector<std::string>& expr_strs)
+    const std::vector<const char*>& expr_strs)
 {
     if (element_dimension_ >= 2) {
         edge_expressions_.clear();
@@ -117,7 +117,7 @@ void ElementBasis::add_face_expression(const std::string& expr_str)
     }
 }
 void ElementBasis::set_face_expressions(
-    const std::vector<std::string>& expr_strs)
+    const std::vector<const char*>& expr_strs)
 {
     if (element_dimension_ >= 3) {
         face_expressions_.clear();
@@ -164,7 +164,7 @@ void ElementBasis::add_volume_expression(const std::string& expr_str)
     }
 }
 void ElementBasis::set_volume_expressions(
-    const std::vector<std::string>& expr_strs)
+    const std::vector<const char*>& expr_strs)
 {
     if (element_dimension_ == 3) {
         volume_expressions_.clear();
@@ -228,7 +228,7 @@ ParameterMap<Expression> ElementBasis::create_coordinate_mapping(
     return fem_bem::create_coordinate_mapping(
         barycentric_names_, world_vertices);
 }
-const std::vector<std::string>& ElementBasis::get_barycentric_names() const
+const std::vector<const char*>& ElementBasis::get_barycentric_names() const
 {
     return barycentric_names_;
 }

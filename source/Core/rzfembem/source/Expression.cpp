@@ -256,7 +256,7 @@ namespace fem_bem {
             return outer_expression_->evaluate_at(outer_values);
         }
 
-        if (variables_.empty() || !has_bound_variable_) {
+        if (!has_bound_variable_) {
             variables_ = variable_values;
         }
         else
@@ -442,7 +442,7 @@ namespace fem_bem {
     }
 
     std::vector<DerivativeExpression> Expression::gradient(
-        const std::vector<std::string>& variable_names) const
+        const std::vector<const char*>& variable_names) const
     {
         std::vector<DerivativeExpression> grad;
         grad.reserve(variable_names.size());

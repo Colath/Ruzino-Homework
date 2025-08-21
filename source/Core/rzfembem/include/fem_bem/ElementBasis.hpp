@@ -28,25 +28,25 @@ namespace fem_bem {
         // Expression management
         // Vertex expressions (always available) - 0D knots
         void add_vertex_expression(const std::string& expr_str);
-        void set_vertex_expressions(const std::vector<std::string>& expr_strs);
+        void set_vertex_expressions(const std::vector<const char*>& expr_strs);
         const std::vector<expression_type>& get_vertex_expressions() const;
         void clear_vertex_expressions();
         std::vector<std::vector<expression_type>> get_vertex_gradients() const;
 
         void add_edge_expression(const std::string& expr_str);
-        void set_edge_expressions(const std::vector<std::string>& expr_strs);
+        void set_edge_expressions(const std::vector<const char*>& expr_strs);
         const std::vector<expression_type>& get_edge_expressions() const;
         void clear_edge_expressions();
         std::vector<std::vector<expression_type>> get_edge_gradients() const;
 
         void add_face_expression(const std::string& expr_str);
-        void set_face_expressions(const std::vector<std::string>& expr_strs);
+        void set_face_expressions(const std::vector<const char*>& expr_strs);
         const std::vector<expression_type>& get_face_expressions() const;
         void clear_face_expressions();
         std::vector<std::vector<expression_type>> get_face_gradients() const;
 
         void add_volume_expression(const std::string& expr_str);
-        void set_volume_expressions(const std::vector<std::string>& expr_strs);
+        void set_volume_expressions(const std::vector<const char*>& expr_strs);
         const std::vector<expression_type>& get_volume_expressions() const;
         void clear_volume_expressions();
         std::vector<std::vector<expression_type>> get_volume_gradients() const;
@@ -64,7 +64,7 @@ namespace fem_bem {
             const std::vector<pxr::GfVec3d>& world_vertices) const;
 
         // Get barycentric variable names
-        const std::vector<std::string>& get_barycentric_names() const;
+        const std::vector<const char*>& get_barycentric_names() const;
 
        private:
         // Create a new expression with all necessary variables pre-registered
@@ -78,7 +78,7 @@ namespace fem_bem {
         unsigned element_dimension_;
         ElementBasisType type_;
 
-        std::vector<std::string> barycentric_names_;
+        std::vector<const char*> barycentric_names_;
 
         // Expression storage
         std::vector<expression_type> vertex_expressions_;
