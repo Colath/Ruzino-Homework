@@ -16,8 +16,6 @@ namespace fem_bem {
     // Element basis with expression and gradient management
     class RZFEMBEM_API ElementBasis {
        public:
-        using expression_type = Expression;
-
         ElementBasis(unsigned problem_dim, ElementBasisType type);
 
         // Basic information
@@ -29,27 +27,27 @@ namespace fem_bem {
         // Vertex expressions (always available) - 0D knots
         void add_vertex_expression(const std::string& expr_str);
         void set_vertex_expressions(const std::vector<const char*>& expr_strs);
-        const std::vector<expression_type>& get_vertex_expressions() const;
+        const std::vector<Expression>& get_vertex_expressions() const;
         void clear_vertex_expressions();
-        std::vector<std::vector<expression_type>> get_vertex_gradients() const;
+        std::vector<std::vector<Expression>> get_vertex_gradients() const;
 
         void add_edge_expression(const std::string& expr_str);
         void set_edge_expressions(const std::vector<const char*>& expr_strs);
-        const std::vector<expression_type>& get_edge_expressions() const;
+        const std::vector<Expression>& get_edge_expressions() const;
         void clear_edge_expressions();
-        std::vector<std::vector<expression_type>> get_edge_gradients() const;
+        std::vector<std::vector<Expression>> get_edge_gradients() const;
 
         void add_face_expression(const std::string& expr_str);
         void set_face_expressions(const std::vector<const char*>& expr_strs);
-        const std::vector<expression_type>& get_face_expressions() const;
+        const std::vector<Expression>& get_face_expressions() const;
         void clear_face_expressions();
-        std::vector<std::vector<expression_type>> get_face_gradients() const;
+        std::vector<std::vector<Expression>> get_face_gradients() const;
 
         void add_volume_expression(const std::string& expr_str);
         void set_volume_expressions(const std::vector<const char*>& expr_strs);
-        const std::vector<expression_type>& get_volume_expressions() const;
+        const std::vector<Expression>& get_volume_expressions() const;
         void clear_volume_expressions();
-        std::vector<std::vector<expression_type>> get_volume_gradients() const;
+        std::vector<std::vector<Expression>> get_volume_gradients() const;
 
         // Check if specific expression types are available
         bool has_edge_expressions() const;
@@ -81,10 +79,10 @@ namespace fem_bem {
         std::vector<const char*> barycentric_names_;
 
         // Expression storage
-        std::vector<expression_type> vertex_expressions_;
-        std::vector<expression_type> edge_expressions_;
-        std::vector<expression_type> face_expressions_;
-        std::vector<expression_type> volume_expressions_;
+        std::vector<Expression> vertex_expressions_;
+        std::vector<Expression> edge_expressions_;
+        std::vector<Expression> face_expressions_;
+        std::vector<Expression> volume_expressions_;
     };
 
     using ElementBasisHandle = std::shared_ptr<ElementBasis>;

@@ -148,21 +148,58 @@ class FEMSolver2D : public ElementSolver {
                 // Now we assemble the stiffness matrix and load vector for the
                 // triangle
 
-                // auto expressions = basis_->get_vertex_expression_strings();
+                auto expressions = basis_->get_vertex_expressions();
 
-                // auto triangle_area = compute_triangle_area(tri_verts);
+                assert(expressions.size() == 3);
+                auto triangle_area = compute_triangle_area(tri_verts);
 
-                // auto integral =
-                // basis_->integrate_vertex_against_with_mapping(
-                //     "1-u1-u2", tri_verts);
-                // triplets.emplace_back(
-                //     vertex_id, vertex_id, integral[0] * triangle_area);
-                // triplets.emplace_back(
-                //     vertex_id, face_vertex_ids[0], integral[1] *
-                //     triangle_area);
-                // triplets.emplace_back(
-                //     vertex_id, face_vertex_ids[1], integral[2] *
-                //     triangle_area);
+                // Calc Square of Jacobian Matrix
+                auto v0 = openmesh_->point(openmesh_->vertex_handle(vertex_id));
+                auto v1 = openmesh_->point(
+                    openmesh_->vertex_handle(face_vertex_ids[0]));
+                auto v2 = openmesh_->point(
+                    openmesh_->vertex_handle(face_vertex_ids[1]));
+
+                auto d1 = v1 - v0;
+                auto d2 = v2 - v0;
+
+                auto j00 = d1[0] * d1[0] + d1[1] * d1[1];
+                auto j01 = d1[0] * d2[0] + d1[1] * d2[1];
+                auto j10 = d2[0] * d1[0] + d2[1] * d1[1];
+                auto j11 = d2[0] * d2[0] + d2[1] * d2[1];
+
+                j00 = j01 = j10 = j11 = 1.0f;
+
+                auto calc_inner_product =
+                    [&expressions, j00, j01, j10, j11](int id) {
+                        auto first = expressions[0];
+                        auto gradient_first = first.gradient({ "u1", "u2" });
+                        auto coor = expressions[id];
+                        auto gradient_coor = coor.gradient({ "u1", "u2" });
+
+                        auto integrated = fem_bem::integrate_over_simplex(
+                            gradient_first[0] * j00 * gradient_coor[0] +
+                                gradient_first[1] * j01 * gradient_coor[1] +
+                                gradient_first[0] * j10 * gradient_coor[0] +
+                                gradient_first[1] * j11 * gradient_coor[1],
+                            { "u1", "u2" },
+                            nullptr,
+                            2);
+                        return integrated;
+                    };
+
+                triplets.emplace_back(
+                    vertex_id,
+                    vertex_id,
+                    calc_inner_product(0) * triangle_area);
+                triplets.emplace_back(
+                    vertex_id,
+                    face_vertex_ids[0],
+                    calc_inner_product(1) * triangle_area);
+                triplets.emplace_back(
+                    vertex_id,
+                    face_vertex_ids[1],
+                    calc_inner_product(2) * triangle_area);
             }
         }
 

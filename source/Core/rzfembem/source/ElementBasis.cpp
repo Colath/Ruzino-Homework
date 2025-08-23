@@ -37,8 +37,7 @@ void ElementBasis::set_vertex_expressions(
         vertex_expressions_.push_back(create_expression(expr_str));
     }
 }
-const std::vector<ElementBasis::expression_type>&
-ElementBasis::get_vertex_expressions() const
+const std::vector<Expression>& ElementBasis::get_vertex_expressions() const
 {
     return vertex_expressions_;
 }
@@ -46,14 +45,13 @@ void ElementBasis::clear_vertex_expressions()
 {
     vertex_expressions_.clear();
 }
-std::vector<std::vector<ElementBasis::expression_type>>
-ElementBasis::get_vertex_gradients() const
+std::vector<std::vector<Expression>> ElementBasis::get_vertex_gradients() const
 {
-    std::vector<std::vector<expression_type>> gradients;
+    std::vector<std::vector<Expression>> gradients;
     gradients.reserve(vertex_expressions_.size());
 
     for (const auto& expr : vertex_expressions_) {
-        std::vector<expression_type> grad;
+        std::vector<Expression> grad;
         grad.reserve(barycentric_names_.size());
 
         for (const auto& var : barycentric_names_) {
@@ -80,8 +78,7 @@ void ElementBasis::set_edge_expressions(
         }
     }
 }
-const std::vector<ElementBasis::expression_type>&
-ElementBasis::get_edge_expressions() const
+const std::vector<Expression>& ElementBasis::get_edge_expressions() const
 {
     return edge_expressions_;
 }
@@ -91,15 +88,14 @@ void ElementBasis::clear_edge_expressions()
         edge_expressions_.clear();
     }
 }
-std::vector<std::vector<ElementBasis::expression_type>>
-ElementBasis::get_edge_gradients() const
+std::vector<std::vector<Expression>> ElementBasis::get_edge_gradients() const
 {
-    std::vector<std::vector<expression_type>> gradients;
+    std::vector<std::vector<Expression>> gradients;
     if (element_dimension_ >= 2) {
         gradients.reserve(edge_expressions_.size());
 
         for (const auto& expr : edge_expressions_) {
-            std::vector<expression_type> grad;
+            std::vector<Expression> grad;
             grad.reserve(barycentric_names_.size());
 
             for (const auto& var : barycentric_names_) {
@@ -127,8 +123,7 @@ void ElementBasis::set_face_expressions(
         }
     }
 }
-const std::vector<ElementBasis::expression_type>&
-ElementBasis::get_face_expressions() const
+const std::vector<Expression>& ElementBasis::get_face_expressions() const
 {
     return face_expressions_;
 }
@@ -138,15 +133,14 @@ void ElementBasis::clear_face_expressions()
         face_expressions_.clear();
     }
 }
-std::vector<std::vector<ElementBasis::expression_type>>
-ElementBasis::get_face_gradients() const
+std::vector<std::vector<Expression>> ElementBasis::get_face_gradients() const
 {
-    std::vector<std::vector<expression_type>> gradients;
+    std::vector<std::vector<Expression>> gradients;
     if (element_dimension_ >= 3) {
         gradients.reserve(face_expressions_.size());
 
         for (const auto& expr : face_expressions_) {
-            std::vector<expression_type> grad;
+            std::vector<Expression> grad;
             grad.reserve(barycentric_names_.size());
 
             for (const auto& var : barycentric_names_) {
@@ -174,8 +168,7 @@ void ElementBasis::set_volume_expressions(
         }
     }
 }
-const std::vector<ElementBasis::expression_type>&
-ElementBasis::get_volume_expressions() const
+const std::vector<Expression>& ElementBasis::get_volume_expressions() const
 {
     return volume_expressions_;
 }
@@ -185,15 +178,14 @@ void ElementBasis::clear_volume_expressions()
         volume_expressions_.clear();
     }
 }
-std::vector<std::vector<ElementBasis::expression_type>>
-ElementBasis::get_volume_gradients() const
+std::vector<std::vector<Expression>> ElementBasis::get_volume_gradients() const
 {
-    std::vector<std::vector<expression_type>> gradients;
+    std::vector<std::vector<Expression>> gradients;
     if (element_dimension_ == 3) {
         gradients.reserve(volume_expressions_.size());
 
         for (const auto& expr : volume_expressions_) {
-            std::vector<expression_type> grad;
+            std::vector<Expression> grad;
             grad.reserve(barycentric_names_.size());
 
             for (const auto& var : barycentric_names_) {

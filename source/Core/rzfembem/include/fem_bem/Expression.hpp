@@ -331,9 +331,8 @@ namespace fem_bem {
                 expr, mapping_expr, barycentric_names);
         }
         else {
-            // For other mapping types, use template specialization
-            return create_mapped_expression(
-                expr, mapping_expr, barycentric_names);
+            throw std::runtime_error(
+                "Mapping has to be either nullptr or ParameterMap<Expression>");
         }
     }
 
@@ -361,18 +360,6 @@ namespace fem_bem {
     Expression create_mapping_expression(
         const std::vector<const char*>& barycentric_names,
         const std::vector<pxr::GfVec3d>& world_vertices);
-
-    // Generic mapping expression creation template
-    template<typename MappingExpr>
-    Expression create_mapped_expression(
-        const Expression& expr,
-        const MappingExpr& mapping_expr,
-        const std::vector<const char*>& barycentric_names)
-    {
-        // For now, return the original expression as fallback
-        // This would need specific implementation based on MappingExpr type
-        return expr;
-    }
 
 }  // namespace fem_bem
 }  // namespace USTC_CG
