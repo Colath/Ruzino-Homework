@@ -105,6 +105,7 @@ class FEMSolver2D : public ElementSolver {
 
         auto first = expressions[0];
         auto gradient_first = first.gradient({ "u1", "u2" });
+
         auto coor1 = expressions[1];
         auto gradient_coor1 = coor1.gradient({ "u1", "u2" });
         auto coor2 = expressions[2];
@@ -114,20 +115,20 @@ class FEMSolver2D : public ElementSolver {
 
         final_expressions[0] =
             gradient_first[0] * fem_bem::Expression("j00") * gradient_first[0] +
-            gradient_first[0] * fem_bem::Expression("j01") * gradient_first[1] +
-            gradient_first[1] * fem_bem::Expression("j10") * gradient_first[0] +
+            gradient_first[1] * fem_bem::Expression("j01") * gradient_first[0] +
+            gradient_first[0] * fem_bem::Expression("j10") * gradient_first[1] +
             gradient_first[1] * fem_bem::Expression("j11") * gradient_first[1];
 
         final_expressions[1] =
             gradient_first[0] * fem_bem::Expression("j00") * gradient_coor1[0] +
-            gradient_first[0] * fem_bem::Expression("j01") * gradient_coor1[1] +
-            gradient_first[1] * fem_bem::Expression("j10") * gradient_coor1[0] +
+            gradient_first[1] * fem_bem::Expression("j01") * gradient_coor1[0] +
+            gradient_first[0] * fem_bem::Expression("j10") * gradient_coor1[1] +
             gradient_first[1] * fem_bem::Expression("j11") * gradient_coor1[1];
 
         final_expressions[2] =
             gradient_first[0] * fem_bem::Expression("j00") * gradient_coor2[0] +
-            gradient_first[0] * fem_bem::Expression("j01") * gradient_coor2[1] +
-            gradient_first[1] * fem_bem::Expression("j10") * gradient_coor2[0] +
+            gradient_first[1] * fem_bem::Expression("j01") * gradient_coor2[0] +
+            gradient_first[0] * fem_bem::Expression("j10") * gradient_coor2[1] +
             gradient_first[1] * fem_bem::Expression("j11") * gradient_coor2[1];
 
         for (auto v_it : openmesh_->vertices()) {
@@ -195,10 +196,9 @@ class FEMSolver2D : public ElementSolver {
 
                 // Inverse Jacobian squared elements
                 auto j00 = (d2[0] * d2[0] + d2[1] * d2[1]) / det_sq;
-                auto j01 = -(d2[0] * d2[0] + d1[1] * d1[1]) / det_sq;
+                auto j01 = -(d2[0] * d1[0] + d2[1] * d1[1]) / det_sq;
                 auto j10 = j01;
                 auto j11 = (d1[0] * d1[0] + d1[1] * d1[1]) / det_sq;
-
 
                 auto calc_inner_product =
                     [j00, j01, j10, j11, &final_expressions](int id) {
@@ -266,7 +266,7 @@ class FEMSolver2D : public ElementSolver {
     {
         // Use iterative solver for sparse system
         auto solver = Solver::SolverFactory::create(
-            Solver::SolverType::EIGEN_ITERATIVE_CG);
+            Solver::SolverType::EIGEN_ITERATIVE_BICGSTAB);
 
         Eigen::VectorXf x = Eigen::VectorXf::Zero(b.size());
 

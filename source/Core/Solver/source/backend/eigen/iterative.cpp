@@ -135,7 +135,7 @@ class EigenCGSolver
     // Check if matrix is likely SPD
     bool isLikelySPD(const Eigen::SparseMatrix<float>& A) {
         if (A.rows() != A.cols()) return false;
-        
+        return true;
         // Quick symmetry check on a sample of entries
         int sample_size = std::min(100, (int)A.rows());
         for (int i = 0; i < sample_size; ++i) {

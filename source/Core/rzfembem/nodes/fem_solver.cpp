@@ -96,6 +96,12 @@ NODE_EXECUTION_FUNCTION(fem_solver)
         auto mesh_component = delauneyed.get_component<MeshComponent>();
         mesh_component->add_vertex_scalar_quantity("solution", solution);
 
+        auto vertices = mesh_component->get_vertices();
+        for (size_t i = 0; i < vertices.size(); ++i) {
+            vertices[i][2] = solution[i];
+        }
+
+        mesh_component->set_vertices(vertices);
         // 输出结果几何体
         params.set_output("Geometry", delauneyed);
 
