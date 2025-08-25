@@ -31,6 +31,6 @@
 [submodule "source/Core/rznode"]
 	path = source/Core/rznode
 	url = https://github.com/Jerry-Shen0527/rznode.git
-[submodule "source/Editor/geometry/external/glm"]
-	path = source/Editor/geometry/external/glm
-	url = https://github.com/USTC-CG-NEXT/glm.git
+[submodule "source/Editor/geometry"]
+	path = source/Editor/geometry
+	url = https://github.com/USTC-CG-NEXT/GCore.git
