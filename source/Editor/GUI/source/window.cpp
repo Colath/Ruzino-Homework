@@ -211,7 +211,13 @@ void DockingImguiRenderer::register_widget(std::unique_ptr<IWidget> widget)
 void DockingImguiRenderer::drawMenuBar()
 {
     if (ImGui::BeginMenuBar()) {
+        // Reset padding for menu items to default size
+        ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(8.0f, 4.0f));
+        ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(8.0f, 4.0f));
+        
         recursive_draw(menu_tree);
+        
+        ImGui::PopStyleVar(2);
         ImGui::EndMenuBar();
     }
 }
@@ -237,7 +243,11 @@ void DockingImguiRenderer::buildUI()
     ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0.0f, 0.0f));
 
     ImGui::Begin(("DockSpace" + std::to_string(0)).c_str(), 0, window_flags);
+    
+    // Temporarily restore normal padding for menu bar
+    ImGui::PopStyleVar(1); // Pop the WindowPadding
     drawMenuBar();
+    ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0.0f, 0.0f)); // Push it back
 
     ImGui::PopStyleVar(3);
     ImGuiID dockspace_id = ImGui::GetID("MyDockSpace");
