@@ -33,6 +33,9 @@ T call(const std::string& code)
     try {
         // Use nanobind to convert the Python object to the desired C++ type
         nb::object nb_result = nb::steal(py_result);  // Takes ownership
+        
+        // For pointer types, nanobind usually binds objects as pointers
+        // So we can directly cast to the pointer type
         T result = nb::cast<T>(nb_result);
         return result;
     }

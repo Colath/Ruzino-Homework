@@ -280,7 +280,7 @@ int shutdown()
     std::map<std::string, nvrhi_image>().swap(rhi_images);
     device_manager->Shutdown();
     device_manager.reset();
-    return device_manager == nullptr;
+    return device_manager == nullptr ? 0 : -1;
 }
 }  // namespace RHI
 USTC_CG_NAMESPACE_CLOSE_SCOPE

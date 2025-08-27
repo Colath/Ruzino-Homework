@@ -43,7 +43,7 @@ class GUI_API Window {
 
    protected:
     std::unique_ptr<DockingImguiRenderer> imguiRenderPass;
-    float elapsedTimeSeconds;
+    float elapsedTimeSeconds = 0.0f;
     friend class DockingImguiRenderer;
 };
 
