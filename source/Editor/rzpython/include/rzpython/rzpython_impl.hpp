@@ -1,9 +1,12 @@
 #pragma once
 
 #include <nanobind/nanobind.h>
+#include <nanobind/stl/vector.h>
+#include <nanobind/stl/string.h>
 
 #include <stdexcept>
 #include <unordered_map>
+#include <vector>
 
 #include "api.h"
 

@@ -2,6 +2,7 @@
 
 #include <nanobind/nanobind.h>
 #include <string>
+#include <vector>
 #include "api.h"
 
 USTC_CG_NAMESPACE_OPEN_SCOPE
@@ -31,6 +32,14 @@ template<>
 RZPYTHON_API float call<float>(const std::string& code);
 template<>
 RZPYTHON_API void call<void>(const std::string& code);
+
+// Specializations for std::vector types
+template<>
+RZPYTHON_API std::vector<int> call<std::vector<int>>(const std::string& code);
+template<>
+RZPYTHON_API std::vector<float> call<std::vector<float>>(const std::string& code);
+template<>
+RZPYTHON_API std::vector<std::string> call<std::vector<std::string>>(const std::string& code);
 
 // Bind C++ object to Python variable name
 template<typename T>

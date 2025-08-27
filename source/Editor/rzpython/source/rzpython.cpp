@@ -1,5 +1,7 @@
 #include <GUI/window.h>
 #include <nanobind/nanobind.h>
+#include <nanobind/stl/vector.h>
+#include <nanobind/stl/string.h>
 
 #include <rzpython/rzpython.hpp>
 #include <stdexcept>
@@ -152,6 +154,64 @@ PyObject* call_raw(const std::string& code)
     }
 
     return result;  // Caller is responsible for DECREF
+}
+
+// Template specializations for std::vector types
+template<>
+std::vector<int> call<std::vector<int>>(const std::string& code)
+{
+    PyObject* py_result = call_raw(code);
+    if (!py_result) {
+        throw std::runtime_error("Failed to get result from Python code: " + code);
+    }
+
+    try {
+        // Use nanobind to convert the Python object to std::vector<int>
+        nb::object nb_result = nb::steal(py_result);  // Takes ownership
+        std::vector<int> result = nb::cast<std::vector<int>>(nb_result);
+        return result;
+    }
+    catch (const std::exception& e) {
+        throw std::runtime_error("Failed to convert Python result to std::vector<int>: " + std::string(e.what()));
+    }
+}
+
+template<>
+std::vector<float> call<std::vector<float>>(const std::string& code)
+{
+    PyObject* py_result = call_raw(code);
+    if (!py_result) {
+        throw std::runtime_error("Failed to get result from Python code: " + code);
+    }
+
+    try {
+        // Use nanobind to convert the Python object to std::vector<float>
+        nb::object nb_result = nb::steal(py_result);  // Takes ownership
+        std::vector<float> result = nb::cast<std::vector<float>>(nb_result);
+        return result;
+    }
+    catch (const std::exception& e) {
+        throw std::runtime_error("Failed to convert Python result to std::vector<float>: " + std::string(e.what()));
+    }
+}
+
+template<>
+std::vector<std::string> call<std::vector<std::string>>(const std::string& code)
+{
+    PyObject* py_result = call_raw(code);
+    if (!py_result) {
+        throw std::runtime_error("Failed to get result from Python code: " + code);
+    }
+
+    try {
+        // Use nanobind to convert the Python object to std::vector<std::string>
+        nb::object nb_result = nb::steal(py_result);  // Takes ownership
+        std::vector<std::string> result = nb::cast<std::vector<std::string>>(nb_result);
+        return result;
+    }
+    catch (const std::exception& e) {
+        throw std::runtime_error("Failed to convert Python result to std::vector<std::string>: " + std::string(e.what()));
+    }
 }
 
 }  // namespace python
