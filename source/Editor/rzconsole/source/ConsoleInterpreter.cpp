@@ -174,6 +174,11 @@ Interpreter::Result Interpreter::Execute(std::string_view const cmdline)
     if (cmdline.empty())
         return { false };
 
+    // Check if derived class wants to handle this command directly
+    if (ShouldHandleCommand(cmdline)) {
+        return HandleDirectExecution(cmdline);
+    }
+
     // Super-simple parser
     Command::Args args;
     for (Lexer lexer(cmdline); lexer.hasNextToken();) {
@@ -270,6 +275,16 @@ std::vector<std::string> Interpreter::SuggestCommand(
 bool Interpreter::IsValidCommand(std::string_view command) const
 {
     return false;
+}
+
+bool Interpreter::ShouldHandleCommand(std::string_view command) const
+{
+    return false;
+}
+
+Interpreter::Result Interpreter::HandleDirectExecution(std::string_view cmdline)
+{
+    return { false, "Direct execution not implemented" };
 }
 
 // Register various commands

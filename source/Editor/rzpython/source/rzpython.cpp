@@ -80,6 +80,8 @@ void initialize()
     }
 
     initialized = true;
+
+    import("GUI_py");
 }
 
 void finalize()
