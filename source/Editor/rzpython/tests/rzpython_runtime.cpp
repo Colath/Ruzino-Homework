@@ -11,10 +11,46 @@
 
 using namespace USTC_CG;
 
-TEST(RZPythonRuntimeTest, RHI_package)
-{
-    python::initialize();
+// Test fixture that initializes Python once for all tests
+class RZPythonRuntimeTest : public ::testing::Test {
+   protected:
+    static void SetUpTestSuite()
+    {
+        // Initialize Python once for all tests
+        python::initialize();
+    }
 
+    static void TearDownTestSuite()
+    {
+        // Finalize Python after all tests are done
+        python::finalize();
+    }
+
+    void SetUp() override
+    {
+        // Clear any leftover variables from previous tests
+        python::call<void>("import gc");
+        python::call<void>("gc.collect()");
+
+        // Clear variables that might interfere between tests
+        // But preserve important modules like torch, numpy, etc.
+        python::call<void>(
+            "# Clean up any leftover variables but preserve important modules\n"
+            "import sys\n"
+            "preserve_modules = {'sys', 'gc', 'torch', 'numpy', 'np', "
+            "'RHI_py', 'GUI_py'}\n"
+            "main_vars = list(globals().keys())\n"
+            "for var in main_vars:\n"
+            "    if not var.startswith('_') and var not in preserve_modules:\n"
+            "        try:\n"
+            "            del globals()[var]\n"
+            "        except:\n"
+            "            pass\n");
+    }
+};
+
+TEST_F(RZPythonRuntimeTest, RHI_package)
+{
     python::import("RHI_py");
     int result = python::call<int>("RHI_py.init()");
     EXPECT_EQ(result, 0);
@@ -31,14 +67,10 @@ TEST(RZPythonRuntimeTest, RHI_package)
 
     result = python::call<int>("RHI_py.shutdown()");
     EXPECT_EQ(result, 0);
-
-    python::finalize();
 }
 
-TEST(RZPythonRuntimeTest, GUI_package)
+TEST_F(RZPythonRuntimeTest, GUI_package)
 {
-    python::initialize();
-
     python::import("GUI_py");
 
     Window window;
@@ -54,14 +86,10 @@ TEST(RZPythonRuntimeTest, GUI_package)
     float time = python::call<float>("w.get_elapsed_time()");
     // Just check that we get a finite number (not inf or nan)
     EXPECT_TRUE(std::isfinite(time));
-
-    python::finalize();
 }
 
-TEST(RZPythonRuntimeTest, ListToVector_conversion)
+TEST_F(RZPythonRuntimeTest, ListToVector_conversion)
 {
-    python::initialize();
-
     // Test converting Python list to C++ vector<int>
     python::call<void>("int_list = [1, 2, 3, 4, 5]");
     std::vector<int> int_vec = python::call<std::vector<int>>("int_list");
@@ -88,13 +116,10 @@ TEST(RZPythonRuntimeTest, ListToVector_conversion)
     EXPECT_EQ(str_vec[0], "hello");
     EXPECT_EQ(str_vec[1], "world");
     EXPECT_EQ(str_vec[2], "test");
-
-    python::finalize();
 }
 
-TEST(RZPythonRuntimeTest, VectorToList_conversion)
+TEST_F(RZPythonRuntimeTest, VectorToList_conversion)
 {
-    python::initialize();
     python::import("GUI_py");
 
     // Test sending C++ vector<int> to Python list
@@ -134,13 +159,10 @@ TEST(RZPythonRuntimeTest, VectorToList_conversion)
     EXPECT_EQ(retrieved_str_vec[0], "hello");
     EXPECT_EQ(retrieved_str_vec[1], "world");
     EXPECT_EQ(retrieved_str_vec[2], "test");
-
-    python::finalize();
 }
 
-TEST(RZPythonRuntimeTest, NumPy_ndarray_conversion)
+TEST_F(RZPythonRuntimeTest, NumPy_ndarray_conversion)
 {
-    python::initialize();
     python::import("GUI_py");
 
     try {
@@ -184,20 +206,18 @@ TEST(RZPythonRuntimeTest, NumPy_ndarray_conversion)
         // NumPy might not be available, skip test
         GTEST_SKIP() << "NumPy not available: " << e.what();
     }
-
-    python::finalize();
 }
 
-TEST(RZPythonRuntimeTest, PyTorch_tensor_conversion)
+TEST_F(RZPythonRuntimeTest, PyTorch_tensor_conversion)
 {
-    python::initialize();
     python::import("GUI_py");
 
     try {
-        // python::import("torch");
+        // Import torch once - since Python is persistent across tests now,
+        // this should work without the CPU dispatcher issue
+        python::call<void>("import torch");
 
         // Test creating PyTorch tensor and retrieving it
-        python::call<void>("import torch");
         python::call<void>(
             "torch_tensor = torch.tensor([[1.0, 2.0], [3.0, 4.0]], "
             "dtype=torch.float32)");
@@ -228,33 +248,18 @@ TEST(RZPythonRuntimeTest, PyTorch_tensor_conversion)
 
         python::call<void>(
             "print('C++ created PyTorch tensor:', cpp_torch_tensor)");
-        
-        // Explicitly clear PyTorch objects to help with cleanup
-        python::call<void>("del torch_tensor, cpp_torch_tensor");
-        python::call<void>("import gc; gc.collect()");
     }
     catch (const std::exception& e) {
         // PyTorch might not be available, skip test
         GTEST_SKIP() << "PyTorch not available: " << e.what();
     }
-
-    python::finalize();
-    
-    // Add a small delay to ensure DLL cleanup is complete
-#ifdef _WIN32
-    Sleep(100);
-#endif
 }
 
-TEST(RZPythonRuntimeTest, CUDA_tensor_conversion)
+TEST_F(RZPythonRuntimeTest, CUDA_tensor_conversion)
 {
-    python::initialize();
-
     try {
-        python::import("torch");
-
+        // torch should already be imported from previous test
         // Check if CUDA is available
-        python::call<void>("import torch");
         python::call<void>("cuda_available = torch.cuda.is_available()");
 
         bool cuda_available = false;
@@ -294,11 +299,4 @@ TEST(RZPythonRuntimeTest, CUDA_tensor_conversion)
         // CUDA might not be available, skip test
         GTEST_SKIP() << "CUDA not available: " << e.what();
     }
-
-    python::finalize();
-    
-    // Add a small delay to ensure DLL cleanup is complete
-#ifdef _WIN32
-    Sleep(100);
-#endif
 }

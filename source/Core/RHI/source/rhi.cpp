@@ -60,11 +60,11 @@ int init(bool with_window, bool use_dx12)
     };
 
     params.swapChainFormat = nvrhi::Format::RGBA8_UNORM;
-#ifdef _DEBUG
-    // params.enableNvrhiValidationLayer = true;
-    params.enableDebugRuntime = true;
-#endif
-    params.enableDebugRuntime = true;
+//#ifdef _DEBUG
+//    // params.enableNvrhiValidationLayer = true;
+//    params.enableDebugRuntime = true;
+//#endif
+//    params.enableDebugRuntime = true;
 
     if (with_window) {
         auto ret =
