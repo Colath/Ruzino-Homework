@@ -238,30 +238,16 @@ jobs:
 
       - name: Upload SDK to GitHub Release
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-        shell: powershell
-        run: |
-          $tag = "sdk-${{ needs.check-sdk.outputs.configure-hash }}"
-          $body = "SDK build for configure.py hash: ${{ needs.check-sdk.outputs.configure-hash }}"
-          
-          try {
-            # Try to delete existing release first if it exists
-            gh release delete $tag --yes --repo ${{ github.repository }} 2>$null
-            Start-Sleep -Milliseconds 500
-          } catch {
-            Write-Output "Release doesn't exist or couldn't be deleted (that's ok)"
-          }
-          
-          # Create new release with upload
-          gh release create $tag SDK/SDK.zip --title "SDK ${{ needs.check-sdk.outputs.configure-hash }}" --notes $body --repo ${{ github.repository }}
-          
-          if ($LASTEXITCODE -eq 0) {
-            Write-Output "Release created and uploaded successfully"
-          } else {
-            Write-Error "Failed to create release"
-            exit 1
-          }
+        uses: softprops/action-gh-release@v1
+        with:
+          files: SDK/SDK.zip
+          tag_name: sdk-${{ needs.check-sdk.outputs.configure-hash }}
+          body: "SDK build for configure.py hash: ${{ needs.check-sdk.outputs.configure-hash }}"
+          draft: false
+          prerelease: false
+          fail_on_unmatched_files: true
         env:
-          GH_TOKEN: ${{ github.token }}
+          GITHUB_TOKEN: ${{ secrets.GH_PAT }}
 
   restore-sdk:
     name: Restore or build SDK
