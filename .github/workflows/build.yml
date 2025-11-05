@@ -342,7 +342,7 @@ jobs:
             Write-Output "WARNING: Download error - $_"
           }
 
-      - name: Extract SDK
+      - name: Extract SDK and setup structure for builds
         shell: powershell
         run: |
           try {
@@ -355,16 +355,9 @@ jobs:
               Write-Output "ERROR: SDK.zip not found"
               exit 1
             }
-          } catch {
-            Write-Error "Error extracting SDK: $_"
-            exit 1
-          }
-
-      - name: Setup SDK structure for builds
-        shell: powershell
-        run: |
-          try {
-            Write-Output "Setting up SDK structure..."
+            
+            Write-Output ""
+            Write-Output "Setting up SDK structure for builds..."
             
             # Ensure Binaries folder exists
             $binariesDir = "Binaries"
@@ -414,14 +407,14 @@ jobs:
             
             Write-Output "✓ SDK structure setup complete"
           } catch {
-            Write-Error "Error setting up SDK structure: $_"
+            Write-Error "Error extracting/setting up SDK: $_"
             exit 1
           }
 
   build-without-cuda:
     name: Build Project (No CUDA)
     needs: restore-sdk
-    if: success()
+    if: always()
     runs-on: self-hosted
     steps:
       - name: Checkout code
@@ -429,26 +422,6 @@ jobs:
         with:
           submodules: recursive
           fetch-depth: 1
-
-      - name: Verify SDK and Binaries structure
-        shell: powershell
-        run: |
-          $sdkExists = Test-Path -Path "SDK"
-          $binariesExists = Test-Path -Path "Binaries"
-          
-          Write-Output "SDK folder exists: $sdkExists"
-          Write-Output "Binaries folder exists: $binariesExists"
-          
-          if (-not $sdkExists) {
-            Write-Output "ERROR: SDK folder not found!"
-            exit 1
-          }
-          if (-not $binariesExists) {
-            Write-Output "ERROR: Binaries folder not found!"
-            exit 1
-          }
-          
-          Write-Output "✓ Required folders present"
 
       - name: Setup MSVC Build Tools
         shell: cmd
@@ -547,7 +520,7 @@ jobs:
   build-with-cuda:
     name: Build Project (With CUDA)
     needs: restore-sdk
-    if: success()
+    if: always()
     runs-on: self-hosted
     steps:
       - name: Checkout code
@@ -555,26 +528,6 @@ jobs:
         with:
           submodules: recursive
           fetch-depth: 1
-
-      - name: Verify SDK and Binaries structure
-        shell: powershell
-        run: |
-          $sdkExists = Test-Path -Path "SDK"
-          $binariesExists = Test-Path -Path "Binaries"
-          
-          Write-Output "SDK folder exists: $sdkExists"
-          Write-Output "Binaries folder exists: $binariesExists"
-          
-          if (-not $sdkExists) {
-            Write-Output "ERROR: SDK folder not found!"
-            exit 1
-          }
-          if (-not $binariesExists) {
-            Write-Output "ERROR: Binaries folder not found!"
-            exit 1
-          }
-          
-          Write-Output "✓ Required folders present"
 
       - name: Check CUDA availability
         id: cuda-check
