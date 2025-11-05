@@ -210,18 +210,35 @@ jobs:
           python -m pip install requests tqdm
           Write-Output "✓ Dependencies installed"
 
-      - name: Build SDK - All libraries (except OpenUSD for debugging)
+      - name: Install project requirements
         shell: powershell
         run: |
-          Write-Output "Building SDK with all libraries"
+          Write-Output "Installing project requirements from requirements.txt..."
+          python -m pip install -r requirements.txt
+          Write-Output "✓ Project requirements installed"
+
+      - name: Build SDK - All libraries (except OpenUSD for debugging)
+        shell: cmd
+        run: |
+          REM Initialize Visual Studio environment
+          if exist "C:\Program Files\Microsoft Visual Studio\2022\Community\VC\Auxiliary\Build\vcvars64.bat" (
+            call "C:\Program Files\Microsoft Visual Studio\2022\Community\VC\Auxiliary\Build\vcvars64.bat"
+          ) else if exist "C:\Program Files\Microsoft Visual Studio\2022\Professional\VC\Auxiliary\Build\vcvars64.bat" (
+            call "C:\Program Files\Microsoft Visual Studio\2022\Professional\VC\Auxiliary\Build\vcvars64.bat"
+          ) else if exist "C:\Program Files\Microsoft Visual Studio\2022\Enterprise\VC\Auxiliary\Build\vcvars64.bat" (
+            call "C:\Program Files\Microsoft Visual Studio\2022\Enterprise\VC\Auxiliary\Build\vcvars64.bat"
+          )
+          
+          REM Enable Git long path support
+          git config --global core.longpaths true
+          
+          REM Build SDK - All libraries
+          echo Building SDK with all libraries
           python configure.py --all
-          
-          if ($LASTEXITCODE -ne 0) {
-            Write-Output "Build failed with error code $LASTEXITCODE"
-            exit $LASTEXITCODE
-          }
-          
-          Write-Output "✓ SDK build completed successfully"
+          if %ERRORLEVEL% neq 0 (
+            echo Build failed with error code %ERRORLEVEL%
+            exit /b %ERRORLEVEL%
+          )
 
       - name: Verify SDK build output
         shell: powershell
