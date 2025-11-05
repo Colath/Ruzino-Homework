@@ -81,15 +81,18 @@ jobs:
           }
 
       - name: Build SDK - All libraries (except OpenUSD for debugging)
-        shell: cmd
+        shell: powershell
         run: |
-          REM Build SDK - All libraries
-          echo Building SDK with all libraries
+          # Initialize MSVC environment
+          & .github/scripts/init-msvc.ps1
+          
+          # Build SDK
+          Write-Output "Building SDK with all libraries"
           python configure.py --all
-          if %ERRORLEVEL% neq 0 (
-            echo Build failed with error code %ERRORLEVEL%
-            exit /b %ERRORLEVEL%
-          )
+          if ($LASTEXITCODE -ne 0) {
+            Write-Output "Build failed with error code $LASTEXITCODE"
+            exit $LASTEXITCODE
+          }
 
       - name: Verify SDK build output
         shell: powershell
