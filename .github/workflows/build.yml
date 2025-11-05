@@ -205,33 +205,15 @@ jobs:
       - name: Build SDK - All libraries (except OpenUSD for debugging)
         shell: powershell
         run: |
-          try {
-            # Initialize Visual Studio environment
-            $vsPath = $null
-            @(
-              "C:\Program Files\Microsoft Visual Studio\2022\Community\VC\Auxiliary\Build\vcvars64.bat",
-              "C:\Program Files\Microsoft Visual Studio\2022\Professional\VC\Auxiliary\Build\vcvars64.bat",
-              "C:\Program Files\Microsoft Visual Studio\2022\Enterprise\VC\Auxiliary\Build\vcvars64.bat"
-            ) | ForEach-Object {
-              if (Test-Path $_) { $vsPath = $_ }
-            }
-            
-            if ($vsPath) {
-              Write-Output "Found Visual Studio at: $vsPath"
-              & cmd /c "call `"$vsPath`" && python configure.py --all"
-            } else {
-              Write-Output "Visual Studio not found"
-              exit 1
-            }
-            
-            if ($LASTEXITCODE -ne 0) {
-              Write-Output "Build failed with error code $LASTEXITCODE"
-              exit $LASTEXITCODE
-            }
-          } catch {
-            Write-Error "Build error: $_"
-            exit 1
+          Write-Output "Building SDK with all libraries"
+          python configure.py --all
+          
+          if ($LASTEXITCODE -ne 0) {
+            Write-Output "Build failed with error code $LASTEXITCODE"
+            exit $LASTEXITCODE
           }
+          
+          Write-Output "✓ SDK build completed successfully"
 
       - name: Verify SDK build output
         shell: powershell
