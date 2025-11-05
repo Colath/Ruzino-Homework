@@ -4,7 +4,6 @@ import os
 import requests
 from tqdm import tqdm
 import argparse
-import hashlib
 
 
 def copytree_common_to_binaries(folder, target="Debug", dst=None, dry_run=False):
