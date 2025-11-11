@@ -9,6 +9,7 @@
 // SceneTypes
 #include "../nodes/shaders/shaders/Scene/BindlessMaterial.slang"
 #include "../nodes/shaders/shaders/Scene/SceneTypes.slang"
+#include "../nodes/shaders/shaders/Scene/Lights/LightData.slang"
 #include "internal/memory/DeviceMemoryPool.hpp"
 
 USTC_CG_NAMESPACE_OPEN_SCOPE
@@ -36,6 +37,7 @@ class HD_USTC_CG_API Hd_USTC_CG_RenderInstanceCollection {
     DeviceMemoryPool<MaterialDataBlob> material_pool;
     DeviceMemoryPool<MaterialHeader> material_header_pool;
     DeviceMemoryPool<nvrhi::DrawIndirectArguments> draw_indirect_pool;
+    DeviceMemoryPool<LightData> light_pool;
 
     struct BindlessData {
         BindlessData();

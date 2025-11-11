@@ -19,7 +19,8 @@
 // LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
-
+#ifndef FFX_LPM_CALLBACKS_HLSL_H
+#define FFX_LPM_CALLBACKS_HLSL_H
 #include "ffx_lpm_resources.h"
 
 #if defined(FFX_GPU)
@@ -38,9 +39,9 @@
 
 #pragma warning(disable: 3205)  // conversion from larger type to smaller
 
-#define DECLARE_SRV_REGISTER(regIndex)  t##regIndex
-#define DECLARE_UAV_REGISTER(regIndex)  u##regIndex
-#define DECLARE_CB_REGISTER(regIndex)   b##regIndex
+// #define DECLARE_SRV_REGISTER(regIndex)  t##regIndex
+// #define DECLARE_UAV_REGISTER(regIndex)  u##regIndex
+// #define DECLARE_CB_REGISTER(regIndex)   b##regIndex
 #define FFX_LPM_DECLARE_SRV(regIndex)  register(DECLARE_SRV_REGISTER(regIndex))
 #define FFX_LPM_DECLARE_UAV(regIndex)  register(DECLARE_UAV_REGISTER(regIndex))
 #define FFX_LPM_DECLARE_CB(regIndex)   register(DECLARE_CB_REGISTER(regIndex))
@@ -203,3 +204,5 @@ void StoreOutput(FfxUInt32x2 iPxPos, ColorFormat fColor)
 #endif // defined(LPM_BIND_UAV_OUTPUT_COLOR)
 
 #endif // #if defined(FFX_GPU)
+
+#endif  // FFX_LPM_CALLBACKS_HLSL_H

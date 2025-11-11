@@ -4,6 +4,7 @@ import callable_data;
 import Scene.SceneTypes;
 import Scene.BindlessMaterial;
 import Scene.BindlessVertexBuffer;
+import Scene.Lights.LightData;
 import utils.Math.ShadingFrame;
 import Utils.Math.MathHelpers;
 
@@ -12,6 +13,8 @@ RWTexture2D<float4> output;
 RaytracingAccelerationStructure SceneBVH;
 StructuredBuffer<uint2> inPixelTarget;
 StructuredBuffer<RayInfo> rays;
+StructuredBuffer<LightData> lightBuffer;
+ConstantBuffer<uint> lightCount;
 
 struct RayPayload {
     float3 color;        // Accumulated color
@@ -54,6 +57,235 @@ void RayGen()
     output[pixel] = float4(output_color, 1.0);
 
     random_seeds[DispatchRaysIndex().x] = payload.seed;
+}
+
+// Sample a random light and return its contribution
+float3 sampleLights(
+    float3 hitPos,
+    float3 hitNormal,
+    float3 V,
+    inout uint seed)
+{
+    if (lightCount == 0)
+        return float3(0, 0, 0);
+
+    // Randomly select a light
+    uint lightIndex = min(uint(random_float(seed) * lightCount), lightCount - 1);
+    LightData light = lightBuffer[lightIndex];
+
+    float3 lightContrib = float3(0, 0, 0);
+    float3 lightDir;
+    float lightDistance;
+    float lightPdf = 1.0 / float(lightCount); // Uniform light selection probability
+
+    // Sample the selected light based on its type
+    if (light.type == uint(LightType::Point))
+    {
+        // Point light
+        lightDir = light.posW - hitPos;
+        lightDistance = length(lightDir);
+        lightDir /= lightDistance;
+
+        // Check if light is visible
+        float NdotL = max(0.0, dot(hitNormal, lightDir));
+        if (NdotL > 0.0)
+        {
+            // Trace shadow ray
+            RayDesc shadowRay;
+            shadowRay.Origin = hitPos + hitNormal * 0.001;
+            shadowRay.Direction = lightDir;
+            shadowRay.TMin = 0.0;
+            shadowRay.TMax = lightDistance - 0.001;
+
+            ShadowPayload shadowPayload;
+            shadowPayload.isVisible = true;
+            TraceRay(
+                SceneBVH,
+                RAY_FLAG_ACCEPT_FIRST_HIT_AND_END_SEARCH,
+                0xFF,
+                1, // Shadow hit group index
+                0,
+                1, // Shadow miss index
+                shadowRay,
+                shadowPayload);
+
+            if (shadowPayload.isVisible)
+            {
+                // Compute lighting with inverse square falloff
+                float attenuation = 1.0 / (lightDistance * lightDistance);
+                lightContrib = light.intensity * attenuation * NdotL / lightPdf;
+            }
+        }
+    }
+    else if (light.type == uint(LightType::Sphere))
+    {
+        // Sphere light - sample a random point on the sphere
+        // For now, treat as point light at center
+        // TODO: Proper sphere light sampling
+        lightDir = light.posW - hitPos;
+        lightDistance = length(lightDir);
+        lightDir /= lightDistance;
+
+        float NdotL = max(0.0, dot(hitNormal, lightDir));
+        if (NdotL > 0.0)
+        {
+            RayDesc shadowRay;
+            shadowRay.Origin = hitPos + hitNormal * 0.001;
+            shadowRay.Direction = lightDir;
+            shadowRay.TMin = 0.0;
+            shadowRay.TMax = lightDistance - 0.001;
+
+            ShadowPayload shadowPayload;
+            shadowPayload.isVisible = true;
+            TraceRay(
+                SceneBVH,
+                RAY_FLAG_ACCEPT_FIRST_HIT_AND_END_SEARCH,
+                0xFF,
+                1,
+                0,
+                1,
+                shadowRay,
+                shadowPayload);
+
+            if (shadowPayload.isVisible)
+            {
+                float attenuation = 1.0 / (lightDistance * lightDistance);
+                lightContrib = light.intensity * attenuation * NdotL / lightPdf;
+            }
+        }
+    }
+    else if (light.type == uint(LightType::Distant))
+    {
+        // Distant/Directional light
+        lightDir = -light.dirW;
+        lightDistance = 1e10; // Very large distance
+
+        float NdotL = max(0.0, dot(hitNormal, lightDir));
+        if (NdotL > 0.0)
+        {
+            RayDesc shadowRay;
+            shadowRay.Origin = hitPos + hitNormal * 0.001;
+            shadowRay.Direction = lightDir;
+            shadowRay.TMin = 0.0;
+            shadowRay.TMax = lightDistance;
+
+            ShadowPayload shadowPayload;
+            shadowPayload.isVisible = true;
+            TraceRay(
+                SceneBVH,
+                RAY_FLAG_ACCEPT_FIRST_HIT_AND_END_SEARCH,
+                0xFF,
+                1,
+                0,
+                1,
+                shadowRay,
+                shadowPayload);
+
+            if (shadowPayload.isVisible)
+            {
+                lightContrib = light.intensity * NdotL / lightPdf;
+            }
+        }
+    }
+    else if (light.type == uint(LightType::Rect))
+    {
+        // Rectangle area light - sample a random point on the rectangle
+        float u = random_float(seed);
+        float v = random_float(seed);
+        
+        // Sample point on rectangle in local space [-width/2, width/2] x [-height/2, height/2]
+        // Rectangle is in XY plane, emits along -Z
+        float3 localPoint = float3((u - 0.5), (v - 0.5), 0.0);
+        
+        // Transform to world space using tangent and bitangent
+        float3 lightSamplePos = light.posW + localPoint.x * light.tangent + localPoint.y * light.bitangent;
+        
+        lightDir = lightSamplePos - hitPos;
+        lightDistance = length(lightDir);
+        lightDir /= lightDistance;
+        
+        float NdotL = max(0.0, dot(hitNormal, lightDir));
+        float LdotN = max(0.0, dot(-lightDir, light.dirW)); // Light's normal
+        
+        if (NdotL > 0.0 && LdotN > 0.0)
+        {
+            RayDesc shadowRay;
+            shadowRay.Origin = hitPos + hitNormal * 0.001;
+            shadowRay.Direction = lightDir;
+            shadowRay.TMin = 0.0;
+            shadowRay.TMax = lightDistance - 0.001;
+
+            ShadowPayload shadowPayload;
+            shadowPayload.isVisible = true;
+            TraceRay(
+                SceneBVH,
+                RAY_FLAG_ACCEPT_FIRST_HIT_AND_END_SEARCH,
+                0xFF,
+                1,
+                0,
+                1,
+                shadowRay,
+                shadowPayload);
+
+            if (shadowPayload.isVisible)
+            {
+                // Geometric term: NdotL * LdotN / distance^2
+                float geometricTerm = (NdotL * LdotN) / (lightDistance * lightDistance);
+                // PDF = 1 / area (uniform sampling on rectangle)
+                float areaPdf = 1.0 / light.surfaceArea;
+                lightContrib = light.intensity * geometricTerm / (lightPdf * areaPdf);
+            }
+        }
+    }
+    else if (light.type == uint(LightType::Disc))
+    {
+        // Disc area light - sample a random point on the disc
+        float r = sqrt(random_float(seed)); // sqrt for uniform distribution
+        float theta = 2.0 * 3.14159265359 * random_float(seed);
+        
+        // Sample point on disc in local space
+        float2 localPoint = float2(r * cos(theta), r * sin(theta));
+        
+        // Transform to world space
+        float3 lightSamplePos = light.posW + localPoint.x * light.tangent + localPoint.y * light.bitangent;
+        
+        lightDir = lightSamplePos - hitPos;
+        lightDistance = length(lightDir);
+        lightDir /= lightDistance;
+        
+        float NdotL = max(0.0, dot(hitNormal, lightDir));
+        float LdotN = max(0.0, dot(-lightDir, light.dirW));
+        
+        if (NdotL > 0.0 && LdotN > 0.0)
+        {
+            RayDesc shadowRay;
+            shadowRay.Origin = hitPos + hitNormal * 0.001;
+            shadowRay.Direction = lightDir;
+            shadowRay.TMin = 0.0;
+            shadowRay.TMax = lightDistance - 0.001;
+
+            ShadowPayload shadowPayload;
+            shadowPayload.isVisible = true;
+            TraceRay(
+                SceneBVH,
+                RAY_FLAG_ACCEPT_FIRST_HIT_AND_END_SEARCH,
+                0xFF,
+                1,
+                0,
+                1,
+                shadowRay,
+                shadowPayload);
+
+            if (shadowPayload.isVisible)
+            {
+                float geometricTerm = (NdotL * LdotN) / (lightDistance * lightDistance);
+                float areaPdf = 1.0 / light.surfaceArea;
+                lightContrib = light.intensity * geometricTerm / (lightPdf * areaPdf);
+            }
+        }
+    }
+
+    return lightContrib;
 }
 
 [shader("closesthit")]
@@ -181,7 +413,15 @@ void ClosestHit(
     payload.depth++;
     payload.seed =
         callData
-            .seed;  // Trace next ray (light comes from environment/miss shader)
+            .seed;  
+    
+    // Add direct lighting contribution
+    if (!payload.terminated && !isTransmission) {
+        float3 directLight = sampleLights(vertex.posW, vertex.normalW, -WorldRayDirection(), payload.seed);
+        payload.color += payload.throughput * directLight * callData.throughput;
+    }
+    
+    // Trace next ray (light comes from environment/miss shader)
     if (!payload.terminated) {
         RayDesc nextRay;
 
@@ -237,7 +477,7 @@ void Miss(inout RayPayload payload)
 
     // Add contribution to path
     // skyColor = 0.5f;
-    payload.color += payload.throughput * skyColor * 1.0;
+    payload.color += payload.throughput * skyColor * 0.0;
 
     payload.terminated = true;
 }

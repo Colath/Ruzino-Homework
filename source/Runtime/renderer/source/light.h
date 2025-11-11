@@ -8,10 +8,13 @@
 #include "pxr/imaging/hio/image.h"
 #include "pxr/pxr.h"
 #include "pxr/usd/sdf/assetPath.h"
+#include "internal/memory/DeviceMemoryPool.hpp"
 
 USTC_CG_NAMESPACE_OPEN_SCOPE
 
 using namespace pxr;
+// Forward declarations
+struct LightData;
 // Base light class
 class HD_USTC_CG_API Hd_USTC_CG_Light : public HdLight {
    public:
@@ -34,11 +37,18 @@ class HD_USTC_CG_API Hd_USTC_CG_Light : public HdLight {
         return _lightType;
     }
 
+    [[nodiscard]] typename DeviceMemoryPool<LightData>::MemoryHandle GetLightBuffer() const
+    {
+        return light_buffer;
+    }
+
    protected:
     // Stores the internal light type of this light.
     TfToken _lightType;
     // Cached states.
     TfHashMap<TfToken, VtValue, TfToken::HashFunctor> _params;
+    // GPU buffer for light data
+    typename DeviceMemoryPool<LightData>::MemoryHandle light_buffer;
 };
 
 // Simple light (directional, point light)

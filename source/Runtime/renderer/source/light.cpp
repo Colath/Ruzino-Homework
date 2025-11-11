@@ -9,6 +9,8 @@
 #include "pxr/usd/sdr/shaderNode.h"
 #include "pxr/usd/usd/tokens.h"
 #include "pxr/usdImaging/usdImaging/tokens.h"
+#include "renderParam.h"
+#include "../nodes/shaders/shaders/Scene/Lights/LightData.slang"
 
 USTC_CG_NAMESPACE_OPEN_SCOPE
 using namespace pxr;
@@ -196,6 +198,37 @@ void Hd_USTC_CG_Simple_Light::Sync(
 {
     Hd_USTC_CG_Light::Sync(sceneDelegate, renderParam, dirtyBits);
     
+    // Allocate and populate light buffer for simple/point light
+    if (*dirtyBits & (DirtyParams | DirtyTransform)) {
+        auto* render_param = static_cast<Hd_USTC_CG_RenderParam*>(renderParam);
+        if (!this->light_buffer) {
+            this->light_buffer = render_param->InstanceCollection->light_pool.allocate(1);
+        }
+        
+        const SdfPath& id = this->GetId();
+        LightData lightData;
+        lightData.type = (uint32_t)LightType::Point;
+        
+        // Get transform
+        auto transform = this->Get(HdTokens->transform).GetWithDefault<GfMatrix4d>();
+        GfVec3d pos = transform.ExtractTranslation();
+        lightData.posW = float3(pos[0], pos[1], pos[2]);
+        
+        // Get color and intensity with standard USD Light API
+        auto diffuse = sceneDelegate->GetLightParamValue(id, HdLightTokens->diffuse).GetWithDefault<float>(1.0f);
+        auto color = sceneDelegate->GetLightParamValue(id, HdLightTokens->color).GetWithDefault<GfVec3f>(GfVec3f(1,1,1));
+        auto intensity = sceneDelegate->GetLightParamValue(id, HdLightTokens->intensity).GetWithDefault<float>(1.0f);
+        auto exposure = sceneDelegate->GetLightParamValue(id, HdLightTokens->exposure).GetWithDefault<float>(0.0f);
+        
+        float finalIntensity = intensity * pow(2.0f, exposure);
+        lightData.intensity = float3(color[0], color[1], color[2]) * diffuse * finalIntensity;
+        
+        spdlog::info("PointLight {}: pos=({},{},{}), color=({},{},{}), intensity={}, exposure={}", 
+                     id.GetText(), pos[0], pos[1], pos[2], color[0], color[1], color[2], intensity, exposure);
+        
+        this->light_buffer->write_data(&lightData);
+    }
+    
     // Clear dirty bits
     *dirtyBits = Clean;
 }
@@ -208,11 +241,11 @@ void Hd_USTC_CG_Distant_Light::Sync(
     Hd_USTC_CG_Light::Sync(sceneDelegate, renderParam, dirtyBits);
     
     // Get distant light specific parameters
-    const SdfPath& id = GetId();
+    const SdfPath& id = this->GetId();
     HdDirtyBits bits = *dirtyBits;
     
     if (bits & (DirtyTransform | DirtyParams)) {
-        auto transform = Get(HdTokens->transform).GetWithDefault<GfMatrix4d>();
+        auto transform = this->Get(HdTokens->transform).GetWithDefault<GfMatrix4d>();
         
         // Extract direction from transform
         GfVec4d zDir = GfVec4f(transform.GetRow(2));
@@ -223,6 +256,28 @@ void Hd_USTC_CG_Distant_Light::Sync(
         if (!angleValue.IsEmpty()) {
             _angle = angleValue.Get<float>();
         }
+        
+        // Allocate and populate light buffer
+        auto* render_param = static_cast<Hd_USTC_CG_RenderParam*>(renderParam);
+        if (!this->light_buffer) {
+            this->light_buffer = render_param->InstanceCollection->light_pool.allocate(1);
+        }
+        
+        LightData lightData;
+        lightData.type = (uint32_t)LightType::Distant;
+        lightData.dirW = float3(_direction[0], _direction[1], _direction[2]);
+        lightData.cosSubtendedAngle = cos(_angle);
+        
+        // Get color and intensity with exposure
+        auto diffuse = sceneDelegate->GetLightParamValue(id, HdLightTokens->diffuse).GetWithDefault<float>(1.0f);
+        auto color = sceneDelegate->GetLightParamValue(id, HdLightTokens->color).GetWithDefault<GfVec3f>(GfVec3f(1,1,1));
+        auto intensity = sceneDelegate->GetLightParamValue(id, HdLightTokens->intensity).GetWithDefault<float>(1.0f);
+        auto exposure = sceneDelegate->GetLightParamValue(id, HdLightTokens->exposure).GetWithDefault<float>(0.0f);
+        
+        float finalIntensity = intensity * pow(2.0f, exposure);
+        lightData.intensity = float3(color[0], color[1], color[2]) * diffuse * finalIntensity;
+        
+        this->light_buffer->write_data(&lightData);
     }
     
     // Clear dirty bits
@@ -237,7 +292,7 @@ void Hd_USTC_CG_Sphere_Light::Sync(
     Hd_USTC_CG_Light::Sync(sceneDelegate, renderParam, dirtyBits);
     
     // Get sphere light specific parameters
-    const SdfPath& id = GetId();
+    const SdfPath& id = this->GetId();
     HdDirtyBits bits = *dirtyBits;
     
     if (bits & DirtyParams) {
@@ -245,6 +300,37 @@ void Hd_USTC_CG_Sphere_Light::Sync(
         if (!radiusValue.IsEmpty()) {
             _radius = radiusValue.Get<float>();
         }
+    }
+    
+    // Allocate and populate light buffer
+    if (bits & (DirtyParams | DirtyTransform)) {
+        auto* render_param = static_cast<Hd_USTC_CG_RenderParam*>(renderParam);
+        if (!this->light_buffer) {
+            this->light_buffer = render_param->InstanceCollection->light_pool.allocate(1);
+        }
+        
+        LightData lightData;
+        lightData.type = (uint32_t)LightType::Sphere;
+        
+        // Get transform
+        auto transform = this->Get(HdTokens->transform).GetWithDefault<GfMatrix4d>();
+        GfVec3d pos = transform.ExtractTranslation();
+        lightData.posW = float3(pos[0], pos[1], pos[2]);
+        
+        // Get color and intensity with exposure
+        auto diffuse = sceneDelegate->GetLightParamValue(id, HdLightTokens->diffuse).GetWithDefault<float>(1.0f);
+        auto color = sceneDelegate->GetLightParamValue(id, HdLightTokens->color).GetWithDefault<GfVec3f>(GfVec3f(1,1,1));
+        auto intensity = sceneDelegate->GetLightParamValue(id, HdLightTokens->intensity).GetWithDefault<float>(1.0f);
+        auto exposure = sceneDelegate->GetLightParamValue(id, HdLightTokens->exposure).GetWithDefault<float>(0.0f);
+        
+        float finalIntensity = intensity * pow(2.0f, exposure);
+        lightData.intensity = float3(color[0], color[1], color[2]) * diffuse * finalIntensity;
+        
+        // Sphere-specific parameters
+        // Compute surface area for future use in importance sampling
+        lightData.surfaceArea = 4.0f * 3.14159265359f * _radius * _radius;
+        
+        this->light_buffer->write_data(&lightData);
     }
     
     // Clear dirty bits
@@ -259,7 +345,7 @@ void Hd_USTC_CG_Rect_Light::Sync(
     Hd_USTC_CG_Light::Sync(sceneDelegate, renderParam, dirtyBits);
     
     // Get rectangle light specific parameters
-    const SdfPath& id = GetId();
+    const SdfPath& id = this->GetId();
     HdDirtyBits bits = *dirtyBits;
     
     if (bits & DirtyParams) {
@@ -274,6 +360,76 @@ void Hd_USTC_CG_Rect_Light::Sync(
         }
     }
     
+    // Allocate and populate light buffer
+    if (bits & (DirtyParams | DirtyTransform)) {
+        auto* render_param = static_cast<Hd_USTC_CG_RenderParam*>(renderParam);
+        if (!this->light_buffer) {
+            this->light_buffer = render_param->InstanceCollection->light_pool.allocate(1);
+        }
+        
+        LightData lightData;
+        lightData.type = (uint32_t)LightType::Rect;
+        
+        // Get transform
+        auto transform = this->Get(HdTokens->transform).GetWithDefault<GfMatrix4d>();
+        GfVec3d pos = transform.ExtractTranslation();
+        lightData.posW = float3(pos[0], pos[1], pos[2]);
+        
+        // Get direction (rectangle emits along -Z in local space)
+        GfVec4d zDir = transform.GetRow(2);
+        float3 dir = float3(-zDir[0], -zDir[1], -zDir[2]);
+        float dirLen = sqrt(dir.x * dir.x + dir.y * dir.y + dir.z * dir.z);
+        lightData.dirW = float3(dir.x / dirLen, dir.y / dirLen, dir.z / dirLen); // Normalized
+        
+        // Get tangent and bitangent for rectangle orientation
+        // Extract normalized directions and compute scaled tangent/bitangent
+        GfVec4d xDir = transform.GetRow(0);
+        GfVec4d yDir = transform.GetRow(1);
+        
+        // Normalize and scale by width/height
+        float3 xVec = float3(xDir[0], xDir[1], xDir[2]);
+        float3 yVec = float3(yDir[0], yDir[1], yDir[2]);
+        float xLen = sqrt(xVec.x * xVec.x + xVec.y * xVec.y + xVec.z * xVec.z);
+        float yLen = sqrt(yVec.x * yVec.x + yVec.y * yVec.y + yVec.z * yVec.z);
+        
+        lightData.tangent = float3(xVec.x / xLen, xVec.y / xLen, xVec.z / xLen) * _width;
+        lightData.bitangent = float3(yVec.x / yLen, yVec.y / yLen, yVec.z / yLen) * _height;
+        
+        // Get color and intensity with exposure
+        auto diffuse = sceneDelegate->GetLightParamValue(id, HdLightTokens->diffuse).GetWithDefault<float>(1.0f);
+        auto color = sceneDelegate->GetLightParamValue(id, HdLightTokens->color).GetWithDefault<GfVec3f>(GfVec3f(1,1,1));
+        auto intensity = sceneDelegate->GetLightParamValue(id, HdLightTokens->intensity).GetWithDefault<float>(1.0f);
+        auto exposure = sceneDelegate->GetLightParamValue(id, HdLightTokens->exposure).GetWithDefault<float>(0.0f);
+        
+        // Combine intensity with exposure: intensity * 2^exposure
+        float finalIntensity = intensity * pow(2.0f, exposure);
+        lightData.intensity = float3(color[0], color[1], color[2]) * diffuse * finalIntensity;
+        
+        // Debug output
+        spdlog::info("RectLight {}: width={}, height={}, color=({},{},{}), intensity={}, exposure={}, finalIntensity={}", 
+                     id.GetText(), _width, _height, color[0], color[1], color[2], intensity, exposure, finalIntensity);
+        
+        // Rectangle area
+        lightData.surfaceArea = _width * _height;
+        
+        // Store transformation matrix for potential texture mapping
+        for (int i = 0; i < 4; ++i) {
+            for (int j = 0; j < 4; ++j) {
+                lightData.transMat[i][j] = transform[i][j];
+            }
+        }
+        
+        // Compute inverse transpose for normal transformation
+        GfMatrix4d invTranspose = transform.GetInverse().GetTranspose();
+        for (int i = 0; i < 4; ++i) {
+            for (int j = 0; j < 4; ++j) {
+                lightData.transMatIT[i][j] = invTranspose[i][j];
+            }
+        }
+        
+        this->light_buffer->write_data(&lightData);
+    }
+    
     // Clear dirty bits
     *dirtyBits = Clean;
 }
@@ -286,7 +442,7 @@ void Hd_USTC_CG_Disk_Light::Sync(
     Hd_USTC_CG_Light::Sync(sceneDelegate, renderParam, dirtyBits);
     
     // Get disk light specific parameters
-    const SdfPath& id = GetId();
+    const SdfPath& id = this->GetId();
     HdDirtyBits bits = *dirtyBits;
     
     if (bits & DirtyParams) {
@@ -294,6 +450,59 @@ void Hd_USTC_CG_Disk_Light::Sync(
         if (!radiusValue.IsEmpty()) {
             _radius = radiusValue.Get<float>();
         }
+    }
+    
+    // Allocate and populate light buffer
+    if (bits & (DirtyParams | DirtyTransform)) {
+        auto* render_param = static_cast<Hd_USTC_CG_RenderParam*>(renderParam);
+        if (!this->light_buffer) {
+            this->light_buffer = render_param->InstanceCollection->light_pool.allocate(1);
+        }
+        
+        LightData lightData;
+        lightData.type = (uint32_t)LightType::Disc;
+        
+        // Get transform
+        auto transform = this->Get(HdTokens->transform).GetWithDefault<GfMatrix4d>();
+        GfVec3d pos = transform.ExtractTranslation();
+        lightData.posW = float3(pos[0], pos[1], pos[2]);
+        
+        // Get direction (disk emits along -Z in local space)
+        GfVec4d zDir = transform.GetRow(2);
+        float3 dir = float3(-zDir[0], -zDir[1], -zDir[2]);
+        float dirLen = sqrt(dir.x * dir.x + dir.y * dir.y + dir.z * dir.z);
+        lightData.dirW = float3(dir.x / dirLen, dir.y / dirLen, dir.z / dirLen); // Normalized
+        
+        // Get tangent and bitangent for disk orientation
+        // Extract normalized directions and scale by radius
+        GfVec4d xDir = transform.GetRow(0);
+        GfVec4d yDir = transform.GetRow(1);
+        
+        float3 xVec = float3(xDir[0], xDir[1], xDir[2]);
+        float3 yVec = float3(yDir[0], yDir[1], yDir[2]);
+        float xLen = sqrt(xVec.x * xVec.x + xVec.y * xVec.y + xVec.z * xVec.z);
+        float yLen = sqrt(yVec.x * yVec.x + yVec.y * yVec.y + yVec.z * yVec.z);
+        
+        lightData.tangent = float3(xVec.x / xLen, xVec.y / xLen, xVec.z / xLen) * _radius;
+        lightData.bitangent = float3(yVec.x / yLen, yVec.y / yLen, yVec.z / yLen) * _radius;
+        
+        // Get color and intensity with exposure
+        auto diffuse = sceneDelegate->GetLightParamValue(id, HdLightTokens->diffuse).GetWithDefault<float>(1.0f);
+        auto color = sceneDelegate->GetLightParamValue(id, HdLightTokens->color).GetWithDefault<GfVec3f>(GfVec3f(1,1,1));
+        auto intensity = sceneDelegate->GetLightParamValue(id, HdLightTokens->intensity).GetWithDefault<float>(1.0f);
+        auto exposure = sceneDelegate->GetLightParamValue(id, HdLightTokens->exposure).GetWithDefault<float>(0.0f);
+        
+        float finalIntensity = intensity * pow(2.0f, exposure);
+        lightData.intensity = float3(color[0], color[1], color[2]) * diffuse * finalIntensity;
+        
+        // Debug output
+        spdlog::info("DiskLight {}: radius={}, color=({},{},{}), intensity={}, exposure={}", 
+                     id.GetText(), _radius, color[0], color[1], color[2], intensity, exposure);
+        
+        // Disk area
+        lightData.surfaceArea = 3.14159265359f * _radius * _radius;
+        
+        this->light_buffer->write_data(&lightData);
     }
     
     // Clear dirty bits
@@ -308,7 +517,7 @@ void Hd_USTC_CG_Cylinder_Light::Sync(
     Hd_USTC_CG_Light::Sync(sceneDelegate, renderParam, dirtyBits);
     
     // Get cylinder light specific parameters
-    const SdfPath& id = GetId();
+    const SdfPath& id = this->GetId();
     HdDirtyBits bits = *dirtyBits;
     
     if (bits & DirtyParams) {
@@ -321,6 +530,40 @@ void Hd_USTC_CG_Cylinder_Light::Sync(
         if (!lengthValue.IsEmpty()) {
             _length = lengthValue.Get<float>();
         }
+    }
+    
+    // Allocate and populate light buffer  
+    if (bits & (DirtyParams | DirtyTransform)) {
+        auto* render_param = static_cast<Hd_USTC_CG_RenderParam*>(renderParam);
+        if (!this->light_buffer) {
+            this->light_buffer = render_param->InstanceCollection->light_pool.allocate(1);
+        }
+        
+        LightData lightData;
+        // Note: Cylinder light is not in the standard LightType enum
+        // For now, treat it as a special case or extend the enum
+        // Using Point as placeholder - you may want to add LightType::Cylinder
+        lightData.type = (uint32_t)LightType::Point; // TODO: Add Cylinder type
+        
+        // Get transform
+        auto transform = this->Get(HdTokens->transform).GetWithDefault<GfMatrix4d>();
+        GfVec3d pos = transform.ExtractTranslation();
+        lightData.posW = float3(pos[0], pos[1], pos[2]);
+        
+        // Cylinder axis direction (along local Z)
+        GfVec4d zDir = transform.GetRow(2);
+        lightData.dirW = float3(zDir[0], zDir[1], zDir[2]);
+        
+        // Get color and intensity
+        auto diffuse = sceneDelegate->GetLightParamValue(id, HdLightTokens->diffuse).GetWithDefault<float>(1.0f);
+        auto color = sceneDelegate->GetLightParamValue(id, HdLightTokens->color).GetWithDefault<GfVec3f>(GfVec3f(1,1,1));
+        auto intensity = sceneDelegate->GetLightParamValue(id, HdLightTokens->intensity).GetWithDefault<float>(1.0f);
+        lightData.intensity = float3(color[0], color[1], color[2]) * diffuse * intensity;
+        
+        // Cylinder surface area (without caps)
+        lightData.surfaceArea = 2.0f * 3.14159265359f * _radius * _length;
+        
+        this->light_buffer->write_data(&lightData);
     }
     
     // Clear dirty bits

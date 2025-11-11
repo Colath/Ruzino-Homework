@@ -248,13 +248,17 @@ void UsdviewEngine::OnFrame(float delta_time)
                 .GetClippingPlanes()[i];
     }
 
-    GlfSimpleLightVector lights(1);
-    auto cam_pos = frustum.GetPosition();
-    lights[0].SetPosition(GfVec4f{
-        float(cam_pos[0]), float(cam_pos[1]), float(cam_pos[2]), 1.0f });
-    lights[0].SetAmbient(GfVec4f(0.8, 0.8, 0.8, 1));
-    lights[0].SetDiffuse(GfVec4f(1.0f));
-    lights[0].SetSpecular(GfVec4f(1.0f));
+    GlfSimpleLightVector lights;
+
+    if (engine_status.renderer_id == 0) {
+        lights = GlfSimpleLightVector(1);
+        auto cam_pos = frustum.GetPosition();
+        lights[0].SetPosition(GfVec4f{
+            float(cam_pos[0]), float(cam_pos[1]), float(cam_pos[2]), 1.0f });
+        lights[0].SetAmbient(GfVec4f(0.8, 0.8, 0.8, 1));
+        lights[0].SetDiffuse(GfVec4f(1.0f));
+        lights[0].SetSpecular(GfVec4f(1.0f));
+    }
     GlfSimpleMaterial material;
     float kA = 6.8f;
     float kS = 0.4f;

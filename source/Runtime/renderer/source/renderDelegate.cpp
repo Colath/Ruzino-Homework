@@ -373,40 +373,29 @@ HdSprim* Hd_USTC_CG_RenderDelegate::CreateFallbackSprim(const TfToken& typeId)
         return material;
     }
     else if (typeId == HdPrimTypeTokens->simpleLight) {
-        auto light = new Hd_USTC_CG_Simple_Light(SdfPath::EmptyPath(), typeId);
-        lights.push_back(light);
-        return light;
+        // Don't add fallback lights to the lights list
+        return new Hd_USTC_CG_Simple_Light(SdfPath::EmptyPath(), typeId);
     }
     else if (typeId == HdPrimTypeTokens->distantLight) {
-        auto light = new Hd_USTC_CG_Distant_Light(SdfPath::EmptyPath(), typeId);
-        lights.push_back(light);
-        return light;
+        return new Hd_USTC_CG_Distant_Light(SdfPath::EmptyPath(), typeId);
     }
     else if (typeId == HdPrimTypeTokens->sphereLight) {
-        auto light = new Hd_USTC_CG_Sphere_Light(SdfPath::EmptyPath(), typeId);
-        lights.push_back(light);
-        return light;
+        return new Hd_USTC_CG_Sphere_Light(SdfPath::EmptyPath(), typeId);
     }
     else if (typeId == HdPrimTypeTokens->rectLight) {
-        auto light = new Hd_USTC_CG_Rect_Light(SdfPath::EmptyPath(), typeId);
-        lights.push_back(light);
-        return light;
+        return new Hd_USTC_CG_Rect_Light(SdfPath::EmptyPath(), typeId);
     }
     else if (typeId == HdPrimTypeTokens->diskLight) {
-        auto light = new Hd_USTC_CG_Disk_Light(SdfPath::EmptyPath(), typeId);
-        lights.push_back(light);
-        return light;
+        return new Hd_USTC_CG_Disk_Light(SdfPath::EmptyPath(), typeId);
     }
     else if (typeId == HdPrimTypeTokens->cylinderLight) {
         auto light =
             new Hd_USTC_CG_Cylinder_Light(SdfPath::EmptyPath(), typeId);
         lights.push_back(light);
-        return light;
+        return new Hd_USTC_CG_Cylinder_Light(SdfPath::EmptyPath(), typeId);
     }
     else if (typeId == HdPrimTypeTokens->domeLight) {
-        auto light = new Hd_USTC_CG_Dome_Light(SdfPath::EmptyPath(), typeId);
-        lights.push_back(light);
-        return light;
+        return new Hd_USTC_CG_Dome_Light(SdfPath::EmptyPath(), typeId);
     }
     else {
         TF_CODING_ERROR("Unknown Sprim Type %s", typeId.GetText());

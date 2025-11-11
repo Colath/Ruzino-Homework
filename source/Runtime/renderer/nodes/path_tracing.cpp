@@ -7,6 +7,7 @@
 #include "render_node_base.h"
 #include "shaders/shaders/utils/HitObject.h"
 #include "utils/math.h"
+#include <spdlog/spdlog.h>
 // A traditional path tracing node
 
 NODE_DEF_OPEN_SCOPE
@@ -123,6 +124,27 @@ NODE_EXECUTION_FUNCTION(path_tracing)
         instance_collection->material_pool.get_device_buffer();
     program_vars["materialHeaderBuffer"] =
         instance_collection->material_header_pool.get_device_buffer();
+    
+    // Bind light buffer - only include lights with valid paths
+    auto& all_lights = global_payload.get_lights();
+    std::vector<Hd_USTC_CG_Light*> valid_lights;
+    
+    for (auto* light : all_lights) {
+        // Only include lights with non-empty paths (not fallback lights)
+        if (light && !light->GetId().IsEmpty()) {
+            valid_lights.push_back(light);
+        }
+    }
+    
+    uint32_t lightCount = static_cast<uint32_t>(valid_lights.size());
+    
+    program_vars["lightBuffer"] =
+        instance_collection->light_pool.get_device_buffer();
+    
+    // Pass light count
+    auto lightCountBuffer = create_constant_buffer(params, lightCount);
+    MARK_DESTROY_NVRHI_RESOURCE(lightCountBuffer);
+    program_vars["lightCount"] = lightCountBuffer;
 
     program_vars.set_descriptor_table(
         "t_BindlessBuffers",
@@ -140,10 +162,10 @@ NODE_EXECUTION_FUNCTION(path_tracing)
     RaytracingContext context(resource_allocator, program_vars);
 
     context.announce_raygeneration("RayGen");
-    context.announce_hitgroup("ClosestHit");
-    context.announce_hitgroup("ShadowHit", "", "", 1);
-    context.announce_miss("Miss");
-    context.announce_miss("ShadowMiss", 1);
+    context.announce_hitgroup("ClosestHit", "", "", 0);  // Primary ray hit group at index 0
+    context.announce_hitgroup("ShadowHit", "", "", 1);   // Shadow ray hit group at index 1
+    context.announce_miss("Miss", 0);       // Primary ray miss shader at index 0
+    context.announce_miss("ShadowMiss", 1); // Shadow ray miss shader at index 1
 
     for (auto &callable : callable_shaders) {
         context.announce_callable(callable.second, callable.first);
