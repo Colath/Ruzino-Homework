@@ -88,7 +88,7 @@ void WithDynamicLogicPrim::update(float delta_time) const
 
     if (tree_desc_cache != new_tree_desc) {
         tree_desc_cache = new_tree_desc;
-        node_tree->deserialize(tree_desc_cache);
+        // node_tree->deserialize(tree_desc_cache);
         stage_->set_current_time(0);
         stage_->set_render_time(0);
         simulation_begun = false;
