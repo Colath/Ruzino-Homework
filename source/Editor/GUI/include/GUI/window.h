@@ -39,7 +39,7 @@ class GUI_API Window {
     IWidget *get_widget(const std::string &unique_name) const;
     std::vector<IWidget *> get_widgets() const;
 
-    void set_all_node_system_dirty();
+    void close();
 
     int get_size_x() const;
     int get_size_y() const;

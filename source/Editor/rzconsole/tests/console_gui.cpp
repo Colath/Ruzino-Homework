@@ -94,5 +94,12 @@ int main()
     // setup_console_logging(console.get());  // Remove this line
 
     window.register_widget(std::move(console));
+    window.register_function_after_frame([](Window* window) {
+        static int frame_count = 0;
+        frame_count++;
+        if (frame_count > 100) {
+            window->close();
+        }
+    });
     window.run();
 }

@@ -11,7 +11,6 @@
 #include <rzpython/interpreter.hpp>
 #include <rzpython/rzpython.hpp>
 
-
 using namespace USTC_CG;
 
 class PythonConsoleWidgetFactory : public IWidgetFactory {
@@ -153,6 +152,13 @@ int main()
     Window window;
     python::reference("w", &window);
     window.register_widget(std::move(console));
+    window.register_function_after_frame([](Window* window) {
+        static int frame_count = 0;
+        frame_count++;
+        if (frame_count > 100) {
+            window->close();
+        }
+    });
     window.run();
 
     return 0;

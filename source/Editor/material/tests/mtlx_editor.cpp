@@ -1,6 +1,7 @@
 
-#include "GUI/window.h"
 #include <spdlog/spdlog.h>
+
+#include "GUI/window.h"
 #include "MCore/MaterialXNodeTree.hpp"
 #include "MCore/MaterialXNodeTreeWidget.h"
 #include "gtest/gtest.h"
@@ -8,6 +9,7 @@
 #include "nodes/core/node_tree.hpp"
 #include "nodes/system/node_system.hpp"
 #include "nodes/ui/imgui.hpp"
+
 using namespace USTC_CG;
 
 class MaterialXNodeSystem : public NodeSystem {
@@ -57,7 +59,13 @@ int main()
     system_->init(std::move(tree));
 
     Window window;
-
+    window.register_function_after_frame([](Window* window) {
+        static int frame_count = 0;
+        frame_count++;
+        if (frame_count > 100) {
+            window->close();
+        }
+    });
     FileBasedNodeWidgetSettings widget_desc;
     widget_desc.system = system_;
     system_->set_node_tree_executor(create_node_tree_executor({}));

@@ -403,13 +403,10 @@ std::vector<IWidget*> Window::get_widgets() const
     return widgets;
 }
 
-void Window::set_all_node_system_dirty()
+void Window::close()
 {
-    for (auto& widget : imguiRenderPass->widgets_) {
-        if (std::strcmp(widget->GetWindowName(), "Node editor") == 0) {
-            widget->SetNodeSystemDirty(true);
-        }
-    }
+    auto manager = RHI::internal::get_device_manager();
+    manager->Shutdown();
 }
 int Window::get_size_x() const
 {

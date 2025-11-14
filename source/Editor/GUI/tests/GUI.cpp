@@ -12,6 +12,13 @@ using namespace USTC_CG;
 TEST(CreateRHI, window)
 {
     Window window;
+    window.register_function_after_frame([](Window* window) {
+        static int frame_count = 0;
+        frame_count++;
+        if (frame_count > 100) {
+            window->close();
+        }
+    });
     window.run();
 }
 
@@ -43,6 +50,13 @@ class WidgetFactory : public IWidgetFactory {
 TEST(CreateRHI, widget_factory)
 {
     Window window;
+    window.register_function_after_frame([](Window* window) {
+        static int frame_count = 0;
+        frame_count++;
+        if (frame_count > 100) {
+            window->close();
+        }
+    });
     window.register_openable_widget(
         std::make_unique<WidgetFactory>(), { "File", "Open", "widget" });
     window.run();
@@ -51,6 +65,13 @@ TEST(CreateRHI, widget_factory)
 TEST(CreateRHI, widget)
 {
     Window window;
+    window.register_function_after_frame([](Window* window) {
+        static int frame_count = 0;
+        frame_count++;
+        if (frame_count > 100) {
+            window->close();
+        }
+    });
     std::unique_ptr<IWidget> widget = std::make_unique<Widget>("widget");
     window.register_widget(std::move(widget));
     window.run();
@@ -59,6 +80,13 @@ TEST(CreateRHI, widget)
 TEST(CreateRHI, multiple_widgets)
 {
     Window window;
+    window.register_function_after_frame([](Window* window) {
+        static int frame_count = 0;
+        frame_count++;
+        if (frame_count > 100) {
+            window->close();
+        }
+    });
     window.register_widget(std::make_unique<Widget>("widget"));
     window.register_widget(std::make_unique<Widget>("widget2"));
     window.run();
@@ -94,6 +122,13 @@ class FileWidget : public IWidget {
 TEST(FileDialog, create_dialog)
 {
     Window window;
+    window.register_function_after_frame([](Window* window) {
+        static int frame_count = 0;
+        frame_count++;
+        if (frame_count > 100) {
+            window->close();
+        }
+    });
     window.register_widget(std::make_unique<FileWidget>("file"));
     window.run();
 }
@@ -107,7 +142,13 @@ int main()
     USTC_CG::cuda::cuda_init();
 
     Window window;
-
+    window.register_function_after_frame([](Window* window) {
+        static int frame_count = 0;
+        frame_count++;
+        if (frame_count > 100) {
+            window->close();
+        }
+    });
     // Create a 256x256 texture using CUDA linear buffer
     const int width = 256;
     const int height = 256;
@@ -150,7 +191,13 @@ int main()
     RHI::init(true);
 
     Window window;
-
+    window.register_function_after_frame([](Window* window) {
+        static int frame_count = 0;
+        frame_count++;
+        if (frame_count > 100) {
+            window->close();
+        }
+    });
     // Create a simple red texture without CUDA
     const int width = 256;
     const int height = 256;
