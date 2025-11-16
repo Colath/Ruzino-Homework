@@ -67,7 +67,7 @@ def test_tree_generation():
     
     binary_dir = get_binary_dir()
     g = RuzinoGraph("TreeGenTest")
-    config_path = os.path.join(binary_dir, "TreeGen_geometry_nodes.json")
+    config_path = os.path.join(binary_dir, "Plugins", "TreeGen_geometry_nodes.json")
     
     g.loadConfiguration(config_path)
     print(f"✓ Loaded configuration")
@@ -137,7 +137,7 @@ def test_tree_to_mesh():
     
     binary_dir = get_binary_dir()
     g = RuzinoGraph("TreeMeshTest")
-    config_path = os.path.join(binary_dir, "TreeGen_geometry_nodes.json")
+    config_path = os.path.join(binary_dir, "Plugins", "TreeGen_geometry_nodes.json")
     
     g.loadConfiguration(config_path)
     
@@ -198,7 +198,7 @@ def test_parameter_variations():
     
     binary_dir = get_binary_dir()
     g = RuzinoGraph("ParamTest")
-    config_path = os.path.join(binary_dir, "TreeGen_geometry_nodes.json")
+    config_path = os.path.join(binary_dir, "Plugins", "TreeGen_geometry_nodes.json")
     g.loadConfiguration(config_path)
     
     # Test 1: High apical control (tall tree)
