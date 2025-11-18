@@ -1,8 +1,14 @@
+# Build compile definitions list
+set(GEOMETRY_NODES_COMPILE_DEFS NOMINMAX)
+if(ENABLE_GEOM_USD_EXTENSION)
+	list(APPEND GEOMETRY_NODES_COMPILE_DEFS GEOM_USD_EXTENSION=1)
+endif()
+
 add_nodes(
 	TARGET_NAME geometry_nodes 
 	SRC_DIRS ${CMAKE_CURRENT_SOURCE_DIR} ${CMAKE_CURRENT_SOURCE_DIR}/mesh2SDF
 	DEP_LIBS stage nodes_system usd geometry usdShade Eigen3::Eigen autodiff igl::core igl_restricted::triangle RZFemBem
-	COMPILE_DEFS NOMINMAX 
+	COMPILE_DEFS ${GEOMETRY_NODES_COMPILE_DEFS}
 )
 
 add_library(tetgen STATIC ${CMAKE_CURRENT_SOURCE_DIR}/tetgen/tetgen.cxx ${CMAKE_CURRENT_SOURCE_DIR}/tetgen/tetgen.h ${CMAKE_CURRENT_SOURCE_DIR}/tetgen/predicates.cxx)
