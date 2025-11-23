@@ -315,8 +315,8 @@ void BindlessContext::emitResourceBindings(
                 // generator.emitLineEnd(stage, true);
 
                 fetch_data += "Texture2D " + uniform->getVariable() + " = " +
-                              " t_BindlessTextures[$" + uniform->getName() +
-                              "_id];\n";
+                              " t_BindlessTextures[NonUniformResourceIndex($" + uniform->getName() +
+                              "_id)];\n";
             }
         }
     }
