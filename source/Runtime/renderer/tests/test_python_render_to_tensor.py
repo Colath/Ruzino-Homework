@@ -68,15 +68,15 @@ except ImportError as e:
     sys.exit(1)
 
 # Test configuration
-WIDTH = 800
-HEIGHT = 600
-SAMPLES = 4
+WIDTH = 3000
+HEIGHT = 3000
+SAMPLES = 512
 
 print("="*70)
 print("STEP 1: Create HydraRenderer with USD Scene")
 print("="*70)
 
-usd_stage = workspace_root / "Assets" / "cornell_box_stage.usdc"
+usd_stage = workspace_root / "Assets" / "shader_ball.usdc"
 print(f"USD stage: {usd_stage}")
 
 try:
@@ -272,7 +272,7 @@ try:
     img_uint8 = (np.clip(rgb, 0, 1) * 255).astype(np.uint8)
     img_uint8 = np.flipud(img_uint8)
     
-    output_path = workspace_root / "output_python_render.png"
+    output_path = "./output_python_render.png"
     Image.fromarray(img_uint8).save(output_path)
     print(f"✓ Saved image to: {output_path}\n")
     
