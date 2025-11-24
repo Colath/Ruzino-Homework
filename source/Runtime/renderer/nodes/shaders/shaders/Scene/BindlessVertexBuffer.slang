@@ -14,6 +14,10 @@ StaticVertexData load_vertex(MeshDesc mesh_data, uint vertex_id)
     var normal_offset = mesh_data.normalOffset;
     var bindlessIndex = mesh_data.bindlessIndex;
 
+    // Add memory barrier before accessing non-uniform resource
+    // This is critical for AMD GPU cache coherency
+    DeviceMemoryBarrier();
+    
     ByteAddressBuffer vertex_buffer =
         t_BindlessBuffers[NonUniformResourceIndex(bindlessIndex)];
     var id = vertex_id;
@@ -62,6 +66,10 @@ VertexInfo get_interpolated_vertex(
     uint primitive_id,
     float2 baricentric2)
 {
+    // Ensure memory coherency for AMD GPUs when accessing structured buffers
+    // DeviceMemoryBarrier is valid in ray tracing shaders
+    DeviceMemoryBarrier();
+    
     GeometryInstanceData instance = instanceDescBuffer[instance_id];
     MeshDesc mesh = meshDescBuffer[instance.geometryID];
 

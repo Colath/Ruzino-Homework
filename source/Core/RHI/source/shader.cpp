@@ -544,6 +544,36 @@ void ShaderFactory::populate_vk_options(
               slang::CompilerOptionValueKind::Int, 0, UAV_OFFSET } });
 }
 
+void ShaderFactory::populate_dxc_options(
+    std::vector<slang::CompilerOptionEntry>& dxc_compiler_options)
+{
+    // Use DXC as the downstream compiler for DXIL generation
+    dxc_compiler_options.push_back(
+        { slang::CompilerOptionName::DefaultDownstreamCompiler,
+          slang::CompilerOptionValue{ slang::CompilerOptionValueKind::Int,
+                                      SLANG_PASS_THROUGH_DXC } });
+
+    // Enable optimizations in DXC
+    dxc_compiler_options.push_back(
+        { slang::CompilerOptionName::Optimization,
+          slang::CompilerOptionValue{ slang::CompilerOptionValueKind::Int,
+                                      3 } });  // O3 optimization level
+
+#ifdef _DEBUG
+    // Enable debug info in debug builds
+    dxc_compiler_options.push_back(
+        { slang::CompilerOptionName::DebugInformation,
+          slang::CompilerOptionValue{ slang::CompilerOptionValueKind::Int,
+                                      2 } });  // Full debug info
+#endif
+
+    // Use IEEE strict mode for better precision
+    dxc_compiler_options.push_back(
+        { slang::CompilerOptionName::FloatingPointMode,
+          slang::CompilerOptionValue{ slang::CompilerOptionValueKind::Int,
+                                      1 } });  // IEEE strict
+}
+
 #define CHECK_REPORTED_ERROR()                                           \
     if (SLANG_FAILED(result)) {                                          \
         if (diagnostics) {                                               \
@@ -576,9 +606,13 @@ void ShaderFactory::SlangCompile(
     auto profile_id = global_session->findProfile(profile);
 
     std::vector<slang::CompilerOptionEntry> vk_compiler_options;
+    std::vector<slang::CompilerOptionEntry> dxc_compiler_options;
 
     if (target == SLANG_SPIRV) {
         populate_vk_options(vk_compiler_options);
+    }
+    else if (target == SLANG_DXIL) {
+        populate_dxc_options(dxc_compiler_options);
     }
 
     slang::TargetDesc desc;
@@ -588,8 +622,10 @@ void ShaderFactory::SlangCompile(
         desc.flags = SLANG_TARGET_FLAG_GENERATE_WHOLE_PROGRAM |
                      SLANG_TARGET_FLAG_GENERATE_SPIRV_DIRECTLY;
     else if (target == SLANG_DXIL) {
-        // Use appropriate flags for DXIL
+        // Pass through to DXC for better optimization and compatibility
         desc.flags = SLANG_TARGET_FLAG_GENERATE_WHOLE_PROGRAM;
+        // Note: Slang will automatically use DXC as the downstream compiler
+        // when targeting DXIL with the appropriate compiler options
     }
     std::vector<slang::PreprocessorMacroDesc> macros;
 
@@ -623,9 +659,13 @@ void ShaderFactory::SlangCompile(
 
     if (target == SLANG_SPIRV) {
         compile_session_desc.compilerOptionEntries = vk_compiler_options.data();
-
         compile_session_desc.compilerOptionEntryCount =
             static_cast<SlangInt>(vk_compiler_options.size());
+    }
+    else if (target == SLANG_DXIL) {
+        compile_session_desc.compilerOptionEntries = dxc_compiler_options.data();
+        compile_session_desc.compilerOptionEntryCount =
+            static_cast<SlangInt>(dxc_compiler_options.size());
     }
     SlangResult result;
 
