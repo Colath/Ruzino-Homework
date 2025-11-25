@@ -32,17 +32,17 @@ float3 texcoord_to_direction(float2 uv)
     // Maps unit disk to hemisphere uniformly by area
     float2 p = uv * 2.0 - 1.0;  // Map to [-1, 1]
     
-    float r = length(p);
-    if (r > 1.0) {
+    float r_squared = dot(p, p);
+    if (r_squared > 1.0) {
         // Outside hemisphere, return zero direction
         return float3(0, 0, -1);
     }
     
-    // Lambert azimuthal equal-area projection
-    float z = 1.0 - r * r;
-    float scale = sqrt(1.0 - z);
+    // Lambert azimuthal equal-area projection inverse:
+    // z = sqrt(1 - r²), where r² = x² + y²
+    float z = sqrt(1.0 - r_squared);
     
-    return float3(p.x * scale, p.y * scale, z);
+    return float3(p.x, p.y, z);
 }
 
 // Compute Jacobian for the equal-area projection
@@ -52,11 +52,10 @@ float compute_jacobian(float3 dir)
     float z = dir.z;
     if (z <= 0.0) return 0.0;
     
-    // For Lambert azimuthal projection:
-    // Jacobian = 1 / (2 * pi * cos(theta)) where cos(theta) = z
-    // But since we're mapping to unit disk, need to account for that
-    // Actually for equal-area, Jacobian is constant = 1/pi
-    return 1.0 / 3.14159265359;
+    // For Lambert azimuthal equal-area projection:
+    // The Jacobian |dω/dA| = 2π (constant)
+    // This means pdf_texture = pdf_solid_angle * 2π
+    return 2.0 * 3.14159265359;
 }
 
 struct EvalPayload {
@@ -88,31 +87,22 @@ void EvalPdfRayGen()
         return;
     }
     
-    // Create shading frame (Z-up in local space)
-    bool valid;
-    ShadingFrame sf = ShadingFrame.createSafe(
-        float3(0, 0, 1),  // Normal (z-up)
-        float4(1, 0, 0, 1),  // Tangent
-        valid
-    );
-    
-    if (!valid) {
-        eval_output[pixel] = float4(1, 0, 0, 1);  // Red = error
-        pdf_output[pixel] = float4(1, 0, 0, 1);
-        return;
-    }
-    
-    // Incident direction is already in world space, convert to local space
+    // Incident direction (view direction)
+    // In our setup: normal=(0,0,1), so world space = local space
     float3 world_wi = normalize(analysis_params.incident_direction);
-    float3 local_wi = sf.toLocal(world_wi);
+    float3 world_wo = local_wo;  // Since our coordinate system is world = local
     
-    // wo is already in local space (from texcoord_to_direction)
+    // Debug: For one pixel, check if directions are varying
+    if (pixel.x == 256 && pixel.y == 256) {
+        // Center pixel - log to see what we're passing
+        // This would require a debug buffer, but we can output to RGB channels for visualization
+    }
     
     // Create a dummy vertex info for material evaluation
     VertexInfo vertex;
     vertex.posW = float3(0, 0, 0);
-    vertex.normalW = float3(0, 0, 1);
-    vertex.tangentW = float4(1, 0, 0, 1);
+    vertex.normalW = float3(0, 0, 1);  // Z-up in world space
+    vertex.tangentW = float4(1, 0, 0, 1);  // X-axis tangent
     vertex.texC = analysis_params.uv_coord;
     vertex.subsetMaterialID = -1;
     
@@ -123,31 +113,30 @@ void EvalPdfRayGen()
     // Prepare callable data
     CallableData callData;
     callData.vertexInfo = vertex;
-    callData.L = local_wi;   // Incident direction in local space
-    callData.V = local_wo;   // Outgoing direction in local space
+    callData.L = world_wo;   // Outgoing/Light direction in WORLD space
+    callData.V = world_wi;   // View/Incident direction in WORLD space
     callData.color = float4(0, 0, 0, 1);
     callData.seed = 12345;  // Dummy seed
     callData.eta_flipped = 0;
     callData.materialBlobID = material_header.material_blob_id;
     
     // Call material evaluation
-    // Note: This assumes material callable computes BRDF eval
-    // You may need to modify the callable interface to return PDF separately
     CallShader(material_header.material_type_id, callData);
     
-    // Extract BRDF value and PDF
-    float3 brdf = callData.throughput;
-    float pdf = callData.pdf;
-    
-    // Apply Jacobian correction
-    float jacobian = compute_jacobian(local_wo);
+    // Extract BRDF value
+    // Note: eval_sample_pdf returns BRDF in 'color' output (Surface_out.color)
+    // The 'pdf' and 'throughput' from eval_sample_pdf are for the sampled direction,
+    // not for our input L direction, so they're not useful for evaluation
+    float3 brdf = callData.color.rgb;
     
     // Store results
     // RGB = BRDF value, A = cos(theta) for reference
     eval_output[pixel] = float4(brdf, local_wo.z);
     
-    // RGB = PDF, A = PDF * Jacobian (for validation)
-    pdf_output[pixel] = float4(pdf, pdf, pdf, pdf * jacobian);
+    // PDF output: We cannot get meaningful PDF from MaterialX for arbitrary L direction
+    // MaterialX's eval_sample_pdf only returns PDF for importance-sampled directions
+    // Store BRDF again for now (or could compute theoretical PDF if we had BRDF parameters)
+    pdf_output[pixel] = float4(brdf, 1.0);
 }
 
 [shader("closesthit")]

@@ -1,5 +1,6 @@
-// Material BRDF Sampling Visualization Shader
-// Generates samples from BRDF and accumulates frequency distribution
+// Material BRDF Importance Sampling Test
+// Samples from BRDF and divides by PDF to check if result is uniform
+// For good importance sampling, (sample_weight / pdf) should be approximately constant
 
 import callable_data;
 #include "utils/random.slangh"
@@ -10,10 +11,10 @@ import Scene.BindlessVertexBuffer;
 import utils.Math.ShadingFrame;
 import Utils.Math.MathHelpers;
 
-RWStructuredBuffer<uint> sample_buffer;  // Uint buffer for atomic operations (float data stored as uint)
+RWStructuredBuffer<uint> importance_buffer;  // Uint buffer for atomic operations (float data stored as uint)
 RaytracingAccelerationStructure SceneBVH;
 
-struct SampleConstants {
+struct ImportanceSampleConstants {
     float3 incident_direction;
     float _pad0;
     float2 uv_coord;
@@ -22,18 +23,18 @@ struct SampleConstants {
     uint num_samples;
 };
 
-ConstantBuffer<SampleConstants> sample_params;
+ConstantBuffer<ImportanceSampleConstants> importance_params;
 
 // Atomic float add using InterlockedCompareExchange
 void AtomicAddFloat(uint index, float value)
 {
-    uint original_value = sample_buffer[index];
+    uint original_value = importance_buffer[index];
     uint new_value;
     
     while (true) {
         new_value = asuint(asfloat(original_value) + value);
         uint compare_result;
-        InterlockedCompareExchange(sample_buffer[index], original_value, new_value, compare_result);
+        InterlockedCompareExchange(importance_buffer[index], original_value, new_value, compare_result);
         
         if (compare_result == original_value)
             break;
@@ -58,27 +59,24 @@ float2 direction_to_texcoord(float3 dir, out float jacobian)
     float2 p = dir.xy * (r / max(length(dir.xy), 1e-6));
     
     // Jacobian: d(solid_angle) / d(texture_area)
-    // For equal-area projection, the Jacobian relates solid angle to texture area
-    // pdf_texture = pdf_solid_angle * |d(omega)/d(A)|
-    // For Lambert azimuthal: |d(omega)/d(A)| = 2*pi (constant)
     jacobian = 2.0 * 3.14159265359;
     
     // Map from [-1, 1] to [0, 1]
     return p * 0.5 + 0.5;
 }
 
-struct SamplePayload {
+struct ImportancePayload {
     uint sample_count;
     bool valid;
 };
 
 [shader("raygeneration")]
-void SampleRayGen()
+void ImportanceSampleRayGen()
 {
     uint2 dispatch_id = DispatchRaysIndex().xy;
     uint dispatch_dim = DispatchRaysDimensions().x;  // Assuming square dispatch
     uint sample_id = dispatch_id.y * dispatch_dim + dispatch_id.x;
-    uint resolution = sample_params.resolution;
+    uint resolution = importance_params.resolution;
     
     // Each thread generates ONE sample
     // Initialize RNG seed uniquely per sample
@@ -86,18 +84,18 @@ void SampleRayGen()
     seed = random_unsigned(seed);
     
     // Incident direction (view direction) - keep in world space for material
-    float3 world_wi = normalize(sample_params.incident_direction);
+    float3 world_wi = normalize(importance_params.incident_direction);
     
     // Create dummy vertex for material evaluation
     VertexInfo vertex;
     vertex.posW = float3(0, 0, 0);
     vertex.normalW = float3(0, 0, 1);  // Z-up in world space
     vertex.tangentW = float4(1, 0, 0, 1);  // X-axis tangent
-    vertex.texC = sample_params.uv_coord;
+    vertex.texC = importance_params.uv_coord;
     vertex.subsetMaterialID = -1;
     
     // Get material
-    uint material_id = sample_params.material_id;
+    uint material_id = importance_params.material_id;
     var material_header = materialHeaderBuffer[material_id];
     
     // Prepare callable data for sampling
@@ -115,13 +113,12 @@ void SampleRayGen()
     
     // Extract sampled direction
     // The material returns direction in WORLD space (after sf.fromLocal)
-    // Convert to local space for equal-area projection
-    // Since our coordinate system has normal=(0,0,1), world space = local space
+    // In our setup with normal=(0,0,1), world space = local space
     float3 world_sampled = callData.sampledDir;
-    float3 local_sampled = world_sampled;  // In our setup, world = local since normal is z-up
+    float3 local_sampled = world_sampled;  // world = local in our coordinate system
     
     // Check if sample is valid (above hemisphere)
-    if (local_sampled.z > 0.0) {
+    if (local_sampled.z > 0.0 && callData.pdf > 1e-8) {
         // Convert sampled direction to texture coordinate
         float jacobian;
         float2 uv = direction_to_texcoord(local_sampled, jacobian);
@@ -131,25 +128,29 @@ void SampleRayGen()
             uint2 pixel = uint2(uv * float(resolution));
             pixel = min(pixel, uint2(resolution - 1, resolution - 1));
             
-            // Simply count samples per pixel (frequency histogram)
-            // The frequency distribution should match PDF * Jacobian after normalization
+            // Compute importance sampling weight: throughput / pdf
+            // For good importance sampling, this should be approximately constant
+            float3 weight = callData.throughput / callData.pdf;
+            float weight_value = length(weight);  // Use magnitude as scalar weight
+            
+            // Atomically accumulate using AtomicAddFloat
+            // Each pixel has 2 floats: [weight_accumulator, sample_count]
             uint pixel_index = pixel.y * resolution + pixel.x;
             
-            // Accumulate: [sample_count, total_samples_marker]
-            AtomicAddFloat(pixel_index * 2 + 0, 1.0);
+            AtomicAddFloat(pixel_index * 2 + 0, weight_value);
             AtomicAddFloat(pixel_index * 2 + 1, 1.0);
         }
     }
 }
 
 [shader("closesthit")]
-void SampleHit(inout SamplePayload payload, in BuiltInTriangleIntersectionAttributes attribs)
+void ImportanceHit(inout ImportancePayload payload, in BuiltInTriangleIntersectionAttributes attribs)
 {
     // Not used
 }
 
 [shader("miss")]
-void SampleMiss(inout SamplePayload payload)
+void ImportanceMiss(inout ImportancePayload payload)
 {
     // Not used
 }

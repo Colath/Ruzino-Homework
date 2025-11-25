@@ -94,6 +94,7 @@ NODE_DECLARATION_FUNCTION(material_brdf_analyzer)
     b.add_output<nvrhi::TextureHandle>("BRDF Eval");
     b.add_output<nvrhi::TextureHandle>("PDF");
     b.add_output<nvrhi::TextureHandle>("Sample Distribution");
+    b.add_output<nvrhi::TextureHandle>("Importance Test");
 }
 
 NODE_EXECUTION_FUNCTION(material_brdf_analyzer)
@@ -308,7 +309,7 @@ NODE_EXECUTION_FUNCTION(material_brdf_analyzer)
     MARK_DESTROY_NVRHI_RESOURCE(sample_cb);
 
     // Create sample accumulation buffer
-    // Each pixel has 2 uints: [weight_accumulator, sample_count]
+    // Each pixel has 2 uints: [pdf_accumulator, sample_count] (float values stored as uint)
     BufferDesc sample_buffer_desc;
     sample_buffer_desc.byteSize = sizeof(uint32_t) * resolution * resolution * 2;
     sample_buffer_desc.structStride = sizeof(uint32_t);
@@ -323,7 +324,7 @@ NODE_EXECUTION_FUNCTION(material_brdf_analyzer)
     // Clear the buffer to zero
     auto cmd_list = RHI::get_device()->createCommandList();
     cmd_list->open();
-    cmd_list->clearBufferUInt(sample_buffer, 0);
+    cmd_list->clearBufferUInt(sample_buffer, 0);  // Still works for float buffers (sets to 0.0)
     cmd_list->close();
     RHI::get_device()->executeCommandList(cmd_list.Get());
     RHI::get_device()->waitForIdle();
@@ -372,8 +373,12 @@ NODE_EXECUTION_FUNCTION(material_brdf_analyzer)
     sample_context.finish_announcing_shader_names();
 
     // Execute sample shader - dispatch num_samples threads (one per sample)
+    // Note: D3D12/Vulkan DispatchRays has max 65535 per dimension
+    // So we need to split into 2D dispatch
+    uint32_t samples_per_dim = static_cast<uint32_t>(std::ceil(std::sqrt(static_cast<float>(num_samples))));
+    spdlog::info("Dispatching sample shader: {}x{} = {} samples", samples_per_dim, samples_per_dim, samples_per_dim * samples_per_dim);
     sample_context.begin();
-    sample_context.trace_rays({}, sample_vars, num_samples, 1, 1);
+    sample_context.trace_rays({}, sample_vars, samples_per_dim, samples_per_dim, 1);
     sample_context.finish();
     
     // ===== Normalize Sample Buffer to Texture =====
@@ -416,10 +421,130 @@ NODE_EXECUTION_FUNCTION(material_brdf_analyzer)
         1, 1);             // depth, groupSizeZ
     normalize_context.finish();
 
+    // ===== Importance Sampling Test =====
+    // Sample from BRDF and divide by PDF to check uniformity
+    ProgramDesc importance_program_desc;
+    importance_program_desc.set_path("shaders/material_brdf_importance_sample.slang");
+    importance_program_desc.shaderType = ShaderType::AllRayTracing;
+    importance_program_desc.nvapi_support = true;
+    importance_program_desc.define(
+        "FALCOR_MATERIAL_INSTANCE_SIZE",
+        std::to_string(c_FalcorMaterialInstanceSize));
+
+    for (auto material : materials) {
+        auto location = material.second->GetMaterialLocation();
+        if (location == -1) {
+            continue;
+        }
+        importance_program_desc.add_source_code(
+            material.second->GetShader(shader_factory));
+    }
+
+    auto importance_compiled = resource_allocator.create(importance_program_desc);
+    MARK_DESTROY_NVRHI_RESOURCE(importance_compiled);
+    CHECK_PROGRAM_ERROR(importance_compiled);
+
+    // Create importance test output texture
+    tex_desc.debugName = "Importance_Test_Output";
+    auto importance_output = resource_allocator.create(tex_desc);
+    MARK_DESTROY_NVRHI_RESOURCE(importance_output);
+
+    // Create importance accumulation buffer
+    BufferDesc importance_buffer_desc;
+    importance_buffer_desc.byteSize = sizeof(uint32_t) * resolution * resolution * 2;
+    importance_buffer_desc.structStride = sizeof(uint32_t);
+    importance_buffer_desc.canHaveUAVs = true;
+    importance_buffer_desc.debugName = "Importance_Accumulation_Buffer";
+    importance_buffer_desc.initialState = ResourceStates::UnorderedAccess;
+    importance_buffer_desc.keepInitialState = true;
+
+    auto importance_buffer = resource_allocator.create(importance_buffer_desc);
+    MARK_DESTROY_NVRHI_RESOURCE(importance_buffer);
+    
+    // Clear the buffer
+    auto cmd_list2 = RHI::get_device()->createCommandList();
+    cmd_list2->open();
+    cmd_list2->clearBufferUInt(importance_buffer, 0);
+    cmd_list2->close();
+    RHI::get_device()->executeCommandList(cmd_list2.Get());
+    RHI::get_device()->waitForIdle();
+
+    // Setup importance test parameters
+    auto importance_cb = create_constant_buffer(params, sample_constants);
+    MARK_DESTROY_NVRHI_RESOURCE(importance_cb);
+
+    // Setup program vars
+    ProgramVars importance_vars(resource_allocator, importance_compiled);
+    importance_vars["SceneBVH"] = instance_collection->get_tlas();
+    importance_vars["importance_buffer"] = importance_buffer;
+    importance_vars["importance_params"] = importance_cb;
+
+    for (int i = 0; i < 9; ++i) {
+        importance_vars["samplers"][i] = sampler;
+    }
+    
+    importance_vars["u_envRadiance_sampler"] = sampler;
+    importance_vars["u_envIrradiance_sampler"] = sampler;
+
+    importance_vars["instanceDescBuffer"] = instance_collection->instance_pool.get_device_buffer();
+    importance_vars["meshDescBuffer"] = instance_collection->mesh_pool.get_device_buffer();
+    importance_vars["materialBlobBuffer"] = instance_collection->material_pool.get_device_buffer();
+    importance_vars["materialHeaderBuffer"] = instance_collection->material_header_pool.get_device_buffer();
+
+    importance_vars.set_descriptor_table(
+        "t_BindlessBuffers",
+        instance_collection->bindlessData.bufferDescriptorTableManager->GetDescriptorTable(),
+        instance_collection->bindlessData.bufferBindlessLayout);
+
+    importance_vars.set_descriptor_table(
+        "t_BindlessTextures",
+        instance_collection->bindlessData.textureDescriptorTableManager->GetDescriptorTable(),
+        instance_collection->bindlessData.textureBindlessLayout);
+
+    importance_vars.finish_setting_vars();
+
+    // Create raytracing context
+    RaytracingContext importance_context(resource_allocator, importance_vars);
+    importance_context.announce_raygeneration("ImportanceSampleRayGen");
+    importance_context.announce_hitgroup("ImportanceHit", "", "", 0);
+    importance_context.announce_miss("ImportanceMiss", 0);
+
+    for (auto& callable : callable_shaders) {
+        importance_context.announce_callable(callable.second, callable.first);
+    }
+
+    importance_context.finish_announcing_shader_names();
+
+    // Execute importance sampling
+    spdlog::info("Dispatching importance shader: {}x{} = {} samples", samples_per_dim, samples_per_dim, samples_per_dim * samples_per_dim);
+    importance_context.begin();
+    importance_context.trace_rays({}, importance_vars, samples_per_dim, samples_per_dim, 1);
+    importance_context.finish();
+    
+    // Normalize importance test results
+    ProgramVars importance_normalize_vars(resource_allocator, normalize_compiled);
+    importance_normalize_vars["sample_buffer"] = importance_buffer;
+    importance_normalize_vars["sample_output"] = importance_output;
+    importance_normalize_vars["normalize_params"] = normalize_cb;
+    importance_normalize_vars.finish_setting_vars();
+    
+    ComputeContext importance_normalize_context(resource_allocator, importance_normalize_vars);
+    importance_normalize_context.finish_setting_pso();
+    
+    importance_normalize_context.begin();
+    importance_normalize_context.dispatch(
+        {},
+        importance_normalize_vars,
+        resolution, 16,
+        resolution, 16,
+        1, 1);
+    importance_normalize_context.finish();
+
     // Set outputs
     params.set_output("BRDF Eval", eval_output);
     params.set_output("PDF", pdf_output);
     params.set_output("Sample Distribution", sample_output);
+    params.set_output("Importance Test", importance_output);
 
     return true;
 }

@@ -125,7 +125,7 @@ def bind_material_to_shader_ball(shader_ball_path, material_path, output_path):
 
 # Test configuration
 RESOLUTION = 512
-NUM_SAMPLES = 100000
+NUM_SAMPLES = 1000000  # 1M samples for better statistics
 
 print("="*70)
 print("Material BRDF Analyzer")
@@ -200,21 +200,27 @@ except Exception as e:
     exit(1)
 analyzer.ui_name = "BRDFAnalyzer"
 
-# Create present nodes for all three outputs
+# Create present nodes for all four outputs
 present_eval = tree.add_node("present_color")
 present_eval.ui_name = "PresentEval"
 present_pdf = tree.add_node("present_color")
 present_pdf.ui_name = "PresentPDF"
 present_sample = tree.add_node("present_color")
 present_sample.ui_name = "PresentSample"
+present_importance = tree.add_node("present_color")
+present_importance.ui_name = "PresentImportance"
 
 # Connect analyzer outputs to present nodes
 tree.add_link(analyzer.get_output_socket("BRDF Eval"), present_eval.get_input_socket("Color"))
 tree.add_link(analyzer.get_output_socket("PDF"), present_pdf.get_input_socket("Color"))
 tree.add_link(analyzer.get_output_socket("Sample Distribution"), present_sample.get_input_socket("Color"))
+tree.add_link(analyzer.get_output_socket("Importance Test"), present_importance.get_input_socket("Color"))
 
-# Set analysis parameters (common for all three analyses)
-incident_dir_x, incident_dir_y, incident_dir_z = 0.0, 1.0, 1.0  # Normal incidence
+# Set analysis parameters (common for all four analyses)
+# Use 45-degree angle to see broader distribution  
+import math
+angle = math.radians(45)
+incident_dir_x, incident_dir_y, incident_dir_z = math.sin(angle), 0.0, math.cos(angle)  # 45 degrees from normal
 
 # Normalize incident direction
 incident_dir_length = np.sqrt(incident_dir_x**2 + incident_dir_y**2 + incident_dir_z**2)
@@ -241,8 +247,8 @@ print(f"  Resolution: {RESOLUTION}x{RESOLUTION}")
 print(f"  Number of samples: {NUM_SAMPLES}")
 print()
 
-# Execute analysis (all three at once)
-print("Computing BRDF analysis (Eval + PDF + Sample Distribution)...")
+# Execute analysis (all four at once)
+print("Computing BRDF analysis (Eval + PDF + Sample Distribution + Importance Test)...")
 try:
     executor.reset_allocator()
     # Use present_eval as root, but it will execute the whole tree
@@ -256,7 +262,7 @@ except Exception as e:
     traceback.print_exc()
     exit(1)
 
-# Retrieve all three outputs
+# Retrieve all four outputs
 print("\n Retrieving outputs...")
 try:
     brdf_eval_data = hydra.get_output_texture("PresentEval")
@@ -270,6 +276,10 @@ try:
     sample_data = hydra.get_output_texture("PresentSample")
     sample_array = np.array(sample_data, dtype=np.float32).reshape(RESOLUTION, RESOLUTION, 4)
     print(f"✓ Sample Distribution: mean={sample_array[:,:,:3].mean():.6f}, max={sample_array[:,:,:3].max():.6f}")
+    
+    importance_data = hydra.get_output_texture("PresentImportance")
+    importance_array = np.array(importance_data, dtype=np.float32).reshape(RESOLUTION, RESOLUTION, 4)
+    print(f"✓ Importance Test: mean={importance_array[:,:,:3].mean():.6f}, max={importance_array[:,:,:3].max():.6f}")
 except Exception as e:
     print(f"✗ Failed to retrieve textures: {e}")
     import traceback
@@ -277,14 +287,25 @@ except Exception as e:
     exit(1)
 print()
 
-# Save images
+# Save images and perform statistical analysis
 try:
     from PIL import Image
     
     def save_texture(array, filename, log_scale=False):
         rgb = array[:, :, :3]
         
-        if log_scale:
+        # Save EXR with original HDR values
+        exr_filename = filename.replace('.png', '.exr')
+        rgb_exr = np.flipud(rgb.astype(np.float32))
+        try:
+            import imageio
+            imageio.imwrite(exr_filename, rgb_exr, format='EXR')
+            print(f"✓ Saved EXR: {exr_filename}")
+        except Exception as e:
+            print(f"⚠ Could not save EXR (install imageio-ffmpeg): {e}")
+        
+        # Save PNG with tone mapping for visualization
+        if log_scale or True:  # Always use log scale for better visualization
             # Use log scale for BRDF/PDF values
             rgb_vis = np.log1p(np.clip(rgb, 0, None))  # log(1+x) to handle 0s
             rgb_vis = rgb_vis / (rgb_vis.max() + 1e-8)  # Normalize to [0,1]
@@ -294,11 +315,188 @@ try:
         img_uint8 = (rgb_vis * 255).astype(np.uint8)
         img_uint8 = np.flipud(img_uint8)
         Image.fromarray(img_uint8).save(filename)
-        print(f"✓ Saved: {filename}")
+        print(f"✓ Saved PNG: {filename}")
     
     save_texture(eval_array, "./brdf_eval.png", log_scale=True)
     save_texture(pdf_array, "./brdf_pdf.png", log_scale=True)
-    save_texture(sample_array, "./brdf_sample_distribution.png", log_scale=False)
+    save_texture(sample_array, "./brdf_sample_distribution.png", log_scale=True)  # Now use log scale
+    save_texture(importance_array, "./brdf_importance_test.png", log_scale=True)  # Now use log scale
+    
+    # ===== Statistical Analysis =====
+    print("\n" + "="*70)
+    print("Statistical Analysis")
+    print("="*70)
+    
+    # Extract single channel values (they're stored as RGB with same values)
+    eval_values = eval_array[:, :, 0]
+    pdf_values = pdf_array[:, :, 0]
+    sample_values = sample_array[:, :, 0]
+    importance_values = importance_array[:, :, 0]
+    
+    # Only consider valid regions (inside hemisphere projection)
+    # Create mask for valid pixels
+    height, width = eval_values.shape
+    y_coords, x_coords = np.meshgrid(np.arange(height), np.arange(width), indexing='ij')
+    u = (x_coords + 0.5) / width
+    v = (y_coords + 0.5) / height
+    p = np.stack([u * 2 - 1, v * 2 - 1], axis=-1)
+    r = np.sqrt(p[:,:,0]**2 + p[:,:,1]**2)
+    valid_mask = r <= 1.0
+    
+    eval_valid = eval_values[valid_mask]
+    pdf_valid = pdf_values[valid_mask]
+    sample_valid = sample_values[valid_mask]
+    importance_valid = importance_values[valid_mask]
+    
+    print(f"\nValid pixels: {valid_mask.sum()} / {height*width}")
+    
+    # Print distribution statistics for debugging
+    print(f"\nDistribution Analysis:")
+    print(f"  BRDF Eval: non-zero pixels = {np.count_nonzero(eval_valid)}/{len(eval_valid)}")
+    print(f"             percentiles [0, 25, 50, 75, 95, 100] = {np.percentile(eval_valid, [0, 25, 50, 75, 95, 100])}")
+    print(f"  PDF: non-zero pixels = {np.count_nonzero(pdf_valid)}/{len(pdf_valid)}")
+    print(f"       percentiles [0, 25, 50, 75, 95, 100] = {np.percentile(pdf_valid, [0, 25, 50, 75, 95, 100])}")
+    print(f"  Sample: non-zero pixels = {np.count_nonzero(sample_valid)}/{len(sample_valid)}")
+    print(f"          percentiles [0, 25, 50, 75, 95, 100] = {np.percentile(sample_valid, [0, 25, 50, 75, 95, 100])}")
+    sample_sum = np.sum(sample_valid)
+    print(f"          sum = {sample_sum:.6f} (should be ~1.0 for normalized frequency)")
+    print()
+    
+    # 1. Compare sample frequency with PDF
+    print("\n1. Sample Frequency vs PDF Comparison:")
+    print(f"   PDF mean: {pdf_valid.mean():.6f}, std: {pdf_valid.std():.6f}")
+    print(f"   Sample mean: {sample_valid.mean():.6f}, std: {sample_valid.std():.6f}")
+    
+    # Compute correlation
+    if len(pdf_valid) > 0 and pdf_valid.std() > 0 and sample_valid.std() > 0:
+        correlation = np.corrcoef(pdf_valid, sample_valid)[0, 1]
+        print(f"   Correlation: {correlation:.6f}")
+        
+        # Compute normalized error
+        pdf_norm = pdf_valid / (pdf_valid.mean() + 1e-8)
+        sample_norm = sample_valid / (sample_valid.mean() + 1e-8)
+        rel_error = np.abs(pdf_norm - sample_norm)
+        print(f"   Mean relative error: {rel_error.mean():.6f}")
+        print(f"   Max relative error: {rel_error.max():.6f}")
+    
+    # 2. Variance analysis of sample distribution
+    print("\n2. Sample Distribution Variance Analysis:")
+    print(f"   Variance: {sample_valid.var():.6f}")
+    print(f"   Coefficient of variation: {sample_valid.std() / (sample_valid.mean() + 1e-8):.6f}")
+    
+    # Check uniformity - for ideal importance sampling, variance should be low
+    # Expected value for uniform distribution over N bins
+    expected_mean = sample_valid.mean()
+    chi_square = np.sum((sample_valid - expected_mean)**2 / (expected_mean + 1e-8))
+    print(f"   Chi-square statistic: {chi_square:.2f}")
+    
+    # 3. Compare BRDF eval with PDF
+    print("\n3. BRDF Eval vs PDF Comparison:")
+    print(f"   BRDF mean: {eval_valid.mean():.6f}, std: {eval_valid.std():.6f}")
+    
+    if len(eval_valid) > 0 and eval_valid.std() > 0 and pdf_valid.std() > 0:
+        correlation_eval_pdf = np.corrcoef(eval_valid, pdf_valid)[0, 1]
+        print(f"   Correlation BRDF-PDF: {correlation_eval_pdf:.6f}")
+    
+    # 4. Integration check - PDF should integrate to ~1
+    print("\n4. Integration Tests:")
+    # For equal-area projection, each pixel represents equal solid angle
+    # Solid angle element: dω = 2π * pixel_area (for equal-area projection)
+    pixel_area = 1.0 / (height * width)  # in texture space
+    solid_angle_per_pixel = 2.0 * np.pi * pixel_area  # Jacobian = 2π
+    
+    pdf_integral = pdf_valid.sum() * pixel_area
+    sample_integral = sample_valid.sum() * pixel_area
+    
+    print(f"   PDF integral (texture space): {pdf_integral:.6f}")
+    print(f"   Sample integral (normalized frequency): {sample_integral:.6f} (should be ~1.0)")
+    print(f"   Ratio (Sample/PDF): {sample_integral / (pdf_integral + 1e-8):.6f}")
+    
+    # 5. Importance sampling test - should be approximately uniform
+    print("\n5. Importance Sampling Test (throughput/pdf):")
+    importance_nonzero = importance_valid[importance_valid > 0]
+    if len(importance_nonzero) > 0:
+        importance_percentiles = np.percentile(importance_nonzero, [0, 25, 50, 75, 95, 100])
+        importance_mean = importance_nonzero.mean()
+        importance_std = importance_nonzero.std()
+        importance_cv = importance_std / (importance_mean + 1e-8)
+        
+        print(f"   Non-zero samples: {len(importance_nonzero)}/{len(importance_valid)}")
+        print(f"   Mean: {importance_mean:.6f}")
+        print(f"   Std: {importance_std:.6f}")
+        print(f"   Coefficient of variation: {importance_cv:.6f} (lower is better, <0.5 is good)")
+        print(f"   Percentiles [0, 25, 50, 75, 95, 100]: {importance_percentiles}")
+        print(f"   Range: [{importance_nonzero.min():.6f}, {importance_nonzero.max():.6f}]")
+        print(f"   → For good importance sampling, CV should be low and distribution tight")
+    else:
+        print(f"   No valid samples")
+    
+    # Create comparison plots if matplotlib available
+    try:
+        import matplotlib.pyplot as plt
+        
+        fig, axes = plt.subplots(2, 3, figsize=(18, 10))
+        
+        # Plot 1: Sample vs PDF scatter
+        axes[0, 0].scatter(pdf_valid, sample_valid, alpha=0.3, s=1)
+        axes[0, 0].plot([pdf_valid.min(), pdf_valid.max()], 
+                       [pdf_valid.min(), pdf_valid.max()], 'r--', label='y=x')
+        axes[0, 0].set_xlabel('PDF')
+        axes[0, 0].set_ylabel('Sample Frequency')
+        axes[0, 0].set_title('Sample Frequency vs PDF')
+        axes[0, 0].legend()
+        axes[0, 0].grid(True, alpha=0.3)
+        
+        # Plot 2: BRDF vs PDF scatter
+        axes[0, 1].scatter(pdf_valid, eval_valid, alpha=0.3, s=1)
+        axes[0, 1].set_xlabel('PDF')
+        axes[0, 1].set_ylabel('BRDF Eval')
+        axes[0, 1].set_title('BRDF Eval vs PDF')
+        axes[0, 1].grid(True, alpha=0.3)
+        
+        # Plot 3: Histograms
+        axes[1, 0].hist(pdf_valid, bins=50, alpha=0.5, label='PDF', density=True)
+        axes[1, 0].hist(sample_valid, bins=50, alpha=0.5, label='Sample', density=True)
+        axes[1, 0].set_xlabel('Value')
+        axes[1, 0].set_ylabel('Density')
+        axes[1, 0].set_title('Distribution Histograms')
+        axes[1, 0].legend()
+        axes[1, 0].grid(True, alpha=0.3)
+        
+        # Plot 4: Error distribution
+        if len(pdf_valid) > 0:
+            error = sample_valid - pdf_valid
+            axes[1, 1].hist(error, bins=50, alpha=0.7)
+            axes[1, 1].axvline(0, color='r', linestyle='--', label='Zero error')
+            axes[1, 1].set_xlabel('Error (Sample - PDF)')
+            axes[1, 1].set_ylabel('Frequency')
+            axes[1, 1].set_title(f'Error Distribution (mean={error.mean():.6f})')
+            axes[1, 1].legend()
+            axes[1, 1].grid(True, alpha=0.3)
+        
+        # Plot 5: Importance sampling histogram (should be uniform)
+        axes[0, 2].hist(importance_valid, bins=50, alpha=0.7, color='green')
+        axes[0, 2].axvline(importance_valid.mean(), color='r', linestyle='--', label=f'Mean={importance_valid.mean():.4f}')
+        axes[0, 2].set_xlabel('Throughput / PDF')
+        axes[0, 2].set_ylabel('Frequency')
+        axes[0, 2].set_title('Importance Sampling Test (should be uniform)')
+        axes[0, 2].legend()
+        axes[0, 2].grid(True, alpha=0.3)
+        
+        # Plot 6: Importance sampling spatial distribution
+        im = axes[1, 2].imshow(importance_values, cmap='viridis', origin='lower')
+        axes[1, 2].set_title(f'Importance Test (CV={importance_valid.std()/importance_valid.mean():.4f})')
+        axes[1, 2].set_xlabel('X')
+        axes[1, 2].set_ylabel('Y')
+        plt.colorbar(im, ax=axes[1, 2])
+        
+        plt.tight_layout()
+        plt.savefig('./brdf_analysis_plots.png', dpi=150)
+        print(f"\n✓ Saved: ./brdf_analysis_plots.png")
+        plt.close()
+        
+    except ImportError:
+        print("\n✗ matplotlib not available, skipping plots")
     
 except ImportError:
     print("✗ PIL not available, skipping image save")
