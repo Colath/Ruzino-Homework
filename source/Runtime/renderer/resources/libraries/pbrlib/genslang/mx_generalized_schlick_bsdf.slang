@@ -1,6 +1,5 @@
 import stdlib.genslang.mx_bsdf;
 import pbrlib.genslang.lib.mx_microfacet_specular;
-import pbrlib.genslang.lib.mx_environment_prefilter;
 import pbrlib.genslang.lib.mx_transmission_refract;
 __exported import pbrlib.genslang.lib.mx_closure_type;
 
@@ -89,16 +88,5 @@ void mx_generalized_schlick_bsdf(
                 weight;
         }
     }
-    else if (closureData.closureType == CLOSURE_TYPE_INDIRECT) {
-        float3 F = mx_compute_fresnel(NdotV, fd);
 
-        float3 comp = mx_ggx_energy_compensation(NdotV, avgAlpha, F);
-        float3 dirAlbedo =
-            mx_ggx_dir_albedo(NdotV, avgAlpha, safeColor0, safeColor90) * comp;
-        float avgDirAlbedo = dot(dirAlbedo, float3(1.0 / 3.0));
-        bsdf.throughput = float3(1.0 - avgDirAlbedo * weight);
-
-        float3 Li = mx_environment_radiance(N, V, X, safeAlpha, distribution, fd);
-        bsdf.response = Li * comp * weight;
-    }
 }

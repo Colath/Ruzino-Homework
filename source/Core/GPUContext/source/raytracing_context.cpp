@@ -263,22 +263,29 @@ void RaytracingContext::finish_announcing_shader_names()
 
     for (size_t i = 0; i < hit_group_shaders.size(); ++i) {
         std::string hit_group_export_name = "HitGroup" + std::to_string(i);
-        pipeline_desc.hitGroups.push_back({ hit_group_export_name,
-                                            std::get<0>(hit_group_shaders[i]),
-                                            std::get<1>(hit_group_shaders[i]),
-                                            std::get<2>(hit_group_shaders[i]),
-                                            nullptr
+        pipeline_desc.hitGroups.push_back(
+            { hit_group_export_name,
+              std::get<0>(hit_group_shaders[i]),
+              std::get<1>(hit_group_shaders[i]),
+              std::get<2>(hit_group_shaders[i]),
+              nullptr
 
-        });
+            });
     }
 
     // callable shaders
     for (size_t i = 0; i < callable_shaders.size(); ++i) {
         std::string callable_export_name = "Callable" + std::to_string(i);
-        pipeline_desc.shaders.push_back(
-            { callable_export_name, callable_shaders[i], nullptr
+        if (callable_programs[i] == nullptr)
+            pipeline_desc.shaders.push_back(
+                { callable_export_name, callable_shaders[i], nullptr
 
-            });
+                });
+        else
+            pipeline_desc.shaders.push_back(
+                { callable_export_name,
+                  callable_shaders[i],
+                  callable_programs[i]->get_binding_layout()[0] });
     }
 
     // miss shaders
@@ -300,7 +307,12 @@ void RaytracingContext::finish_announcing_shader_names()
 
     for (size_t i = 0; i < callable_shaders.size(); ++i) {
         std::string callable_export_name = "Callable" + std::to_string(i);
-        sbt->addCallableShader(callable_export_name.c_str());
+        if (callable_programs[i] == nullptr)
+            sbt->addCallableShader(callable_export_name.c_str());
+        else
+            sbt->addCallableShader(
+                callable_export_name.c_str(),
+                callable_programs[i]->get_binding_sets()[0]);
     }
 
     for (size_t i = 0; i < miss_shaders.size(); ++i) {

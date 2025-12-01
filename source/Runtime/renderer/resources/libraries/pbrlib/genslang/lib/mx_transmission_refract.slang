@@ -1,5 +1,3 @@
-import pbrlib.genslang.lib.mx_environment_prefilter;
-
 import pbrlib.genslang.lib.mx_microfacet_specular;
 
 ConstantBuffer<uint> u_refractionTwoSided;

@@ -266,26 +266,4 @@ void mx_chiang_hair_bsdf(ClosureData closureData, float3 tint_R, float3 tint_TT,
 
         bsdf.response = F * closureData.occlusion * M_PI_INV;
     }
-    else if (closureData.closureType == CLOSURE_TYPE_INDIRECT)
-    {
-        // This indirect term is a *very* rough approximation.
-
-        float NdotV = clamp(dot(N, V), M_FLOAT_EPS, 1.0);
-        FresnelData fd = mx_init_fresnel_dielectric(ior, 0.0, 1.0);
-        float3 F = mx_compute_fresnel(NdotV, fd);
-
-        float2 roughness = (roughness_R + roughness_TT + roughness_TRT) / float2(3.0);  // ?
-        float2 safeAlpha = clamp(roughness, M_FLOAT_EPS, 1.0);
-        float avgAlpha = mx_average_alpha(safeAlpha);
-
-        // Use GGX to match the behavior of mx_environment_radiance.
-        float F0 = mx_ior_to_f0(ior);
-        float3 comp = mx_ggx_energy_compensation(NdotV, avgAlpha, F);
-        float3 dirAlbedo = mx_ggx_dir_albedo(NdotV, avgAlpha, F0, 1.0) * comp;
-
-        float3 Li = mx_environment_radiance(N, V, X, safeAlpha, 0, fd);
-        float3 tint = (tint_R + tint_TT + tint_TRT) / float3(3.0);  // ?
-
-        bsdf.response = Li * comp * tint;
-    }
 }

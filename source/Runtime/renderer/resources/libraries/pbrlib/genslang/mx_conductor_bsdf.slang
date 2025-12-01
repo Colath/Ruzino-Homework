@@ -1,6 +1,5 @@
 import pbrlib.genslang.lib.mx_microfacet_specular;
 import stdlib.genslang.mx_bsdf;
-import pbrlib.genslang.lib.mx_environment_prefilter;
 import pbrlib.genslang.lib.mx_closure_type;
 
 void mx_conductor_bsdf(
@@ -58,17 +57,5 @@ void mx_conductor_bsdf(
 
         bsdf.response = D * F * G * comp * closureData.occlusion * weight /
                         (4.0 * NdotV);
-    }
-    else if (closureData.closureType == CLOSURE_TYPE_INDIRECT) {
-        float3 F = mx_compute_fresnel(NdotV, fd);
-
-        float2 safeAlpha = clamp(roughness, M_FLOAT_EPS, 1.0);
-        float avgAlpha = mx_average_alpha(safeAlpha);
-        float3 comp = mx_ggx_energy_compensation(NdotV, avgAlpha, F);
-
-        float3 Li =
-            mx_environment_radiance(N, V, X, safeAlpha, distribution, fd);
-
-        bsdf.response = Li * comp * weight;
     }
 }

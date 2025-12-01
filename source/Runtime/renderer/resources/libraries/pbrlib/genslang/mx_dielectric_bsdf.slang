@@ -2,7 +2,6 @@ import stdlib.genslang.mx_bsdf;
 __exported import pbrlib.genslang.lib.mx_closure_type;
 import pbrlib.genslang.lib.mx_transmission_refract;
 import pbrlib.genslang.lib.mx_microfacet_specular;
-import pbrlib.genslang.lib.mx_environment_prefilter;
 
 void mx_dielectric_bsdf(
     ClosureData closureData,
@@ -91,16 +90,5 @@ void mx_dielectric_bsdf(
                 weight;
         }
     }
-    else if (closureData.closureType == CLOSURE_TYPE_INDIRECT) {
-        float3 F = mx_compute_fresnel(NdotV, fd);
 
-        float3 comp = mx_ggx_energy_compensation(NdotV, avgAlpha, F);
-        comp = 1.0f;
-        float3 dirAlbedo = mx_ggx_dir_albedo(NdotV, avgAlpha, F0, 1.0) * comp;
-        bsdf.throughput = 1.0 - dirAlbedo * weight;
-
-        float3 Li =
-            mx_environment_radiance(N, V, X, safeAlpha, distribution, fd);
-        bsdf.response = Li * safeTint * comp * weight;
-    }
 }

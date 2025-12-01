@@ -12,6 +12,8 @@
 #include "shaders/shaders/utils/HitObject.h"
 #include "utils/math.h"
 
+#include "Scene/MaterialParamsBuffer.slang"
+
 // A traditional path tracing node
 
 NODE_DEF_OPEN_SCOPE
@@ -70,18 +72,6 @@ NODE_EXECUTION_FUNCTION(path_tracing)
     auto raytrace_compiled = resource_allocator.create(program_desc);
     MARK_DESTROY_NVRHI_RESOURCE(raytrace_compiled);
     CHECK_PROGRAM_ERROR(raytrace_compiled);
-
-    ProgramDesc material_eval_desc;
-    material_eval_desc.set_path("shaders/MaterialEvaluation.slang");
-    material_eval_desc.shaderType = nvrhi::ShaderType::AllRayTracing;
-    material_eval_desc.nvapi_support = true;
-    auto material_eval_compiled = resource_allocator.create(material_eval_desc);
-    MARK_DESTROY_NVRHI_RESOURCE(material_eval_compiled);
-    CHECK_PROGRAM_ERROR(material_eval_compiled);
-
-    RaytracingContext::ProgramVarHandle material_eval_vars =
-        std::make_shared<ProgramVars>(
-            resource_allocator, material_eval_compiled);
 
     auto m_CommandList = resource_allocator.create(CommandListDesc{});
     MARK_DESTROY_NVRHI_RESOURCE(m_CommandList);
@@ -207,16 +197,17 @@ NODE_EXECUTION_FUNCTION(path_tracing)
         "ShadowMiss", 1);  // Shadow ray miss shader at index 1
 
     // Register shared material evaluation callables at fixed indices
+    // Pass nullptr for local root signature since these callables use global resources
     context.announce_callable(
         "eval_standard_surface",
         0,
-        material_eval_vars);  // shader_type_id = 0
+        nullptr);  // shader_type_id = 0
     context.announce_callable(
-        "eval_preview_surface", 1, material_eval_vars);  // shader_type_id = 1
+        "eval_preview_surface", 1, nullptr);  // shader_type_id = 1
 
     // Register per-material data fetch callables starting from index 2
     for (auto& callable : callable_shaders) {
-        context.announce_callable(callable.second, 2 + callable.first);
+        context.announce_callable(callable.second, 2 + callable.first, nullptr);
     }
 
     context.finish_announcing_shader_names();

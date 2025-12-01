@@ -1,5 +1,4 @@
 #pragma once
-import Scene.BindlessMaterial;
 import Scene.VertexInfo;
 import utils.Math.ShadingFrame;
 import Utils.Math.MathHelpers;

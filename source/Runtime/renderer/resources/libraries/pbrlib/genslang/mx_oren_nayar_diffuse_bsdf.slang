@@ -1,6 +1,5 @@
 import pbrlib.genslang.lib.mx_closure_type;
 import pbrlib.genslang.lib.mx_microfacet_diffuse;
-import pbrlib.genslang.lib.mx_environment_prefilter;
 
 void mx_oren_nayar_diffuse_bsdf(
     ClosureData closureData,
@@ -34,14 +33,5 @@ void mx_oren_nayar_diffuse_bsdf(
                 : mx_oren_nayar_diffuse(NdotV, NdotL, LdotV, roughness) * color;
         bsdf.response =
             diffuse * closureData.occlusion * weight * NdotL * M_PI_INV;
-    }
-    else if (closureData.closureType == CLOSURE_TYPE_INDIRECT) {
-        float3 diffuse =
-            energy_compensation
-                ? mx_oren_nayar_compensated_diffuse_dir_albedo(
-                      NdotV, roughness, color)
-                : mx_oren_nayar_diffuse_dir_albedo(NdotV, roughness) * color;
-        float3 Li = mx_environment_irradiance(N);
-        bsdf.response = Li * diffuse * weight;
     }
 }

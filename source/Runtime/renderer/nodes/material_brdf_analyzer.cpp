@@ -169,7 +169,7 @@ NODE_EXECUTION_FUNCTION(material_brdf_analyzer)
         eval_vars["samplers"][i] = sampler;
     }
 
-    // Bind MaterialX environment samplers (from mx_environment_prefilter.slang)
+    // Bind MaterialX environment samplers (from .slang)
     eval_vars["u_envRadiance_sampler"] = sampler;
     eval_vars["u_envIrradiance_sampler"] = sampler;
 

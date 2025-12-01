@@ -1,7 +1,6 @@
 #pragma once
 
 import Scene.VertexInfo;
-import Scene.BindlessMaterial;
 import Scene.MaterialParams;
 import Scene.StandardSurface;
 import Scene.UsdPreviewSurface;
@@ -11,6 +10,21 @@ import Utils.Math.MathHelpers;
 
 // Import callable data definition
 import callable_data;
+
+// Declare MaterialParams struct locally to avoid importing MaterialParamsBuffer
+// which would create a local root signature binding conflict
+#ifdef HOST_CODE
+#include "utils/Math/PackedFormats.h"
+using uint = uint32_t;
+#endif
+
+struct MaterialParams {
+    uint data[72];
+};
+
+// Access materialParamsBuffer from global root signature
+// This is bound in the main shader, not in the callable's local root signature
+RWStructuredBuffer<MaterialParams> materialParamsBuffer;
 
 // Fallback evaluation for unsupported materials
 [shader("callable")]
@@ -43,9 +57,6 @@ void eval_standard_surface(inout EvalCallableData data)
     // Copy data from buffer (assuming MaterialParams can be reinterpreted)
     // In practice, you might need proper unpacking
     params = reinterpret<StandardSurfaceMaterialParams>(params_blob);
-
-    data.throughput = params.base_color;  // Temporary assignment
-    return;
 
     VertexData vd;
     vd.normalWorld = data.vertexInfo.normalW;

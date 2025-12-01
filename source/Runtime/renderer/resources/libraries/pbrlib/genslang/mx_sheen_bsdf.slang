@@ -1,6 +1,5 @@
 import stdlib.genslang.mx_bsdf;
 import pbrlib.genslang.lib.mx_closure_type;
-import pbrlib.genslang.lib.mx_environment_prefilter;
 import pbrlib.genslang.lib.mx_microfacet_sheen;
 
 void mx_sheen_bsdf_reflection(
@@ -36,28 +35,6 @@ void mx_sheen_bsdf_reflection(
     bsdf.response = fr * NdotL * occlusion * weight;
 }
 
-void mx_sheen_bsdf_indirect(
-    float3 V,
-    float weight,
-    float3 color,
-    float roughness,
-    float3 N,
-    inout BSDF bsdf)
-{
-    if (weight < M_FLOAT_EPS) {
-        return;
-    }
-
-    N = mx_forward_facing_normal(N, V);
-
-    float NdotV = clamp(dot(N, V), M_FLOAT_EPS, 1.0);
-
-    float dirAlbedo = mx_imageworks_sheen_dir_albedo(NdotV, roughness);
-    bsdf.throughput = float3(1.0 - dirAlbedo * weight);
-
-    float3 Li = mx_environment_irradiance(N);
-    bsdf.response = Li * color * dirAlbedo * weight;
-}
 
 void mx_sheen_bsdf(ClosureData closureData, float weight, float3 color, float roughness, float3 N, int mode, inout BSDF bsdf)
 {
@@ -70,9 +47,5 @@ void mx_sheen_bsdf(ClosureData closureData, float weight, float3 color, float ro
     {
         mx_sheen_bsdf_reflection(closureData.L, closureData.V, closureData.P, closureData.occlusion,
                                weight, color, roughness, N, bsdf);
-    }
-    else if (closureData.closureType == CLOSURE_TYPE_INDIRECT)
-    {
-        mx_sheen_bsdf_indirect(closureData.V, weight, color, roughness, N, bsdf);
     }
 }
