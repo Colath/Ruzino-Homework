@@ -441,6 +441,17 @@ void ClosestHit(
     }
 
     payload.throughput *= evalData.throughput / pdf;
+    // Russian Roulette path termination after depth 3
+    if (payload.depth >= 3) {
+        float rrProbability = min(0.95, max(payload.throughput.x, max(payload.throughput.y, payload.throughput.z)));
+        if (random_float(evalData.seed) > rrProbability) {
+            payload.terminated = true;
+            payload.seed = evalData.seed;
+            return;
+        }
+        // Boost throughput to maintain unbiased result
+        payload.throughput /= rrProbability;
+    }
 
     payload.hitPosition = vertex.posW;
     payload.depth++;
@@ -710,7 +721,7 @@ void eval_standard_surface(inout EvalCallableData data)
         data.seed,
         data.pdf);
 
-    // Evaluate BSDF again with sampled direction to get throughput
+    // Evaluate BSDF with sampled direction to get throughput (only once)
     surfaceshader weight_result = surfaceshader(float3(0.0), float3(0.0));
     NG_standard_surface_surfaceshader_100(
         vd,

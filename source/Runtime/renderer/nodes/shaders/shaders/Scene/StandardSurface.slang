@@ -93,6 +93,24 @@ void NG_standard_surface_surfaceshader_100(
     float3 tangent,
     out surfaceshader out1)
 {
+    // Fast path: Check if all parameters are effectively zero (simple diffuse
+    // case)
+    const float epsilon = 1e-5;
+    bool is_simple_diffuse = (metalness < epsilon) && (specular < epsilon) &&
+                             (transmission < epsilon) &&
+                             (subsurface < epsilon) && (sheen < epsilon) &&
+                             (coat < epsilon);
+
+    if (is_simple_diffuse && base > epsilon) {
+        // Simple Lambertian diffuse only
+        float3 N = normalize(vd.normalWorld);
+        float NdotL = max(0.0, dot(N, L));
+        float3 diffuse = base_color * base * NdotL / 3.14159265359;
+
+        out1 = surfaceshader(diffuse, float3(1.0 - NdotL));
+        return;
+    }
+
     if (transmission > 0.0)
         if (eta_flipped > 0.0)
             specular_IOR = 1.0 / specular_IOR;
@@ -221,47 +239,56 @@ void NG_standard_surface_surfaceshader_100(
         {
             ClosureData closureData =
                 ClosureData(CLOSURE_TYPE_REFLECTION, L, V, N, P, occlusion);
+
+            // Skip coat layer if weight is negligible
             BSDF coat_bsdf_out = BSDF(float3(0.0), float3(1.0), 0.0, 0.0);
-            mx_dielectric_bsdf(
-                closureData,
-                coat,
-                float3(1.000000, 1.000000, 1.000000),
-                coat_IOR,
-                coat_roughness_vector_out,
-                0.000000,
-                1.500000,
-                coat_normal,
-                coat_tangent_out,
-                0,
-                0,
-                coat_bsdf_out);
+            if (coat > 1e-5) {
+                mx_dielectric_bsdf(
+                    closureData,
+                    coat,
+                    float3(1.000000, 1.000000, 1.000000),
+                    coat_IOR,
+                    coat_roughness_vector_out,
+                    0.000000,
+                    1.500000,
+                    coat_normal,
+                    coat_tangent_out,
+                    0,
+                    0,
+                    coat_bsdf_out);
+            }
+
             BSDF metal_bsdf_out = BSDF(float3(0.0), float3(1.0), 0.0, 0.0);
-            mx_conductor_bsdf(
-                closureData,
-                1.000000,
-                artistic_ior_ior,
-                artistic_ior_extinction,
-                main_roughness_out,
-                thin_film_thickness,
-                thin_film_IOR,
-                normal,
-                main_tangent_out,
-                0,
-                metal_bsdf_out);
+            if (metalness > 1e-5) {
+                mx_conductor_bsdf(
+                    closureData,
+                    1.000000,
+                    artistic_ior_ior,
+                    artistic_ior_extinction,
+                    main_roughness_out,
+                    thin_film_thickness,
+                    thin_film_IOR,
+                    normal,
+                    main_tangent_out,
+                    0,
+                    metal_bsdf_out);
+            }
             BSDF specular_bsdf_out = BSDF(float3(0.0), float3(1.0), 0.0, 0.0);
-            mx_dielectric_bsdf(
-                closureData,
-                specular,
-                specular_color,
-                specular_IOR,
-                main_roughness_out,
-                thin_film_thickness,
-                thin_film_IOR,
-                normal,
-                main_tangent_out,
-                0,
-                0,
-                specular_bsdf_out);
+            if (specular > 1e-5 && metalness < 0.99999) {
+                mx_dielectric_bsdf(
+                    closureData,
+                    specular,
+                    specular_color,
+                    specular_IOR,
+                    main_roughness_out,
+                    thin_film_thickness,
+                    thin_film_IOR,
+                    normal,
+                    main_tangent_out,
+                    0,
+                    0,
+                    specular_bsdf_out);
+            }
             BSDF transmission_bsdf_out =
                 BSDF(float3(0.0), float3(1.0), 0.0, 0.0);
             mx_dielectric_bsdf(
@@ -373,50 +400,57 @@ void NG_standard_surface_surfaceshader_100(
         }
 
         // Calculate the BSDF transmission for viewing direction
-        {
+        // Skip transmission calculation if transmission weight is negligible
+        if (transmission > 1e-5) {
             ClosureData closureData =
                 ClosureData(CLOSURE_TYPE_TRANSMISSION, L, V, N, P, occlusion);
             BSDF coat_bsdf_out = BSDF(float3(0.0), float3(1.0), 0.0, 0.0);
-            mx_dielectric_bsdf(
-                closureData,
-                coat,
-                float3(1.000000, 1.000000, 1.000000),
-                coat_IOR,
-                coat_roughness_vector_out,
-                0.000000,
-                1.500000,
-                coat_normal,
-                coat_tangent_out,
-                0,
-                0,
-                coat_bsdf_out);
+            if (coat > 1e-5) {
+                mx_dielectric_bsdf(
+                    closureData,
+                    coat,
+                    float3(1.000000, 1.000000, 1.000000),
+                    coat_IOR,
+                    coat_roughness_vector_out,
+                    0.000000,
+                    1.500000,
+                    coat_normal,
+                    coat_tangent_out,
+                    0,
+                    0,
+                    coat_bsdf_out);
+            }
             BSDF metal_bsdf_out = BSDF(float3(0.0), float3(1.0), 0.0, 0.0);
-            mx_conductor_bsdf(
-                closureData,
-                1.000000,
-                artistic_ior_ior,
-                artistic_ior_extinction,
-                main_roughness_out,
-                thin_film_thickness,
-                thin_film_IOR,
-                normal,
-                main_tangent_out,
-                0,
-                metal_bsdf_out);
+            if (metalness > 1e-5) {
+                mx_conductor_bsdf(
+                    closureData,
+                    1.000000,
+                    artistic_ior_ior,
+                    artistic_ior_extinction,
+                    main_roughness_out,
+                    thin_film_thickness,
+                    thin_film_IOR,
+                    normal,
+                    main_tangent_out,
+                    0,
+                    metal_bsdf_out);
+            }
             BSDF specular_bsdf_out = BSDF(float3(0.0), float3(1.0), 0.0, 0.0);
-            mx_dielectric_bsdf(
-                closureData,
-                specular,
-                specular_color,
-                specular_IOR,
-                main_roughness_out,
-                thin_film_thickness,
-                thin_film_IOR,
-                normal,
-                main_tangent_out,
-                0,
-                0,
-                specular_bsdf_out);
+            if (specular > 1e-5 && metalness < 0.99999) {
+                mx_dielectric_bsdf(
+                    closureData,
+                    specular,
+                    specular_color,
+                    specular_IOR,
+                    main_roughness_out,
+                    thin_film_thickness,
+                    thin_film_IOR,
+                    normal,
+                    main_tangent_out,
+                    0,
+                    0,
+                    specular_bsdf_out);
+            }
             BSDF transmission_bsdf_out =
                 BSDF(float3(0.0), float3(1.0), 0.0, 0.0);
             mx_dielectric_bsdf(
@@ -523,7 +557,7 @@ void NG_standard_surface_surfaceshader_100(
                 thin_film_layer_attenuated_out,
                 coat_layer_out);
             shader_constructor_out.color += coat_layer_out.response;
-        }
+        }  // End transmission calculation
 
         // Compute and apply surface opacity
         {
