@@ -78,71 +78,48 @@ void Hd_USTC_CG_Renderer::Render(HdRenderThread* renderThread)
             RenderGlobalPayload::SceneDirtyBits::DirtyMaterials);
         global_payload.clear_dirty(
             RenderGlobalPayload::SceneDirtyBits::DirtyGeometry);
-        global_payload.clear_dirty(
-            RenderGlobalPayload::SceneDirtyBits::DirtyTLAS);
-        global_payload.clear_dirty(
-            RenderGlobalPayload::SceneDirtyBits::DirtyTransforms);
+
         global_payload.clear_dirty(
             RenderGlobalPayload::SceneDirtyBits::DirtyLights);
-        global_payload.clear_dirty(
-            RenderGlobalPayload::SceneDirtyBits::DirtyCamera);
 
         global_payload.InstanceCollection =
             render_param->InstanceCollection.get();
 
-        // Track material shader compilation and changes
-        bool materials_changed = false;
-        static std::unordered_map<pxr::SdfPath, uint32_t, pxr::TfHash>
-            material_generations;
-
+        // Ensure all materials have their shaders compiled
         {
             std::vector<std::future<void>> futures;
-            std::mutex change_mutex;
 
             for (auto& material : *render_param->material_map) {
                 if (!material.second) {
                     continue;
                 }
 
-                // Record generation before compilation
-                uint32_t old_gen = material_generations[material.first];
                 auto material_path = material.first;
 
                 futures.push_back(
-                    std::async(
-                        std::launch::async, [&, material_path, old_gen]() {
-                            auto mat =
-                                (*render_param->material_map)[material_path];
-                            if (!mat)
-                                return;
+                    std::async(std::launch::async, [&, material_path]() {
+                        auto mat = (*render_param->material_map)[material_path];
+                        if (!mat)
+                            return;
 
-                            mat->ensure_shader_ready(
-                                global_payload.shader_factory);
-
-                            // Check if shader generation changed
-                            uint32_t new_gen = mat->get_shader_generation();
-                            if (old_gen != new_gen) {
-                                std::lock_guard<std::mutex> lock(change_mutex);
-                                material_generations[material_path] = new_gen;
-                                materials_changed = true;
-                            }
-                        }));
+                        mat->ensure_shader_ready(global_payload.shader_factory);
+                    }));
             }
 
             // Wait for all shader compilations to complete
             for (auto& future : futures) {
                 future.wait();
             }
-
-            if (materials_changed) {
-                global_payload.InstanceCollection->mark_materials_dirty();
-            }
         }
 
-        // Mark dirty flags based on changes
-        if (materials_changed) {
+        // Check for material changes
+        static uint32_t last_material_version = 0;
+        uint32_t current_material_version =
+            global_payload.InstanceCollection->get_material_version();
+        if (last_material_version != current_material_version) {
             global_payload.mark_dirty(
                 RenderGlobalPayload::SceneDirtyBits::DirtyMaterials);
+            last_material_version = current_material_version;
         }
 
         // Check for geometry/buffer changes
@@ -156,8 +133,6 @@ void Hd_USTC_CG_Renderer::Render(HdRenderThread* renderThread)
         }
 
         if (global_payload.InstanceCollection->get_require_rebuild_tlas()) {
-            global_payload.mark_dirty(
-                RenderGlobalPayload::SceneDirtyBits::DirtyTLAS);
             global_payload.mark_dirty(
                 RenderGlobalPayload::SceneDirtyBits::DirtyGeometry);
         }

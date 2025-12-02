@@ -86,6 +86,16 @@ NODE_EXECUTION_FUNCTION(path_tracing)
 
     bool program_changed = !storage.raytracing_program || materials_dirty;
 
+    if (storage.raytracing_program &&
+        !storage.raytracing_program->get_error_string().empty())
+        program_changed = true;
+
+#ifdef _DEBUG
+    if (storage.raytracing_program)
+        program_changed |=
+            storage.raytracing_program->get_desc().shader_updated();
+#endif
+
     // Geometry changes require pipeline rebuild due to potential buffer layout
     // changes
     if (geometry_dirty) {

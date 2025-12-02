@@ -96,6 +96,8 @@ struct RHI_API ProgramDesc {
     nvrhi::ShaderType shaderType;
     bool nvapi_support = false;
 
+    bool shader_updated();
+
    private:
     void update_last_write_time(const std::string& path);
     std::vector<ShaderMacro> macros;

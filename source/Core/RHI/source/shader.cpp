@@ -73,6 +73,22 @@ ProgramDesc& ProgramDesc::set_entry_name(const std::string& entry_name)
 }
 namespace fs = std::filesystem;
 
+bool ProgramDesc::shader_updated()
+{
+    auto full_path =
+        std::filesystem::path(ShaderFactory::shader_search_path) / path;
+    if (fs::exists(full_path)) {
+        auto possibly_newer_lastWriteTime = fs::last_write_time(full_path);
+        if (possibly_newer_lastWriteTime.time_since_epoch().count() >
+            lastWriteTime) {
+            return true;
+        }
+        return false;
+    }
+    else {
+        return false;
+    }
+}
 void ProgramDesc::update_last_write_time(const std::string& path)
 {
     auto full_path =
@@ -320,7 +336,8 @@ ShaderReflectionInfo ShaderFactory::shader_reflect(
 
     for (int pp = 0; pp < parameterCount; ++pp) {
         slang::VariableLayoutReflection* parameter =
-            programReflection->getParameterByIndex(pp);        slang::TypeLayoutReflection* typeLayout = parameter->getTypeLayout();
+            programReflection->getParameterByIndex(pp);
+        slang::TypeLayoutReflection* typeLayout = parameter->getTypeLayout();
         slang::TypeReflection* type_reflection = parameter->getType();
         SlangResourceShape resource_shape = type_reflection->getResourceShape();
         auto d_set_count = typeLayout->getDescriptorSetCount();
@@ -351,18 +368,20 @@ ShaderReflectionInfo ShaderFactory::shader_reflect(
         nvrhi::BindingLayoutItem item;
         item.type = convertBindingTypeToResourceType(type, resource_shape);
         item.slot = index;
-        
-        // Set the size field: for arrays use element_count, for single elements use 1
+
+        // Set the size field: for arrays use element_count, for single elements
+        // use 1
         if (is_array && element_count > 0) {
             item.size = static_cast<uint16_t>(element_count);
-        } else {
+        }
+        else {
             item.size = 1;
         }
 
         if (RHI::get_backend() == nvrhi::GraphicsAPI::VULKAN) {
             modify_vulkan_binding_shift(item);
         }
-        
+
         if (layout_vector.size() < space + 1) {
             layout_vector.resize(space + 1);
             indices.resize(space + 1, 0);
@@ -371,7 +390,7 @@ ShaderReflectionInfo ShaderFactory::shader_reflect(
         // Store the binding location with the base name
         binding_locations[name] = std::make_tuple(space, indices[space]++);
         layout_vector[space].addItem(item);
-        
+
         layout_vector[space].visibility = shader_type;
         layout_vector[space].registerSpaceIsDescriptorSet = true;
         layout_vector[space].registerSpace = space;
@@ -663,7 +682,8 @@ void ShaderFactory::SlangCompile(
             static_cast<SlangInt>(vk_compiler_options.size());
     }
     else if (target == SLANG_DXIL) {
-        compile_session_desc.compilerOptionEntries = dxc_compiler_options.data();
+        compile_session_desc.compilerOptionEntries =
+            dxc_compiler_options.data();
         compile_session_desc.compilerOptionEntryCount =
             static_cast<SlangInt>(dxc_compiler_options.size());
     }

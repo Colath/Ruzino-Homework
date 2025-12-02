@@ -77,10 +77,7 @@ struct RenderGlobalPayload {
         Clean = 0,
         DirtyMaterials = 1 << 0,      // Material shaders changed
         DirtyGeometry = 1 << 1,        // Mesh topology/vertices changed
-        DirtyTransforms = 1 << 2,      // Instance transforms changed
-        DirtyLights = 1 << 3,          // Light count or properties changed
-        DirtyCamera = 1 << 4,          // Camera changed
-        DirtyTLAS = 1 << 5,            // TLAS needs rebuild
+        DirtyLights = 1 << 2,          // Light count or properties changed
         DirtyAll = 0xFFFFFFFF
     };
     
