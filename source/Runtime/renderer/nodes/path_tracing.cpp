@@ -39,11 +39,10 @@ struct PathTracingStorage {
     ResourceAllocator* rc;
 
     nvrhi::TextureHandle output;
-    
-    nvrhi::BufferHandle rays;
+
     nvrhi::BufferHandle material_params_buffer;
     nvrhi::BufferHandle lightCountBuffer;
-    
+
     nvrhi::SamplerHandle sampler;
 
     std::unique_ptr<ProgramVars> cached_program_vars;
@@ -138,13 +137,7 @@ NODE_EXECUTION_FUNCTION(path_tracing)
         storage.output =
             create_default_render_target(params, nvrhi::Format::RGBA32_FLOAT);
 
-    auto upstream_rays = params.get_input<nvrhi::BufferHandle>("Rays");
-    bool upstream_rays_changed = (upstream_rays != storage.rays);
-    if (upstream_rays_changed) {
-        storage.rays = upstream_rays;
-    }
-    bool is_any_dirty = geom_dirty || mat_dirty || light_dirty ||
-                        size_changed || upstream_rays_changed;
+    bool is_any_dirty = geom_dirty || mat_dirty || light_dirty || size_changed;
 
     if (is_any_dirty || !storage.cached_program_vars ||
         !storage.cached_rt_context) {
@@ -174,14 +167,14 @@ NODE_EXECUTION_FUNCTION(path_tracing)
             program_vars["samplers"][i] = storage.sampler;
         }
 
-        program_vars["rays"] = storage.rays;
+        auto rays = params.get_input<nvrhi::BufferHandle>("Rays");
+        program_vars["rays"] = rays;
 
         nvrhi::BufferDesc material_params_desc;
         // Each pixel should be able to store 288 bytes
 
-        material_params_desc.byteSize = storage.rays->getDesc().byteSize /
-                                        sizeof(RayInfo) *
-                                        sizeof(MaterialParams);
+        material_params_desc.byteSize =
+            rays->getDesc().byteSize / sizeof(RayInfo) * sizeof(MaterialParams);
         material_params_desc.structStride = sizeof(MaterialParams);
         material_params_desc.canHaveUAVs = true;
         material_params_desc.initialState =
@@ -274,8 +267,8 @@ NODE_EXECUTION_FUNCTION(path_tracing)
 
         context.finish_announcing_shader_names();
     }
-
-    auto buffer_size = storage.rays->getDesc().byteSize / sizeof(RayInfo);
+    auto rays = params.get_input<nvrhi::BufferHandle>("Rays");
+    auto buffer_size = rays->getDesc().byteSize / sizeof(RayInfo);
 
     if (buffer_size > 0) {
         storage.cached_rt_context->begin();
