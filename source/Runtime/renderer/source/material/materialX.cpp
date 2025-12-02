@@ -32,10 +32,11 @@ Hd_USTC_CG_MaterialX::Hd_USTC_CG_MaterialX(SdfPath const& id)
 {
     std::call_once(shader_gen_initialized_, []() {
         mx::FileSearchPath searchPath = mx::getDefaultDataSearchPath();
-        
+
         // Add current working directory to search path for libraries
-        searchPath.append(mx::FilePath(std::filesystem::current_path().string()));
-        
+        searchPath.append(
+            mx::FilePath(std::filesystem::current_path().string()));
+
         searchPath.append(mx::FileSearchPath("usd/hd_USTC_CG/resources"));
 
         loadLibraries({ "libraries" }, searchPath, libraries);
@@ -53,6 +54,7 @@ void Hd_USTC_CG_MaterialX::Sync(
     HdRenderParam* renderParam,
     HdDirtyBits* dirtyBits)
 {
+    Hd_USTC_CG_Material::Sync(sceneDelegate, renderParam, dirtyBits);
     spdlog::info("MaterialX::Sync called for material '{}'", GetId().GetText());
 
     auto param = static_cast<Hd_USTC_CG_RenderParam*>(renderParam);
@@ -201,7 +203,7 @@ void Hd_USTC_CG_MaterialX::BuildGPUTextures(
                 desc.width = image->GetWidth();
                 desc.height = image->GetHeight();
                 desc.format = RHI::ConvertFromHioFormat(image->GetFormat());
-                
+
                 // Force linear format for non-sRGB textures (like normal maps)
                 if (!texture_resource.second.isSRGB) {
                     if (desc.format == nvrhi::Format::SRGBA8_UNORM) {
@@ -382,7 +384,7 @@ void Hd_USTC_CG_MaterialX::MtlxGenerateShader(
     auto element = renderable[0];
 
     std::string elementName(element->getNamePath());
-    
+
     // Use material ID path to create unique names to avoid conflicts
     // when multiple instances use the same MaterialX but different paths
     std::string materialIdStr = GetId().GetString();
@@ -395,8 +397,9 @@ void Hd_USTC_CG_MaterialX::MtlxGenerateShader(
     material_name = mx::createValidName(materialIdStr);
 
     spdlog::info(
-        "MaterialX: Generating shader for material '{}' from element '{}'", 
-        material_name, elementName);
+        "MaterialX: Generating shader for material '{}' from element '{}'",
+        material_name,
+        elementName);
 
     ShaderGenerator& shader_generator_ =
         shader_gen_context_->getShaderGenerator();

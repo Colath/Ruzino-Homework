@@ -49,6 +49,15 @@ void Hd_USTC_CG_Material::Finalize(HdRenderParam* renderParam)
     material_header_handle = nullptr;
     HdMaterial::Finalize(renderParam);
 }
+void Hd_USTC_CG_Material::Sync(
+    HdSceneDelegate* sceneDelegate,
+    HdRenderParam* renderParam,
+    HdDirtyBits* dirtyBits)
+{
+    // Ensure material data handle is allocated
+    auto render_param = static_cast<Hd_USTC_CG_RenderParam*>(renderParam);
+    render_param->InstanceCollection->mark_materials_dirty();
+}
 
 void Hd_USTC_CG_Material::ensure_material_data_handle(
     Hd_USTC_CG_RenderParam* render_param)

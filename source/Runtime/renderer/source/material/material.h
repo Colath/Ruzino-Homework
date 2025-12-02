@@ -25,7 +25,10 @@ class HD_USTC_CG_API Hd_USTC_CG_Material : public HdMaterial {
     HdDirtyBits GetInitialDirtyBitsMask() const override;
 
     void Finalize(HdRenderParam* renderParam) override;
-
+    void Sync(
+        HdSceneDelegate* sceneDelegate,
+        HdRenderParam* renderParam,
+        HdDirtyBits* dirtyBits) override;
     void ensure_material_data_handle(Hd_USTC_CG_RenderParam* render_param);
 
     virtual void ensure_shader_ready(const ShaderFactory& factory);

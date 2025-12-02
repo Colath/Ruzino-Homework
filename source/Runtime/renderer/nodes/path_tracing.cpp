@@ -1,18 +1,19 @@
 
+#include <pxr/base/gf/vec2i.h>
 #include <spdlog/spdlog.h>
 
 #include <memory>
 
 #include "../source/renderTLAS.h"
 #include "GPUContext/raytracing_context.hpp"
+#include "RHI/internal/resources.hpp"
+#include "Scene/MaterialParamsBuffer.slang"
 #include "nodes/core/def/node_def.hpp"
 #include "nvrhi/nvrhi.h"
 #include "nvrhi/utils.h"
 #include "render_node_base.h"
 #include "shaders/shaders/utils/HitObject.h"
 #include "utils/math.h"
-
-#include "Scene/MaterialParamsBuffer.slang"
 
 // A traditional path tracing node
 
@@ -28,50 +29,86 @@ NODE_DECLARATION_FUNCTION(path_tracing)
     // Function content omitted
 }
 
-struct EnvironmentPrefilterData {
-    float4x4 u_envMatrix;
-    float3 u_envLightIntensity;
-    int u_envRadianceMips;
-    int u_envIrradianceMips;
+struct PathTracingStorage {
+    constexpr static bool has_storage = false;
+    GfVec2i old_size = GfVec2i(-1, -1);
+
+    ProgramHandle path_tracing_program;
+    std::unordered_map<unsigned, std::string> callable_shaders;
+    ResourceAllocator* rc;
+
+    ~PathTracingStorage()
+    {
+        if (path_tracing_program && rc) {
+            rc->destroy(path_tracing_program);
+            path_tracing_program = nullptr;
+        }
+    }
 };
 
 NODE_EXECUTION_FUNCTION(path_tracing)
 {
     using namespace nvrhi;
 
-    ProgramDesc program_desc;
-    program_desc.set_path("shaders/path_tracing.slang");
-    program_desc.shaderType = nvrhi::ShaderType::AllRayTracing;
-    program_desc.nvapi_support = true;
+    auto& g = global_payload;
+    auto geom_dirty =
+        g.is_dirty(RenderGlobalPayload::SceneDirtyBits::DirtyGeometry);
+    auto mat_dirty =
+        g.is_dirty(RenderGlobalPayload::SceneDirtyBits::DirtyMaterials);
+    auto light_dirty =
+        g.is_dirty(RenderGlobalPayload::SceneDirtyBits::DirtyLights);
 
-    auto& materials = global_payload.get_materials();
+    auto size = get_free_camera(params)->dataWindow.GetSize();
+    auto& storage = params.get_storage<PathTracingStorage&>();
+    bool size_changed = (storage.old_size != size);
+    storage.old_size = size;
+    if (geom_dirty || mat_dirty || light_dirty || size_changed)
+        spdlog::info(
+            "Path Tracing Node: geom_dirty={}, mat_dirty={}, light_dirty={}, "
+            "size_changed={}",
+            geom_dirty,
+            mat_dirty,
+            light_dirty,
+            size_changed);
 
-    std::unordered_map<unsigned, std::string> callable_shaders;
+    storage.rc = &(resource_allocator);
 
-    for (auto material : materials) {
-        if (material.second == nullptr) {
-            spdlog::warn(
-                "Null material found in path tracing node, {}",
-                material.first.GetText());
-            continue;
+    if (mat_dirty || !storage.path_tracing_program) {
+        ProgramDesc program_desc;
+        program_desc.set_path("shaders/path_tracing.slang");
+        program_desc.shaderType = nvrhi::ShaderType::AllRayTracing;
+        program_desc.nvapi_support = true;
+
+        auto& materials = global_payload.get_materials();
+
+        storage.callable_shaders.clear();
+
+        for (auto material : materials) {
+            if (material.second == nullptr) {
+                spdlog::warn(
+                    "Null material found in path tracing node, {}",
+                    material.first.GetText());
+                continue;
+            }
+            auto location = material.second->GetMaterialLocation();
+            if (location == -1) {
+                continue;
+            }
+
+            program_desc.add_source_code(
+                material.second->GetShader(shader_factory));
+
+            auto callable = material.second->GetShader(shader_factory);
+            storage.callable_shaders[location] =
+                material.second->GetMaterialName();
         }
-        auto location = material.second->GetMaterialLocation();
-        if (location == -1) {
-            continue;
+
+        if (storage.path_tracing_program) {
+            resource_allocator.destroy(storage.path_tracing_program);
         }
-
-        program_desc.add_source_code(
-            material.second->GetShader(shader_factory));
-
-        auto callable = material.second->GetShader(shader_factory);
-        callable_shaders[location] = material.second->GetMaterialName();
-
-        // combined_desc.add_component(callable->get_linked_program());
+        storage.path_tracing_program = resource_allocator.create(program_desc);
+        CHECK_PROGRAM_ERROR(storage.path_tracing_program);
     }
-
-    auto raytrace_compiled = resource_allocator.create(program_desc);
-    MARK_DESTROY_NVRHI_RESOURCE(raytrace_compiled);
-    CHECK_PROGRAM_ERROR(raytrace_compiled);
 
     auto m_CommandList = resource_allocator.create(CommandListDesc{});
     MARK_DESTROY_NVRHI_RESOURCE(m_CommandList);
@@ -79,7 +116,7 @@ NODE_EXECUTION_FUNCTION(path_tracing)
     auto output =
         create_default_render_target(params, nvrhi::Format::RGBA32_FLOAT);
 
-    ProgramVars program_vars(resource_allocator, raytrace_compiled);
+    ProgramVars program_vars(resource_allocator, storage.path_tracing_program);
 
     SamplerDesc sampler_desc;
     sampler_desc.addressU = nvrhi::SamplerAddressMode::Wrap;
@@ -102,11 +139,6 @@ NODE_EXECUTION_FUNCTION(path_tracing)
 
     auto rays = params.get_input<nvrhi::BufferHandle>("Rays");
     program_vars["rays"] = rays;
-
-    auto env_prefilter_data = EnvironmentPrefilterData{};
-    auto env_prefilter_cb = create_constant_buffer(params, env_prefilter_data);
-    MARK_DESTROY_NVRHI_RESOURCE(env_prefilter_cb);
-    program_vars["u_envPrefilterData"] = env_prefilter_cb;
 
     nvrhi::BufferDesc material_params_desc;
     // Each pixel should be able to store 288 bytes
@@ -197,7 +229,8 @@ NODE_EXECUTION_FUNCTION(path_tracing)
         "ShadowMiss", 1);  // Shadow ray miss shader at index 1
 
     // Register shared material evaluation callables at fixed indices
-    // Pass nullptr for local root signature since these callables use global resources
+    // Pass nullptr for local root signature since these callables use global
+    // resources
     context.announce_callable(
         "eval_standard_surface",
         0,
@@ -206,7 +239,7 @@ NODE_EXECUTION_FUNCTION(path_tracing)
         "eval_preview_surface", 1, nullptr);  // shader_type_id = 1
     context.announce_callable("eval_fallback", 2, nullptr);
     // Register per-material data fetch callables starting from index 2
-    for (auto& callable : callable_shaders) {
+    for (auto& callable : storage.callable_shaders) {
         context.announce_callable(callable.second, 3 + callable.first, nullptr);
     }
 
