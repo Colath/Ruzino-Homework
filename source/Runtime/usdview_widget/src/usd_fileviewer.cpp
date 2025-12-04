@@ -729,6 +729,38 @@ void UsdFileViewer::EditValue()
                         HANDLE_VECD_ATTR(GfVec2d, 2)
                         HANDLE_VECD_ATTR_COLOR(GfVec3d, 3)
                         HANDLE_VECD_ATTR_COLOR(GfVec4d, 4)
+                        else if (v.IsHolding<std::string>())
+                        {
+                            std::string value = v.Get<std::string>();
+                            char buffer[512];
+                            strncpy_s(buffer, value.c_str(), sizeof(buffer) - 1);
+                            buffer[sizeof(buffer) - 1] = '\0';
+                            if (ImGui::InputText("##value", buffer, sizeof(buffer))) {
+                                attr.Set(std::string(buffer));
+                            }
+                        }
+                        else if (v.IsHolding<SdfAssetPath>())
+                        {
+                            SdfAssetPath assetPath = v.Get<SdfAssetPath>();
+                            std::string pathStr = assetPath.GetAssetPath();
+                            char buffer[512];
+                            strncpy_s(buffer, pathStr.c_str(), sizeof(buffer) - 1);
+                            buffer[sizeof(buffer) - 1] = '\0';
+                            if (ImGui::InputText("##value", buffer, sizeof(buffer))) {
+                                attr.Set(SdfAssetPath(std::string(buffer)));
+                            }
+                        }
+                        else if (v.IsHolding<TfToken>())
+                        {
+                            TfToken token = v.Get<TfToken>();
+                            std::string tokenStr = token.GetString();
+                            char buffer[512];
+                            strncpy_s(buffer, tokenStr.c_str(), sizeof(buffer) - 1);
+                            buffer[sizeof(buffer) - 1] = '\0';
+                            if (ImGui::InputText("##value", buffer, sizeof(buffer))) {
+                                attr.Set(TfToken(std::string(buffer)));
+                            }
+                        }
                         else
                         {
                             // Read-only display for unsupported types

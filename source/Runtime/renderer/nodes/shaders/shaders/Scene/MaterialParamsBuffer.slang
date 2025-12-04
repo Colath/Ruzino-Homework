@@ -4,7 +4,7 @@ using uint = uint32_t;
 #endif
 
 struct MaterialParams {
-    uint data[72];
+    uint data[42];
 };
 
 #ifndef HOST_CODE

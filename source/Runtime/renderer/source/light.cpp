@@ -2,6 +2,8 @@
 
 #include <spdlog/spdlog.h>
 
+#include <filesystem>
+
 #include "../nodes/shaders/shaders/Scene/Lights/LightData.slang"
 #include "RHI/Hgi/format_conversion.hpp"
 #include "pxr/imaging/glf/simpleLight.h"
@@ -13,6 +15,7 @@
 #include "pxr/usd/usd/tokens.h"
 #include "pxr/usdImaging/usdImaging/tokens.h"
 #include "renderParam.h"
+
 
 USTC_CG_NAMESPACE_OPEN_SCOPE
 using namespace pxr;
@@ -726,6 +729,56 @@ void Hd_USTC_CG_Dome_Light::Sync(
 
     if (bits & (DirtyParams | DirtyTransform)) {
         _PrepareDomeLight(id, sceneDelegate);
+
+        // Get shader_path parameter and validate it's a file
+        VtValue shaderPathValue =
+            sceneDelegate->GetLightParamValue(id, TfToken("shader_path"));
+        this->has_valid_shader = false;
+        if (shaderPathValue.IsHolding<std::string>()) {
+            shader_path = shaderPathValue.UncheckedGet<std::string>();
+        }
+        else if (shaderPathValue.IsHolding<SdfAssetPath>()) {
+            shader_path =
+                shaderPathValue.UncheckedGet<SdfAssetPath>().GetAssetPath();
+        }
+        else {
+            shader_path.clear();
+        }
+
+        // Validate shader path points to an actual file (not directory)
+        if (!shader_path.empty()) {
+            std::filesystem::path shader_file_path(shader_path);
+            // If not absolute, prepend RENDERER_SHADER_DIR (same logic as
+            // path_tracing.cpp)
+            if (!shader_file_path.is_absolute()) {
+                shader_file_path =
+                    std::filesystem::path(RENDERER_SHADER_DIR) / shader_path;
+            }
+
+            if (std::filesystem::exists(shader_file_path) &&
+                std::filesystem::is_regular_file(shader_file_path)) {
+                this->has_valid_shader = true;
+                spdlog::info(
+                    "DomeLight {}: Valid shader file '{}' (resolved to '{}')",
+                    id.GetText(),
+                    shader_path,
+                    shader_file_path.string());
+            }
+            else if (std::filesystem::exists(shader_file_path)) {
+                spdlog::warn(
+                    "DomeLight {}: shader_path '{}' exists but is not a file",
+                    id.GetText(),
+                    shader_path);
+            }
+            else {
+                spdlog::warn(
+                    "DomeLight {}: shader_path '{}' does not exist (looked at "
+                    "'{}')",
+                    id.GetText(),
+                    shader_path,
+                    shader_file_path.string());
+            }
+        }
 
         auto* render_param = static_cast<Hd_USTC_CG_RenderParam*>(renderParam);
 

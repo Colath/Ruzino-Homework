@@ -18,7 +18,15 @@ RaytracingAccelerationStructure SceneBVH;
 StructuredBuffer<uint2> inPixelTarget;
 StructuredBuffer<RayInfo> rays;
 StructuredBuffer<LightData> lightBuffer;
-ConstantBuffer<uint> lightCount;
+
+struct PathTracingConstants {
+    uint lightCount;
+    uint domeLightCallableIndex;  // Only valid when USE_DOME_LIGHT_CALLABLE
+    uint materialFetchCallableBaseIndex;
+    uint _padding;  // Align to 16 bytes
+};
+
+ConstantBuffer<PathTracingConstants> ptConstants;
 
 struct RayPayload {
     float3 color;        // Accumulated color
@@ -75,12 +83,12 @@ LightSample sampleLights(float3 hitPos, float3 hitNormal, inout uint seed)
     LightSample sample;
     sample.valid = false;
 
-    if (lightCount == 0)
+    if (ptConstants.lightCount == 0)
         return sample;
 
     // Count non-dome lights (dome lights are handled by miss shader)
     uint sampleableLightCount = 0;
-    for (uint i = 0; i < lightCount; i++) {
+    for (uint i = 0; i < ptConstants.lightCount; i++) {
         if (lightBuffer[i].type != uint(LightType::Dome)) {
             sampleableLightCount++;
         }
@@ -93,7 +101,7 @@ LightSample sampleLights(float3 hitPos, float3 hitNormal, inout uint seed)
     uint targetLight = uint(random_float(seed) * sampleableLightCount);
     uint lightIndex = 0;
     uint nonDomeCount = 0;
-    for (uint i = 0; i < lightCount; i++) {
+    for (uint i = 0; i < ptConstants.lightCount; i++) {
         if (lightBuffer[i].type != uint(LightType::Dome)) {
             if (nonDomeCount == targetLight) {
                 lightIndex = i;
@@ -372,7 +380,7 @@ void ClosestHit(
     fetchData.vertexInfo = vertex;
 
     // Call the per-material data fetch callable to fill parameters
-    CallShader(3 + material_header.material_type_id, fetchData);
+    CallShader(ptConstants.materialFetchCallableBaseIndex + material_header.material_type_id, fetchData);
 
     // Step 2: Call shared evaluation callable based on shader type
     EvalCallableData evalData;
@@ -423,7 +431,7 @@ void ClosestHit(
 
     payload.throughput *= evalData.throughput / pdf;
     // Russian Roulette path termination after depth 3
-    if (payload.depth >= 3) {
+    if (payload.depth >= 5) {
         float rrProbability = min(0.95, max(payload.throughput.x, max(payload.throughput.y, payload.throughput.z)));
         if (random_float(evalData.seed) > rrProbability) {
             payload.terminated = true;
@@ -468,7 +476,7 @@ void Miss(inout RayPayload payload)
     bool hasDomeLight = false;
     LightData domeLight;
 
-    for (uint i = 0; i < lightCount; i++) {
+    for (uint i = 0; i < ptConstants.lightCount; i++) {
         LightData light = lightBuffer[i];
         if (light.type == uint(LightType::Dome)) {
             hasDomeLight = true;
@@ -483,6 +491,23 @@ void Miss(inout RayPayload payload)
         float3 localDir = mul(float4(rayDir, 0.0), domeLight.transMat).xyz;
         localDir = normalize(localDir);
 
+#if USE_DOME_LIGHT_CALLABLE
+        // Use custom dome light callable if available
+        DomeLightCallableData domeData;
+        domeData.rayDirection = rayDir;
+        domeData.localDirection = localDir;
+        domeData.envColor = float3(0, 0, 0);
+        domeData.intensity = domeLight.intensity;
+        domeData.textureIndex = domeLight.textureIndex;
+        domeData.seed = payload.seed;
+        
+        // Call the custom dome light shader at dynamic callable index
+        CallShader(ptConstants.domeLightCallableIndex, domeData);
+        
+        envColor = domeData.envColor;
+        payload.seed = domeData.seed;
+#else
+        // Default dome light behavior
         if (domeLight.textureIndex >= 0) {
             // Sample environment texture using spherical coordinates
             // Convert direction to spherical coordinates (latitude-longitude
@@ -505,6 +530,7 @@ void Miss(inout RayPayload payload)
             // No texture, use solid color intensity
             envColor = domeLight.intensity;
         }
+#endif  // USE_DOME_LIGHT_CALLABLE
     }
     else {
         // Fallback: Enhanced environment lighting with realistic sky model

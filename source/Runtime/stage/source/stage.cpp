@@ -252,6 +252,13 @@ pxr::UsdLuxDomeLight Stage::create_dome_light(const pxr::SdfPath& path) const
     auto light = create_prim<pxr::UsdLuxDomeLight>(path, "dome_light");
     light.GetIntensityAttr().Set(1.0f);
 
+    // Add custom shader_path attribute for dome light callable shader
+    auto shader_path_attr = light.GetPrim().CreateAttribute(
+        pxr::TfToken("shader_path"),
+        pxr::SdfValueTypeNames->String,
+        false);
+    shader_path_attr.Set(std::string(""));  // Empty by default
+
     return light;
 }
 

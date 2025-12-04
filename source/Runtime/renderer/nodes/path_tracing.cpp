@@ -2,6 +2,7 @@
 #include <pxr/base/gf/vec2i.h>
 #include <spdlog/spdlog.h>
 
+#include <filesystem>
 #include <memory>
 
 #include "../source/renderTLAS.h"
@@ -15,6 +16,7 @@
 #include "render_node_base.h"
 #include "shaders/shaders/utils/HitObject.h"
 #include "utils/math.h"
+
 
 // A traditional path tracing node
 
@@ -41,12 +43,16 @@ struct PathTracingStorage {
     nvrhi::TextureHandle output;
 
     nvrhi::BufferHandle material_params_buffer;
-    nvrhi::BufferHandle lightCountBuffer;
+    nvrhi::BufferHandle pathTracingConstantsBuffer;
 
     nvrhi::SamplerHandle sampler;
 
     std::unique_ptr<ProgramVars> cached_program_vars;
     std::unique_ptr<RaytracingContext> cached_rt_context;
+
+    // Dome light custom shader state
+    std::string dome_light_shader_path;
+    bool has_dome_light_shader = false;
 
     ~PathTracingStorage()
     {
@@ -58,9 +64,9 @@ struct PathTracingStorage {
             rc->destroy(material_params_buffer);
             material_params_buffer = nullptr;
         }
-        if (lightCountBuffer && rc) {
-            rc->destroy(lightCountBuffer);
-            lightCountBuffer = nullptr;
+        if (pathTracingConstantsBuffer && rc) {
+            rc->destroy(pathTracingConstantsBuffer);
+            pathTracingConstantsBuffer = nullptr;
         }
         if (sampler && rc) {
             rc->destroy(sampler);
@@ -102,16 +108,82 @@ NODE_EXECUTION_FUNCTION(path_tracing)
 
     storage.rc = &(resource_allocator);
 
-    if (mat_dirty || !storage.path_tracing_program) {
+    // Check for dome light with valid custom shader
+    std::string current_dome_shader_path;
+    bool found_dome_shader = false;
+    int shader_dome_light_count = 0;
+    auto& all_lights = global_payload.get_lights();
+
+    for (auto* light : all_lights) {
+        if (light &&
+            light->GetLightType() == pxr::HdPrimTypeTokens->domeLight) {
+            auto* dome_light = dynamic_cast<Hd_USTC_CG_Dome_Light*>(light);
+            if (dome_light && dome_light->HasValidShader()) {
+                shader_dome_light_count++;
+                if (!found_dome_shader) {
+                    // Use the first valid shader dome light
+                    found_dome_shader = true;
+                    current_dome_shader_path = dome_light->GetShaderPath();
+                    spdlog::info(
+                        "Using dome light with custom shader: {}",
+                        current_dome_shader_path);
+                }
+            }
+        }
+    }
+
+    // Warn if multiple shader dome lights found
+    if (shader_dome_light_count > 1) {
+        spdlog::warn(
+            "Multiple dome lights with custom shaders found ({}), only using "
+            "the first one!",
+            shader_dome_light_count);
+    }
+
+    // Check if dome light shader changed
+    bool dome_shader_changed =
+        (found_dome_shader != storage.has_dome_light_shader) ||
+        (found_dome_shader &&
+         current_dome_shader_path != storage.dome_light_shader_path);
+
+    if (mat_dirty || !storage.path_tracing_program || dome_shader_changed) {
         ProgramDesc program_desc;
         program_desc.set_path("shaders/path_tracing.slang");
         program_desc.shaderType = nvrhi::ShaderType::AllRayTracing;
         program_desc.nvapi_support = true;
 
+        // Define macro for dome light custom shader
+        if (found_dome_shader) {
+            program_desc.define("USE_DOME_LIGHT_CALLABLE", "1");
+            spdlog::info("Enabling dome light callable shader");
+        }
+        else {
+            program_desc.define("USE_DOME_LIGHT_CALLABLE", "0");
+        }
+
         // Add callable shader files
         program_desc.add_path("shaders/callables/eval_fallback.slang");
         program_desc.add_path("shaders/callables/eval_standard_surface.slang");
         program_desc.add_path("shaders/callables/eval_preview_surface.slang");
+
+        // Add dome light custom shader if it exists
+        if (found_dome_shader) {
+            // Path already validated above
+            std::filesystem::path shader_path(current_dome_shader_path);
+            if (!shader_path.is_absolute()) {
+                shader_path = std::filesystem::path(RENDERER_SHADER_DIR) /
+                              current_dome_shader_path;
+            }
+
+            program_desc.add_path(shader_path.string());
+            storage.dome_light_shader_path = current_dome_shader_path;
+            storage.has_dome_light_shader = true;
+            spdlog::info("Added dome light shader: {}", shader_path.string());
+        }
+        else {
+            storage.has_dome_light_shader = false;
+            storage.dome_light_shader_path.clear();
+        }
 
         auto& materials = global_payload.get_materials();
 
@@ -228,11 +300,27 @@ NODE_EXECUTION_FUNCTION(path_tracing)
         program_vars["lightBuffer"] =
             instance_collection->light_pool.get_device_buffer();
 
-        // Pass light count
-        if (storage.lightCountBuffer)
-            resource_allocator.destroy(storage.lightCountBuffer);
-        storage.lightCountBuffer = create_constant_buffer(params, lightCount);
-        program_vars["lightCount"] = storage.lightCountBuffer;
+        // Create unified path tracing constants buffer
+        struct PathTracingConstants {
+            uint32_t lightCount;
+            uint32_t domeLightCallableIndex;
+            uint32_t materialFetchCallableBaseIndex;
+            uint32_t _padding;
+        };
+
+        PathTracingConstants constants;
+        constants.lightCount = lightCount;
+        constants.domeLightCallableIndex =
+            storage.has_dome_light_shader ? 3 : 0;
+        constants.materialFetchCallableBaseIndex =
+            storage.has_dome_light_shader ? 4 : 3;
+        constants._padding = 0;
+
+        if (storage.pathTracingConstantsBuffer)
+            resource_allocator.destroy(storage.pathTracingConstantsBuffer);
+        storage.pathTracingConstantsBuffer =
+            create_constant_buffer(params, constants);
+        program_vars["ptConstants"] = storage.pathTracingConstantsBuffer;
 
         program_vars.set_descriptor_table(
             "t_BindlessBuffers",
@@ -271,10 +359,24 @@ NODE_EXECUTION_FUNCTION(path_tracing)
         context.announce_callable(
             "eval_preview_surface", 1, nullptr);  // shader_type_id = 1
         context.announce_callable("eval_fallback", 2, nullptr);
-        // Register per-material data fetch callables starting from index 2
+
+        // Register dome light custom callable at index 3 if present
+        if (storage.has_dome_light_shader) {
+            // Extract callable name from shader path
+            std::filesystem::path shader_path(storage.dome_light_shader_path);
+            std::string callable_name = shader_path.stem().string();
+            context.announce_callable(callable_name, 3, nullptr);
+            spdlog::info(
+                "Registered dome light callable '{}' at index 3",
+                callable_name);
+        }
+
+        // Register per-material data fetch callables starting from index 4 (or
+        // 3 if no dome shader)
+        int base_index = storage.has_dome_light_shader ? 4 : 3;
         for (auto& callable : storage.callable_shaders) {
             context.announce_callable(
-                callable.second, 3 + callable.first, nullptr);
+                callable.second, base_index + callable.first, nullptr);
         }
 
         context.finish_announcing_shader_names();

@@ -19,3 +19,12 @@ struct EvalCallableData {
     uint material_params_index; // Index into material parameters buffer, set by data fetch callable
     VertexInfo vertexInfo;
 };
+
+struct DomeLightCallableData {
+    float3 rayDirection;     // Ray direction in world space
+    float3 localDirection;   // Ray direction in dome light local space
+    float3 envColor;         // Output environment color
+    float3 intensity;        // Dome light intensity
+    int textureIndex;        // Bindless texture index
+    uint seed;               // Random seed for sampling
+};
