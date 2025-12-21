@@ -353,7 +353,7 @@ void ClosestHit(
     in BuiltInTriangleIntersectionAttributes attribs)
 {
     // Check if maximum depth is reached
-    if (payload.depth >= 16) {
+    if (payload.depth >= 6) {
         payload.throughput = Spectrum(float3(1, 0, 0));
         payload.color = Spectrum(0.0);
         payload.terminated = true;
