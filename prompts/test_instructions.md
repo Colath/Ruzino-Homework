@@ -16,3 +16,8 @@ Or
 ```
 .\Ruzino.exe somestage.usdc
 ```
+
+If it is some test, just use the cpp name plus _test.exe, e.g.,
+```
+.\geom_algorithms_test.exe
+```

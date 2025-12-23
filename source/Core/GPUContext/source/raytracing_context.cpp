@@ -276,14 +276,18 @@ void RaytracingContext::finish_announcing_shader_names()
 
     for (size_t i = 0; i < hit_group_shaders.size(); ++i) {
         std::string hit_group_export_name = "HitGroup" + std::to_string(i);
-        pipeline_desc.hitGroups.push_back(
-            { hit_group_export_name,
-              std::get<0>(hit_group_shaders[i]),
-              std::get<1>(hit_group_shaders[i]),
-              std::get<2>(hit_group_shaders[i]),
-              nullptr
-
-            });
+        auto intersection_shader = std::get<2>(hit_group_shaders[i]);
+        bool is_procedural = (intersection_shader != nullptr);
+        
+        nvrhi::rt::PipelineHitGroupDesc hitgroup_desc;
+        hitgroup_desc.exportName = hit_group_export_name;
+        hitgroup_desc.closestHitShader = std::get<0>(hit_group_shaders[i]);
+        hitgroup_desc.anyHitShader = std::get<1>(hit_group_shaders[i]);
+        hitgroup_desc.intersectionShader = intersection_shader;
+        hitgroup_desc.isProceduralPrimitive = is_procedural;
+        hitgroup_desc.bindingLayout = nullptr;
+        
+        pipeline_desc.hitGroups.push_back(hitgroup_desc);
     }
 
     // callable shaders
