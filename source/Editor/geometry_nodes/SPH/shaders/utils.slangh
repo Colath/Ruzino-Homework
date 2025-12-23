@@ -1,0 +1,226 @@
+#pragma once
+#define PI 3.14159265358979323f
+//static const float PI = 3.14159265;
+#define INT_SCALE  0xFFFF
+
+#ifndef SPH_CB_H
+#define SPH_CB_H
+struct SPHConstants
+{
+    float particleDiameter;
+    float smoothingRadius;
+    float gravity;
+    float restDensity;
+    float mV;
+    float constPress;
+    float constVisc;
+    float constSurf;
+    float dt;
+    int numParticles;
+    int numPairs;
+};
+#endif // SPH_CB_H
+
+
+#ifndef PBD_CB_H
+#define PBD_CB_H
+struct PBDConstants
+{
+    float smoothingRadius;
+    float gravity;
+    float restDensity;
+    float mV;
+    float constVisc;
+    float constSurf;
+    float dt;
+    int numParticles;
+    int numPairs;
+};
+#endif // PBD_CB_H
+
+
+float quartic_kernel(float3 r, float h)
+{
+   
+    float res = 0;
+    float r_norm = length(r);
+    float k = 315.f / 208.f / PI / pow(h, 3);
+    float q = r_norm / h;
+    if (q < 2.f)
+    {
+        float q2 = q * q;
+        float q3 = q2 * q;
+        float q4 = q3 * q;
+        res = k * (2.f / 3.f - 9.f / 8.f * q2 + 19.f / 24.f * q3 - 5.f / 32.f * q4);
+    }
+    return res;
+}
+
+
+float3 quartic_kernel_derivative(float3 r, float h)
+{
+    float3 res = float3(0, 0, 0);
+    float r_norm = length(r);
+    float k = 315.f / 208.f / PI / pow(h, 3);
+    float q = r_norm / h;
+    if (q < 2.f)
+    {
+        res = r / (r_norm * h);
+        float q2 = q * q;
+        float q3 = q2 * q;
+        float q4 = q3 * q;
+        res *= k * (2.f / 3.f - 9.f / 4.f * q + 19.f / 8.f * q2 - 5.f / 8.f * q3);
+    }
+    return res;
+}
+
+
+float cubic_kernel(float3 r, float h)
+{
+   
+    float res = 0.f;
+    float r_norm = length(r);
+    float k = 8.f / PI / pow(h, 3);
+    float q = r_norm / h;
+    if (q <= 1.f)
+    {
+        if (q <= 0.5)
+        {
+            float q2 = q * q;
+            float q3 = q2 * q;
+            res = k * (6.0 * q3 - 6.0 * q2 + 1);
+        }
+        else
+        {
+            res = k * 2 * pow(1 - q, 3);
+        }
+    }
+    return res;
+}
+
+float3 cubic_kernel_derivative(float3 r, float h)
+{
+   
+    float3 res = float3(0, 0, 0);
+    float r_norm = length(r);
+    float k = 48.f / PI / pow(h, 3);
+    float q = r_norm / h;
+    if (q <= 1.f && r_norm > 1e-15)
+    {
+        float3 grad_q = r / r_norm / h;
+        if (q <= 0.5)
+        {
+            res = k * q * (3 * q - 2) * grad_q;
+        }
+        else
+        {
+            float factor = 1.f - q;
+            res = k * (-factor * factor) * grad_q;
+        }
+    }
+    return res;
+}
+
+float ploy6_kernel(float3 r, float h)
+{
+    float res = 0.f;
+    float r_norm = length(r);
+    if (r_norm < h)
+    {
+        float k = 315.f / 64.f / PI / pow(h, 9);
+        res = k * pow(pow(h, 2) - pow(r_norm, 2), 3);
+    }
+    return res;
+}
+
+float spiky_kernel(float3 r, float h)
+{
+    float res = 0.f;
+    float r_norm = length(r);
+    if (r_norm < h)
+    {
+        float k = 15.f / PI / pow(h, 6);
+        res = k * pow(pow(h, 2) - pow(r_norm, 2), 3);
+    }
+    return res;
+}
+
+float3 spiky_kernel_derivative(float3 r, float h)
+{
+    float3 res = float3(0.f, 0.f, 0.f);
+    float r_norm = length(r);
+    if (r_norm < h&&r_norm > 1e-32)
+    {
+        float k = -45.f / PI / pow(h, 6);
+        res = k * pow(h - r_norm, 2) / (r_norm) * r;
+    }
+    return res;
+}
+
+
+
+
+
+
+
+//#pragma once
+
+
+
+
+//float get_W(float R, float h)
+//{
+//    float alpha = 315. / 208. * atan(1) * 4 * h * h * h;
+
+//    return alpha * (2. / 3. - 9. / 8 * pow(R, 2) + 19. / 24 * pow(R, 3) - 5. / 32 * pow(R, 4));
+//}
+
+////
+////float get_dW(float R, float h)
+////{
+////    float alpha = 315. / 208. * atan(1) * 4 * h * h;
+////
+////    return alpha * (- 9. / 4 * R + 19f / 8 * pow(R, 2) - 5. / 8 * pow(R, 3));
+////}
+
+//void InterlockedAddFloat(RWByteAddressBuffer buf, uint addr, float value)
+//{
+//    uint i_val = asuint(value);
+//    uint tmp0 = 0;
+//    uint tmp1;
+//    while (true)
+//    {
+//        buf.InterlockedCompareExchange(addr, tmp0, i_val, tmp1);
+//        if (tmp1 == tmp0)
+//            break;
+//        tmp0 = tmp1;
+//        i_val = asuint(value + asfloat(tmp1));
+//    }
+//}
+
+//float3 load3(RWByteAddressBuffer buf, uint addr)
+//{
+//    uint3 temp = buf.Load3(addr * 4);
+//    float3 res = asfloat(temp);
+//    return res;
+//}
+
+//float load1(RWByteAddressBuffer buf, uint addr)
+//{
+//    uint temp = buf.Load(addr * 4);
+//    float res = asfloat(temp);
+//    return res;
+//}
+
+//void store3(RWByteAddressBuffer buf, uint addr,float3 value)
+//{
+//    uint3 temp = asuint(value);
+//    buf.Store3(addr * 4,temp);
+//}
+
+//void store1(RWByteAddressBuffer buf, uint addr,float value)
+//{
+//    uint temp = asuint(value);
+//    buf.Store(addr * 4, temp);
+//}
+
