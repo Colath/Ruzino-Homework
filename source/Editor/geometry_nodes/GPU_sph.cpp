@@ -71,10 +71,6 @@ NODE_DECLARATION_FUNCTION(gpu_sph)
 {
     b.add_input<Geometry>("Geometry");
     b.add_input<float>("Radius").default_val(0.02f).min(0.001f).max(0.1f);
-    b.add_input<float>("Time Step")
-        .default_val(0.0005f)
-        .min(0.0001f)
-        .max(0.01f);
     b.add_input<int>("Substeps").default_val(1).min(1).max(10);
     b.add_input<float>("Rest Density")
         .default_val(1000.0f)
@@ -96,6 +92,8 @@ NODE_DECLARATION_FUNCTION(gpu_sph)
 
 NODE_EXECUTION_FUNCTION(gpu_sph)
 {
+    auto& global_payload = params.get_global_payload<GeomPayload&>();
+
     auto& storage = params.get_storage<SPHStorage&>();
     auto& resource_allocator = get_resource_allocator();
 
@@ -104,7 +102,7 @@ NODE_EXECUTION_FUNCTION(gpu_sph)
     input_geom.apply_transform();
 
     auto radius = params.get_input<float>("Radius");
-    auto dt = params.get_input<float>("Time Step");
+    auto dt = global_payload.delta_time;
     auto substeps = params.get_input<int>("Substeps");
     auto rest_density = params.get_input<float>("Rest Density");
     auto pressure_constant = params.get_input<float>("Pressure Constant");
