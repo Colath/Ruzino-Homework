@@ -90,6 +90,10 @@ void WithDynamicLogicPrim::update(float delta_time) const
         tree_desc_cache = new_tree_desc;
         node_tree->deserialize(tree_desc_cache);
         node_tree_executor->mark_tree_structure_changed();
+        
+        // 清除旧的时间采样数据
+        clear_time_samples(prim);
+        
         // 重置该prim自己的时间状态
         prim_current_time = pxr::UsdTimeCode(0.0f);
         prim_render_time = pxr::UsdTimeCode(0.0f);
@@ -143,6 +147,34 @@ bool WithDynamicLogicPrim::is_animatable(const pxr::UsdPrim& prim)
     bool is_animatable = false;
     animatable.Get(&is_animatable);
     return is_animatable;
+}
+
+void WithDynamicLogicPrim::clear_time_samples(const pxr::UsdPrim& prim) const
+{
+    if (!prim.IsValid()) {
+        return;
+    }
+
+    // 递归清除所有子prim的时间采样
+    for (const auto& child : prim.GetChildren()) {
+        clear_time_samples(child);
+    }
+
+    // 清除当前prim所有属性的时间采样
+    for (const auto& attr : prim.GetAttributes()) {
+        // 跳过不应该清除的属性（配置相关的属性）
+        const auto& attr_name = attr.GetName();
+        if (attr_name == pxr::TfToken("node_json") || 
+            attr_name == pxr::TfToken("Animatable")) {
+            continue;
+        }
+
+        // 检查属性是否有时间采样
+        if (attr.GetNumTimeSamples() > 0) {
+            // 清除所有时间采样
+            attr.Clear();
+        }
+    }
 }
 }  // namespace animation
 

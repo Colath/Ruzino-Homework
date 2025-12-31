@@ -48,6 +48,9 @@ class WithDynamicLogicPrim : public WithDynamicLogic {
     void set_prim_render_time(pxr::UsdTimeCode time) { prim_render_time = time; }
 
    private:
+    // 清除prim及其子prim的所有时间采样数据
+    void clear_time_samples(const pxr::UsdPrim& prim) const;
+
     mutable bool simulation_begun = false;
 
     pxr::UsdPrim prim;
