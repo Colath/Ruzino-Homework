@@ -171,10 +171,12 @@ NODE_EXECUTION_FUNCTION(path_tracing)
         program_desc.set_path("shaders/path_tracing.slang");
         program_desc.shaderType = nvrhi::ShaderType::AllRayTracing;
         program_desc.nvapi_support = true;
-        
+
         // Enable Shader Execution Reordering (SER) via NVAPI
         program_desc.hlslExtensionsUAV = 127;
-        spdlog::info("Enabling Shader Execution Reordering (SER) with NVAPI extension slot u127");
+        spdlog::info(
+            "Enabling Shader Execution Reordering (SER) with NVAPI extension "
+            "slot u127");
 
         // Define macro for spectrum type
         if (use_sampled_spectrum) {
@@ -313,7 +315,9 @@ void fetch_)" + material.second->GetMaterialName() +
         storage.output =
             create_default_render_target(params, nvrhi::Format::RGBA32_FLOAT);
 
-    bool is_any_dirty = geom_dirty || mat_dirty || light_dirty || size_changed;
+    // Only material, light, or size changes require rebuilding program_vars and
+    // pipeline Geometry changes only need TLAS update
+    bool is_any_dirty = mat_dirty || light_dirty || size_changed;
 
     if (is_any_dirty || !storage.cached_program_vars ||
         !storage.cached_rt_context) {
@@ -447,13 +451,25 @@ void fetch_)" + material.second->GetMaterialName() +
 
         context.announce_raygeneration("RayGen");
         context.announce_hitgroup(
-            "ClosestHit", "", "", 0);  // Primary ray hit group at index 0 (triangles)
+            "ClosestHit",
+            "",
+            "",
+            0);  // Primary ray hit group at index 0 (triangles)
         context.announce_hitgroup(
-            "ShadowHit", "", "", 1);   // Shadow ray hit group at index 1 (triangles)
+            "ShadowHit",
+            "",
+            "",
+            1);  // Shadow ray hit group at index 1 (triangles)
         context.announce_hitgroup(
-            "SphereClosestHit", "", "SphereIntersection", 2);  // Sphere primary ray with custom intersection
+            "SphereClosestHit",
+            "",
+            "SphereIntersection",
+            2);  // Sphere primary ray with custom intersection
         context.announce_hitgroup(
-            "SphereShadowHit", "", "SphereIntersection", 3);   // Sphere shadow ray with custom intersection
+            "SphereShadowHit",
+            "",
+            "SphereIntersection",
+            3);  // Sphere shadow ray with custom intersection
         context.announce_miss("Miss", 0);  // Primary ray miss shader at index 0
         context.announce_miss(
             "ShadowMiss", 1);  // Shadow ray miss shader at index 1
@@ -528,6 +544,26 @@ void fetch_)" + material.second->GetMaterialName() +
 
         context.finish_announcing_shader_names();
     }
+    else if (geom_dirty) {
+        // Geometry changed but no material/light/size change
+        // Update geometry-related buffers in program_vars
+        ProgramVars& program_vars = *storage.cached_program_vars;
+        
+        program_vars["SceneBVH"] =
+            params.get_global_payload<RenderGlobalPayload&>()
+                .InstanceCollection->get_tlas();
+        program_vars["instanceDescBuffer"] =
+            instance_collection->instance_pool.get_device_buffer();
+        program_vars["meshDescBuffer"] =
+            instance_collection->mesh_pool.get_device_buffer();
+        
+        program_vars.finish_setting_vars();
+        
+        // Reset accumulation
+        g.reset_accumulation = true;
+        spdlog::info("Updated geometry buffers (TLAS, instanceDesc, meshDesc) for geometry change");
+    }
+
     auto rays = params.get_input<nvrhi::BufferHandle>("Rays");
     auto buffer_size = rays->getDesc().byteSize / sizeof(RayInfo);
 
