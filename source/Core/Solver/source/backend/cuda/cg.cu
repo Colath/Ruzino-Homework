@@ -494,7 +494,7 @@ class CudaCGSolver : public LinearSolver {
 
             // Allocate workspace
             size_t bufferSize = 0;
-            const float one = 1.0f, zero = 0.0f, minus_one = -1.0f;
+            const float one = 1.0f, zero = 0.0f; //, minus_one = -1.0f; // unused
             cusparseSpMV_bufferSize(
                 cusparseHandle,
                 CUSPARSE_OPERATION_NON_TRANSPOSE,

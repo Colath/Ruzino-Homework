@@ -4,6 +4,7 @@
 #include <cmath>
 #include <Eigen/Dense>
 #include <Eigen/Sparse>
+#include <spdlog/spdlog.h>
 
 NODE_DEF_OPEN_SCOPE
 NODE_DECLARATION_FUNCTION(extract_areas)
@@ -22,7 +23,8 @@ NODE_EXECUTION_FUNCTION(extract_areas)
 
     // Avoid processing the node when there is no input
     if (!input.get_component<MeshComponent>()) {
-        throw std::runtime_error("Areas Extraction: Need Geometry Input.");
+        spdlog::error("Areas Extraction: Need Geometry Input.");
+        return false;
     }
 
     // Initialization

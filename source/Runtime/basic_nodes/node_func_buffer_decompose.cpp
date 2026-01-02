@@ -1,7 +1,7 @@
 #include "basic_node_base.h"
 
 NODE_DEF_OPEN_SCOPE
-static constexpr std::string socket_name(int i)
+static constexpr const char* socket_name(int i)
 {
     switch (i) {
         case 0: return "X";
@@ -16,7 +16,7 @@ NODE_DECLARATION_FUNCTION(decompose_buffer2f)
 {
     b.add_input<float2Buffer>("Buffer");
     for (int i = 0; i < 2; ++i) {
-        b.add_output<float1Buffer>(socket_name(i).c_str());
+        b.add_output<float1Buffer>(socket_name(i));
     }
     b.add_output<int>("Size");
 };
@@ -24,7 +24,7 @@ NODE_DECLARATION_FUNCTION(decompose_buffer3f)
 {
     b.add_input<float3Buffer>("Buffer");
     for (int i = 0; i < 3; ++i) {
-        b.add_output<float1Buffer>(socket_name(i).c_str());
+        b.add_output<float1Buffer>(socket_name(i));
     }
     b.add_output<int>("Size");
 };
@@ -32,7 +32,7 @@ NODE_DECLARATION_FUNCTION(decompose_buffer4f)
 {
     b.add_input<float4Buffer>("Buffer");
     for (int i = 0; i < 4; ++i) {
-        b.add_output<float1Buffer>(socket_name(i).c_str());
+        b.add_output<float1Buffer>(socket_name(i));
     }
     b.add_output<int>("Size");
 };
@@ -41,7 +41,7 @@ NODE_DECLARATION_FUNCTION(decompose_buffer2i)
 {
     b.add_input<int2Buffer>("Buffer");
     for (int i = 0; i < 2; ++i) {
-        b.add_output<int1Buffer>(socket_name(i).c_str());
+        b.add_output<int1Buffer>(socket_name(i));
     }
     b.add_output<int>("Size");
 };
@@ -49,7 +49,7 @@ NODE_DECLARATION_FUNCTION(decompose_buffer3i)
 {
     b.add_input<int3Buffer>("Buffer");
     for (int i = 0; i < 3; ++i) {
-        b.add_output<int1Buffer>(socket_name(i).c_str());
+        b.add_output<int1Buffer>(socket_name(i));
     }
     b.add_output<int>("Size");
 };
@@ -57,7 +57,7 @@ NODE_DECLARATION_FUNCTION(decompose_buffer4i)
 {
     b.add_input<int4Buffer>("Buffer");
     for (int i = 0; i < 4; ++i) {
-        b.add_output<int1Buffer>(socket_name(i).c_str());
+        b.add_output<int1Buffer>(socket_name(i));
     }
     b.add_output<int>("Size");
 };
@@ -75,7 +75,7 @@ NODE_EXECUTION_FUNCTION(decompose_buffer2f)
         }
     }
     for (int i = 0; i < 2; ++i) {
-        params.set_output(socket_name(i).c_str(), val[i]);
+        params.set_output(socket_name(i), val[i]);
     }
     params.set_output("Size", int(input.size()));
     return true;
@@ -94,7 +94,7 @@ NODE_EXECUTION_FUNCTION(decompose_buffer3f)
         }
     }
     for (int i = 0; i < 3; ++i) {
-        params.set_output(socket_name(i).c_str(), val[i]);
+        params.set_output(socket_name(i), val[i]);
     }
     params.set_output("Size", int(input.size()));
     return true;
@@ -113,7 +113,7 @@ NODE_EXECUTION_FUNCTION(decompose_buffer4f)
         }
     }
     for (int i = 0; i < 4; ++i) {
-        params.set_output(socket_name(i).c_str(), val[i]);
+        params.set_output(socket_name(i), val[i]);
     }
     params.set_output("Size", int(input.size()));
     return true;
@@ -133,7 +133,7 @@ NODE_EXECUTION_FUNCTION(decompose_buffer2i)
         }
     }
     for (int i = 0; i < 2; ++i) {
-        params.set_output(socket_name(i).c_str(), val[i]);
+        params.set_output(socket_name(i), val[i]);
     }
     params.set_output("Size", int(input.size()));
     return true;
@@ -152,7 +152,7 @@ NODE_EXECUTION_FUNCTION(decompose_buffer3i)
         }
     }
     for (int i = 0; i < 3; ++i) {
-        params.set_output(socket_name(i).c_str(), val[i]);
+        params.set_output(socket_name(i), val[i]);
     }
     params.set_output("Size", int(input.size()));
     return true;
@@ -171,7 +171,7 @@ NODE_EXECUTION_FUNCTION(decompose_buffer4i)
         }
     }
     for (int i = 0; i < 4; ++i) {
-        params.set_output(socket_name(i).c_str(), val[i]);
+        params.set_output(socket_name(i), val[i]);
     }
     params.set_output("Size", int(input.size()));
     return true;

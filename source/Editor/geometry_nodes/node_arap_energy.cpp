@@ -3,6 +3,7 @@
 #include "geom_node_base.h"
 #include <cmath>
 #include <Eigen/Dense>
+#include <spdlog/spdlog.h>
 
 NODE_DEF_OPEN_SCOPE
 NODE_DECLARATION_FUNCTION(arap_energy)
@@ -20,7 +21,8 @@ NODE_EXECUTION_FUNCTION(arap_energy)
     auto areas = params.get_input<Eigen::VectorXd>("Areas");
 
     if (areas.rows() != sigmas.rows()) {
-        throw std::runtime_error("ARAP Energy: Wrong Input.");
+        spdlog::error("ARAP Energy: Wrong Input - areas.rows({}) != sigmas.rows({})", areas.rows(), sigmas.rows());
+        return false;
     }
 
     double sum_area = 0;

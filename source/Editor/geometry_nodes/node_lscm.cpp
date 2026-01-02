@@ -4,6 +4,7 @@
 #include <cmath>
 #include <time.h>
 #include <Eigen/Sparse>
+#include <spdlog/spdlog.h>
 
 NODE_DEF_OPEN_SCOPE
 NODE_DECLARATION_FUNCTION(lscm)
@@ -21,7 +22,7 @@ NODE_EXECUTION_FUNCTION(lscm)
 
     // Avoid processing the node when there is no input
     if (!input.get_component<MeshComponent>()) {
-        throw std::runtime_error("LSCM Parameterization: Need Geometry Input.");
+        spdlog::error("LSCM Parameterization: Need Geometry Input.");
         return false;
     }
 

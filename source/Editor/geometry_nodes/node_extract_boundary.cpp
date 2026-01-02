@@ -3,6 +3,7 @@
 #include "geom_node_base.h"
 #include <cmath>
 #include <Eigen/Sparse>
+#include <spdlog/spdlog.h>
 
 NODE_DEF_OPEN_SCOPE
 NODE_DECLARATION_FUNCTION(extract_boundary)
@@ -19,7 +20,7 @@ NODE_EXECUTION_FUNCTION(extract_boundary)
 
     // Avoid processing the node when there is no input
     if (!input.get_component<MeshComponent>()) {
-        throw std::runtime_error("Boundary Extraction: Need Geometry Input.");
+        spdlog::error("Boundary Extraction: Need Geometry Input.");
         return false;
     }
 

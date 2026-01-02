@@ -1,6 +1,7 @@
 #include "GCore/Components/MeshComponent.h"
 #include "GCore/util_openmesh_bind.h"
 #include "geom_node_base.h"
+#include <spdlog/spdlog.h>
 
 NODE_DEF_OPEN_SCOPE
 NODE_DECLARATION_FUNCTION(curvature)
@@ -30,9 +31,8 @@ NODE_EXECUTION_FUNCTION(curvature)
 
     // (TO BE UPDATED) Avoid processing the node when there is no input
     if (!input.get_component<MeshComponent>()) {
-        // throw std::runtime_error("CurvatureNode: Input doesn't contain a
-        // mesh.");
-        throw std::runtime_error("Curvature: Need Geometry Input.");
+        spdlog::error("Curvature: Need Geometry Input - Input doesn't contain a mesh");
+        return false;
     }
 
     // This is the halfedge mesh we get
@@ -89,6 +89,7 @@ NODE_EXECUTION_FUNCTION(curvature)
 
     // Set the output of the nodes
     params.set_output("Output", rst);
+    return true;
 }
 
 NODE_DECLARATION_UI(curvature);

@@ -1,7 +1,7 @@
 #include "basic_node_base.h"
 
 NODE_DEF_OPEN_SCOPE
-static constexpr std::string socket_name(int i)
+static constexpr const char* socket_name(int i)
 {
     switch (i) {
         case 0: return "X";
@@ -16,21 +16,21 @@ NODE_DECLARATION_FUNCTION(compose_buffer2f)
 {
     b.add_output<float2Buffer>("Buffer");
     for (int i = 0; i < 2; ++i) {
-        b.add_input<float1Buffer>(socket_name(i).c_str());
+        b.add_input<float1Buffer>(socket_name(i));
     }
 };
 NODE_DECLARATION_FUNCTION(compose_buffer3f)
 {
     b.add_output<float3Buffer>("Buffer");
     for (int i = 0; i < 3; ++i) {
-        b.add_input<float1Buffer>(socket_name(i).c_str());
+        b.add_input<float1Buffer>(socket_name(i));
     }
 };
 NODE_DECLARATION_FUNCTION(compose_buffer4f)
 {
     b.add_output<float4Buffer>("Buffer");
     for (int i = 0; i < 4; ++i) {
-        b.add_input<float1Buffer>(socket_name(i).c_str());
+        b.add_input<float1Buffer>(socket_name(i));
     }
 };
 
@@ -38,21 +38,21 @@ NODE_DECLARATION_FUNCTION(compose_buffer2i)
 {
     b.add_output<int2Buffer>("Buffer");
     for (int i = 0; i < 2; ++i) {
-        b.add_input<int1Buffer>(socket_name(i).c_str());
+        b.add_input<int1Buffer>(socket_name(i));
     }
 };
 NODE_DECLARATION_FUNCTION(compose_buffer3i)
 {
     b.add_output<int3Buffer>("Buffer");
     for (int i = 0; i < 3; ++i) {
-        b.add_input<int1Buffer>(socket_name(i).c_str());
+        b.add_input<int1Buffer>(socket_name(i));
     }
 };
 NODE_DECLARATION_FUNCTION(compose_buffer4i)
 {
     b.add_output<int4Buffer>("Buffer");
     for (int i = 0; i < 4; ++i) {
-        b.add_input<int1Buffer>(socket_name(i).c_str());
+        b.add_input<int1Buffer>(socket_name(i));
     }
 };
 
@@ -61,7 +61,7 @@ NODE_EXECUTION_FUNCTION(compose_buffer2f)
     pxr::VtArray<pxr::GfVec2f> Buffer;
     pxr::VtArray<float> val[2];
     for (int i = 0; i < 2; ++i) {
-        val[i] = params.get_input<pxr::VtArray<float>>(socket_name(i).c_str());
+        val[i] = params.get_input<pxr::VtArray<float>>(socket_name(i));
     }
     size_t max_size = 0;
     for (int i = 0; i < 2; ++i) {
@@ -87,7 +87,7 @@ NODE_EXECUTION_FUNCTION(compose_buffer3f)
     pxr::VtArray<pxr::GfVec3f> Buffer;
     pxr::VtArray<float> val[3];
     for (int i = 0; i < 3; ++i) {
-        val[i] = params.get_input<pxr::VtArray<float>>(socket_name(i).c_str());
+        val[i] = params.get_input<pxr::VtArray<float>>(socket_name(i));
     }
     size_t max_size = 0;
     for (int i = 0; i < 3; ++i) {
@@ -113,7 +113,7 @@ NODE_EXECUTION_FUNCTION(compose_buffer4f)
     pxr::VtArray<pxr::GfVec4f> Buffer;
     pxr::VtArray<float> val[4];
     for (int i = 0; i < 4; ++i) {
-        val[i] = params.get_input<pxr::VtArray<float>>(socket_name(i).c_str());
+        val[i] = params.get_input<pxr::VtArray<float>>(socket_name(i));
     }
     size_t max_size = 0;
     for (int i = 0; i < 4; ++i) {
@@ -140,7 +140,7 @@ NODE_EXECUTION_FUNCTION(compose_buffer2i)
     pxr::VtArray<pxr::GfVec2i> Buffer;
     pxr::VtArray<int> val[2];
     for (int i = 0; i < 2; ++i) {
-        val[i] = params.get_input<pxr::VtArray<int>>(socket_name(i).c_str());
+        val[i] = params.get_input<pxr::VtArray<int>>(socket_name(i));
     }
     size_t max_size = 0;
     for (int i = 0; i < 2; ++i) {
@@ -166,7 +166,7 @@ NODE_EXECUTION_FUNCTION(compose_buffer3i)
     pxr::VtArray<pxr::GfVec3i> Buffer;
     pxr::VtArray<int> val[3];
     for (int i = 0; i < 3; ++i) {
-        val[i] = params.get_input<pxr::VtArray<int>>(socket_name(i).c_str());
+        val[i] = params.get_input<pxr::VtArray<int>>(socket_name(i));
     }
     size_t max_size = 0;
     for (int i = 0; i < 3; ++i) {
@@ -192,7 +192,7 @@ NODE_EXECUTION_FUNCTION(compose_buffer4i)
     pxr::VtArray<pxr::GfVec4i> Buffer;
     pxr::VtArray<int> val[4];
     for (int i = 0; i < 4; ++i) {
-        val[i] = params.get_input<pxr::VtArray<int>>(socket_name(i).c_str());
+        val[i] = params.get_input<pxr::VtArray<int>>(socket_name(i));
     }
     size_t max_size = 0;
     for (int i = 0; i < 4; ++i) {

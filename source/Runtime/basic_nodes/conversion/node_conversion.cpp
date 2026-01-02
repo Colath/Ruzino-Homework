@@ -1,5 +1,10 @@
 ﻿#include "nodes/core/def/node_def.hpp"
 
+#ifdef _MSC_VER
+#pragma warning(push)
+#pragma warning(disable: 4190) // C linkage with std::string
+#endif
+
 NODE_DEF_OPEN_SCOPE
 
 CONVERSION_DECLARATION_FUNCTION(int, float)
@@ -33,3 +38,7 @@ CONVERSION_EXECUTION_FUNCTION(float, int)
 CONVERSION_FUNC_NAME(float, int);
 
 NODE_DEF_CLOSE_SCOPE
+
+#ifdef _MSC_VER
+#pragma warning(pop)
+#endif

@@ -194,12 +194,12 @@ __global__ void applyMultiplier_cuda_kernel(
     float fieldCorrection = sqrtf(static_cast<float>(precisePower) / EfieldPower);
     
     for (int i = threadNum; i < Nx*Ny; i += gridDim.x * blockDim.x) {
-        int ix = i % Nx;
-        int iy = i / Nx;
+        //int ix = i % Nx;  // unused
+        //int iy = i / Nx;  // unused
         
-        // Calculate coordinates
-        float x = dx * (ix - (Nx - 1) / 2.0f * (ySymmetry == 0));
-        float y = dy * (iy - (Ny - 1) / 2.0f * (xSymmetry == 0));
+        // Calculate coordinates (unused for now)
+        //float x = dx * (ix - (Nx - 1) / 2.0f * (ySymmetry == 0));
+        //float y = dy * (iy - (Ny - 1) / 2.0f * (xSymmetry == 0));
         
         CudaComplex n = n_mat[i];
         if (iz == iz_end - 1) n_out[i] = n;

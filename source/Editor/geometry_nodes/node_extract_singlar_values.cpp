@@ -4,6 +4,7 @@
 #include <cmath>
 #include <Eigen/Dense>
 #include <Eigen/Sparse>
+#include <spdlog/spdlog.h>
 
 NODE_DEF_OPEN_SCOPE
 NODE_DECLARATION_FUNCTION(extract_singular_values)
@@ -25,7 +26,8 @@ NODE_EXECUTION_FUNCTION(extract_singular_values)
     // Avoid processing the node when there is no input
     if (!input.get_component<MeshComponent>() ||
         !iters.get_component<MeshComponent>()) {
-        throw std::runtime_error("Singular Values Extraction: Need Geometry Input.");
+        spdlog::error("Singular Values Extraction: Need Geometry Input.");
+        return false;
     }
 
     // Initialization

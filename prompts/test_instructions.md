@@ -6,6 +6,13 @@ ninja.exe
 
 But if there are only shader changes, rebuilding is not needed.
 
+Adding new source files or test files requires re-running cmake and they will be automatically added to the build. Command is 
+```
+cmake .. -DRUZINO_WITH_CUDA=ON -DCMAKE_BUILD_TYPE=Release -G Ninja
+```
+
+Added test cpp file will be scanned into <filename>_test.exe automatically.
+
 ## Test Instructions
 Run the following command in Ruzino/Binaries/Release:
 ```
