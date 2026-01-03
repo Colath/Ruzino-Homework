@@ -204,7 +204,7 @@ NODE_EXECUTION_FUNCTION(tetgen_tetrahedralize)
 
             glm::vec3 edge1 = v1 - v0;
             glm::vec3 edge2 = v2 - v0;
-            glm::vec3 normal = glm::cross(edge1, edge2);
+            glm::vec3 normal = glm::cross(edge2, edge1);  // Reversed cross product order
             
             // Check for degenerate triangles
             float length = glm::length(normal);

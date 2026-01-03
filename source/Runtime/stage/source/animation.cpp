@@ -1,9 +1,12 @@
 #include "animation.h"
 
+#include <filesystem>
+
 #include "../../../Editor/geometry/include/GCore/geom_payload.hpp"
 #include "pxr/usd/usd/attribute.h"
 #include "pxr/usd/usdGeom/xform.h"
 #include "stage/stage.hpp"
+
 RUZINO_NAMESPACE_OPEN_SCOPE
 namespace animation {
 
@@ -28,6 +31,17 @@ WithDynamicLogicPrim::WithDynamicLogicPrim(
 
         auto loaded = node_system->load_configuration("geometry_nodes.json");
         loaded = node_system->load_configuration("basic_nodes.json");
+
+        // Load all plugin configurations
+        auto plugin_path = std::filesystem::path("./Plugins");
+        if (std::filesystem::exists(plugin_path)) {
+            for (auto& p : std::filesystem::directory_iterator(plugin_path)) {
+                if (p.path().extension() == ".json") {
+                    node_system->load_configuration(p.path().string());
+                }
+            }
+        }
+
         node_tree_descriptor = node_system->node_tree_descriptor();
     });
 
@@ -90,10 +104,10 @@ void WithDynamicLogicPrim::update(float delta_time) const
         tree_desc_cache = new_tree_desc;
         node_tree->deserialize(tree_desc_cache);
         node_tree_executor->mark_tree_structure_changed();
-        
+
         // 清除旧的时间采样数据
         clear_time_samples(prim);
-        
+
         // 重置该prim自己的时间状态
         prim_current_time = pxr::UsdTimeCode(0.0f);
         prim_render_time = pxr::UsdTimeCode(0.0f);
@@ -164,7 +178,7 @@ void WithDynamicLogicPrim::clear_time_samples(const pxr::UsdPrim& prim) const
     for (const auto& attr : prim.GetAttributes()) {
         // 跳过不应该清除的属性（配置相关的属性）
         const auto& attr_name = attr.GetName();
-        if (attr_name == pxr::TfToken("node_json") || 
+        if (attr_name == pxr::TfToken("node_json") ||
             attr_name == pxr::TfToken("Animatable")) {
             continue;
         }
