@@ -5,6 +5,8 @@
 
 #include <Eigen/Eigenvalues>
 #include <Eigen/Sparse>
+#include <Spectra/SymEigsSolver.h>
+#include <Spectra/MatOp/SparseSymMatProd.h>
 #include <iostream>
 
 RUZINO_NAMESPACE_OPEN_SCOPE
@@ -183,35 +185,63 @@ void ReducedOrderedBasis::compute_eigenmodes(int num_modes)
     }
 
     std::cout << "Computing " << num_modes
-              << " eigenmodes using dense solver..." << std::endl;
+              << " eigenmodes using sparse solver (Spectra)..." << std::endl;
 
-    // Convert sparse matrix to dense for eigenvalue decomposition (use double
-    // precision)
-    Eigen::MatrixXd dense_laplacian = laplacian_matrix_.cast<double>();
+    // Convert to double precision sparse matrix for Spectra
+    Eigen::SparseMatrix<double> laplacian_double = laplacian_matrix_.cast<double>();
 
-    // Use SelfAdjointEigenSolver for symmetric matrices
-    Eigen::SelfAdjointEigenSolver<Eigen::MatrixXd> eigensolver(dense_laplacian);
-
-    if (eigensolver.info() != Eigen::Success) {
-        throw std::runtime_error("Eigenvalue decomposition failed");
+    // Use Spectra to compute the smallest eigenvalues
+    // We want the smallest eigenvalues in magnitude (closest to zero)
+    Spectra::SparseSymMatProd<double> op(laplacian_double);
+    
+    // Request more eigenvalues than needed for better convergence
+    int ncv = std::min(std::max(2 * num_modes + 1, 20), n);
+    
+    Spectra::SymEigsSolver<Spectra::SparseSymMatProd<double>> eigs(op, num_modes, ncv);
+    
+    // Initialize and compute
+    // Use SmallestMagn to get eigenvalues closest to zero (in ascending order)
+    eigs.init();
+    int nconv = eigs.compute(Spectra::SortRule::SmallestMagn, 1000, 1e-10);
+    
+    if (eigs.info() != Spectra::CompInfo::Successful) {
+        std::cerr << "Spectra eigenvalue computation failed, falling back to dense solver..." << std::endl;
+        
+        // Fallback to dense solver
+        Eigen::MatrixXd dense_laplacian = laplacian_double;
+        Eigen::SelfAdjointEigenSolver<Eigen::MatrixXd> eigensolver(dense_laplacian);
+        
+        if (eigensolver.info() != Eigen::Success) {
+            throw std::runtime_error("Both sparse and dense eigenvalue decomposition failed");
+        }
+        
+        Eigen::VectorXd all_eigenvalues = eigensolver.eigenvalues();
+        Eigen::MatrixXd all_eigenvectors = eigensolver.eigenvectors();
+        
+        basis.clear();
+        eigenvalues.clear();
+        
+        int actual_modes = std::min(num_modes, static_cast<int>(all_eigenvalues.size()));
+        for (int i = 0; i < actual_modes; i++) {
+            eigenvalues.push_back(static_cast<float>(all_eigenvalues(i)));
+            basis.push_back(all_eigenvectors.col(i).cast<float>());
+            std::cout << "  Mode " << i << ": eigenvalue = " << all_eigenvalues(i) << std::endl;
+        }
     }
-
-    // Get eigenvalues and eigenvectors (already sorted in ascending order)
-    Eigen::VectorXd all_eigenvalues = eigensolver.eigenvalues();
-    Eigen::MatrixXd all_eigenvectors = eigensolver.eigenvectors();
-
-    // Store the first num_modes eigenvalues and eigenvectors
-    basis.clear();
-    eigenvalues.clear();
-
-    int actual_modes =
-        std::min(num_modes, static_cast<int>(all_eigenvalues.size()));
-    for (int i = 0; i < actual_modes; i++) {
-        eigenvalues.push_back(static_cast<float>(all_eigenvalues(i)));
-        basis.push_back(all_eigenvectors.col(i).cast<float>());
-
-        std::cout << "  Mode " << i << ": eigenvalue = " << all_eigenvalues(i)
-                  << std::endl;
+    else {
+        // Get eigenvalues and eigenvectors from Spectra
+        Eigen::VectorXd eigenvalues_d = eigs.eigenvalues();
+        Eigen::MatrixXd eigenvectors_d = eigs.eigenvectors();
+        
+        basis.clear();
+        eigenvalues.clear();
+        
+        int actual_modes = std::min(nconv, num_modes);
+        for (int i = 0; i < actual_modes; i++) {
+            eigenvalues.push_back(static_cast<float>(eigenvalues_d(i)));
+            basis.push_back(eigenvectors_d.col(i).cast<float>());
+            std::cout << "  Mode " << i << ": eigenvalue = " << eigenvalues_d(i) << std::endl;
+        }
     }
 
     std::cout << "Eigenmode computation complete. Stored " << basis.size()

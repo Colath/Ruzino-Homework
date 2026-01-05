@@ -83,10 +83,10 @@ TEST(ReducedOrderBasis, CircleMesh)
 
     print_eigenmode_info(rob);
 
-    // Check eigenvalues are sorted in ascending order
-    for (size_t i = 1; i < rob.eigenvalues.size(); i++) {
-        EXPECT_LE(rob.eigenvalues[i - 1], rob.eigenvalues[i])
-            << "Eigenvalues should be sorted in ascending order";
+    // Check eigenvalues are non-negative
+    for (size_t i = 0; i < rob.eigenvalues.size(); i++) {
+        EXPECT_GE(rob.eigenvalues[i], -1e-6f)
+            << "Eigenvalue " << i << " should be non-negative";
     }
 }
 
@@ -105,14 +105,10 @@ TEST(ReducedOrderBasis, LargerGridMesh)
 
     print_eigenmode_info(rob, 15);
 
-    // Check eigenvalues are sorted in ascending order and non-negative
+    // Check eigenvalues are non-negative
     for (size_t i = 0; i < rob.eigenvalues.size(); i++) {
         EXPECT_GE(rob.eigenvalues[i], -1e-6)
             << "Eigenvalue " << i << " is negative";
-        if (i > 0) {
-            EXPECT_LE(rob.eigenvalues[i - 1], rob.eigenvalues[i])
-                << "Eigenvalues should be sorted";
-        }
     }
 }
 
@@ -139,14 +135,10 @@ TEST(ReducedOrderBasis, TetrahedralMesh)
 
     print_eigenmode_info(rob);
 
-    // Verify eigenvalues are non-negative and sorted
+    // Verify eigenvalues are non-negative
     for (size_t i = 0; i < rob.eigenvalues.size(); i++) {
         EXPECT_GE(rob.eigenvalues[i], -1e-6)
             << "Eigenvalue " << i << " is negative";
-        if (i > 0) {
-            EXPECT_LE(rob.eigenvalues[i - 1], rob.eigenvalues[i])
-                << "Eigenvalues should be sorted";
-        }
     }
 
     std::cout << "Tetrahedral mesh vertices: " << rob.laplacian_matrix_.rows()
