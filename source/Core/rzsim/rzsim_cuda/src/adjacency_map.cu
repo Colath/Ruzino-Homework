@@ -225,7 +225,7 @@ has_edge_fast(const Edge* edges, unsigned num_edges, unsigned v1, unsigned v2)
 // Triangle structure for deduplication (normalized form)
 struct Triangle {
     unsigned v0, v1, v2;
-    unsigned original_index; // Index in original triangle buffer
+    unsigned original_index;  // Index in original triangle buffer
 
     __host__ __device__ Triangle() : v0(0), v1(0), v2(0), original_index(0)
     {
@@ -308,15 +308,15 @@ __device__ bool has_triangle_fast(
     unsigned c)
 {
     Triangle target(a, b, c, 0);  // Normalized triangle for search
-    
+
     // Binary search in sorted triangle array
     int left = 0;
     int right = num_triangles - 1;
-    
+
     while (left <= right) {
         int mid = left + (right - left) / 2;
         const Triangle& mid_tri = triangles[mid];
-        
+
         if (mid_tri == target) {
             return true;
         }
@@ -327,7 +327,7 @@ __device__ bool has_triangle_fast(
             right = mid - 1;
         }
     }
-    
+
     return false;
 }
 
@@ -344,16 +344,16 @@ __device__ bool forms_tetrahedron_fast(
     // Face (a,b,c) already exists (we're iterating over it)
     // We need to check if the other 3 faces of tetrahedron (v,a,b,c) exist:
     // - Face (v,a,b)
-    // - Face (v,b,c)  
+    // - Face (v,b,c)
     // - Face (v,a,c)
-    
+
     if (!has_triangle_fast(triangles, num_triangles, v, a, b))
         return false;
     if (!has_triangle_fast(triangles, num_triangles, v, b, c))
         return false;
     if (!has_triangle_fast(triangles, num_triangles, v, a, c))
         return false;
-    
+
     return true;
 }
 
@@ -380,7 +380,8 @@ __global__ void count_vertex_opposite_faces_kernel(
 
     // Check if vertex v is not in this triangle and forms a tetrahedron
     if (!contains_vertex(v0, v1, v2, v) &&
-        forms_tetrahedron_fast(triangles_sorted, num_triangles, v, v0, v1, v2)) {
+        forms_tetrahedron_fast(
+            triangles_sorted, num_triangles, v, v0, v1, v2)) {
         atomicAdd(&face_counts[v], 1);
     }
 }
@@ -410,7 +411,8 @@ __global__ void fill_volume_adjacency_kernel(
 
     // Check if vertex v is not in this triangle and forms a tetrahedron
     if (!contains_vertex(v0, v1, v2, v) &&
-        forms_tetrahedron_fast(triangles_sorted, num_triangles, v, v0, v1, v2)) {
+        forms_tetrahedron_fast(
+            triangles_sorted, num_triangles, v, v0, v1, v2)) {
         unsigned pos = atomicAdd(&write_positions[v], 3);
         adjacency_list[offsets[v] + 1 + pos + 0] = v0;
         adjacency_list[offsets[v] + 1 + pos + 1] = v1;
