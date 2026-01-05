@@ -1,7 +1,10 @@
 #include <GCore/Components/MeshComponent.h>
 #include <GCore/GOP.h>
+#include <GCore/util_openmesh_bind.h>
 #include <gtest/gtest.h>
 #include <rzsim/rzsim.h>
+
+#include <OpenVolumeMesh/Mesh/TetrahedralMesh.hh>
 
 // Forward declarations for CUDA initialization
 namespace Ruzino {
@@ -14,6 +17,7 @@ namespace cuda {
 #include <iostream>
 #include <set>
 #include <tuple>
+#include <algorithm>
 
 using namespace Ruzino;
 
@@ -259,10 +263,14 @@ TEST(VolumeAdjacency, SingleTetrahedron)
         glm::vec3(0.5f, 0.5f, 1.0f)   // 3
     };
 
-    std::vector<int> faceVertexCounts = {
-        4
-    };  // Tetrahedron stored as single element
-    std::vector<int> faceVertexIndices = { 0, 1, 2, 3 };
+    // Tetrahedron has 4 triangular faces
+    std::vector<int> faceVertexCounts = { 3, 3, 3, 3 };
+    std::vector<int> faceVertexIndices = {
+        1, 2, 3,  // face opposite to v0
+        0, 3, 2,  // face opposite to v1
+        0, 1, 3,  // face opposite to v2
+        0, 2, 1   // face opposite to v3
+    };
 
     meshComp->set_vertices(vertices);
     meshComp->set_face_vertex_counts(faceVertexCounts);
@@ -310,8 +318,22 @@ TEST(VolumeAdjacency, TwoTetrahedra)
         glm::vec3(0.5f, 0.5f, -1.0f)  // 4
     };
 
-    std::vector<int> faceVertexCounts = { 4, 4 };
-    std::vector<int> faceVertexIndices = { 0, 1, 2, 3, 0, 2, 1, 4 };
+    // Two tetrahedra sharing face (0,1,2)
+    // Tet 1: (0,1,2,3)
+    // Tet 2: (0,1,2,4)
+    std::vector<int> faceVertexCounts = { 3, 3, 3, 3, 3, 3, 3 };
+    std::vector<int> faceVertexIndices = {
+        // Tet 1 faces
+        1, 2, 3,  // opposite to v0
+        0, 2, 3,  // opposite to v1
+        0, 1, 3,  // opposite to v2
+        // Tet 2 faces (excluding shared face)
+        1, 2, 4,  // opposite to v0
+        0, 2, 4,  // opposite to v1
+        0, 1, 4,  // opposite to v2
+        // Shared face
+        0, 1, 2   // opposite to v3 (in Tet1) and v4 (in Tet2)
+    };
 
     meshComp->set_vertices(vertices);
     meshComp->set_face_vertex_counts(faceVertexCounts);
@@ -333,10 +355,266 @@ TEST(VolumeAdjacency, TwoTetrahedra)
         std::cout << "\n";
     }
 
-    // Vertices 0, 1, 2 are in 2 tets each
-    unsigned offset0 = offsetCPU[0];
-    unsigned count0 = adjacencyCPU[offset0];
-    EXPECT_EQ(count0, 2) << "Vertex 0 should be in 2 tetrahedra";
+    // V0, V1, V2 are shared by both tets, each has 2 opposite faces
+    // V3 only in Tet1, has 1 opposite face: (0,1,2)
+    // V4 only in Tet2, has 1 opposite face: (0,1,2)
+    verify_volume_adjacency(
+        adjacencyCPU,
+        offsetCPU,
+        5,
+        {
+            { { 1, 2, 3 }, { 1, 2, 4 } },  // v0 in both tets
+            { { 0, 2, 3 }, { 0, 2, 4 } },  // v1 in both tets
+            { { 0, 1, 3 }, { 0, 1, 4 } },  // v2 in both tets
+            { { 0, 1, 2 } },  // v3 only in Tet1, opposite face is shared face
+            { { 0, 1, 2 } }   // v4 only in Tet2, opposite face is shared face
+        });
+}
+
+// ============================================================================
+// OpenVolumeMesh Validation Tests
+// ============================================================================
+
+// Check if two triangles are the same with same orientation (cyclic permutation)
+bool triangles_match_oriented(
+    unsigned a0, unsigned a1, unsigned a2,
+    unsigned b0, unsigned b1, unsigned b2)
+{
+    // Check all cyclic permutations with same orientation
+    return (a0 == b0 && a1 == b1 && a2 == b2) ||
+           (a0 == b1 && a1 == b2 && a2 == b0) ||
+           (a0 == b2 && a1 == b0 && a2 == b1);
+}
+
+// Compare our adjacency results with OpenVolumeMesh
+void verify_against_openvolulemesh(const Geometry& mesh)
+{
+    auto volumemesh = operand_to_openvolulemesh(const_cast<Geometry*>(&mesh));
+    auto [adjacencyCPU, offsetCPU] = get_volume_adjacency(mesh);
+    
+    std::cout << "\n=== OpenVolumeMesh Validation ===\n";
+    std::cout << "Vertices: " << volumemesh->n_vertices() << "\n";
+    std::cout << "Cells: " << volumemesh->n_cells() << "\n";
+    std::cout << "Faces: " << volumemesh->n_faces() << "\n";
+    
+    // For each vertex, get opposite faces from OpenVolumeMesh
+    for (unsigned v_idx = 0; v_idx < volumemesh->n_vertices(); ++v_idx) {
+        auto vh = OpenVolumeMesh::VertexHandle(v_idx);
+        
+        // Collect opposite faces from OpenVolumeMesh (with orientation)
+        std::vector<std::tuple<unsigned, unsigned, unsigned>> ovm_opposite_faces;
+        
+        for (auto vc_it = volumemesh->vc_iter(vh); vc_it.valid(); ++vc_it) {
+            // Get all faces of this cell
+            auto cell_faces = volumemesh->cell(*vc_it).halffaces();
+            
+            for (auto hf : cell_faces) {
+                auto fh = volumemesh->face_handle(hf);
+                
+                // Get vertices of this face in order
+                std::vector<unsigned> face_v;
+                auto he_begin = volumemesh->halfface(hf).halfedges()[0];
+                auto he = he_begin;
+                do {
+                    auto from_v = volumemesh->halfedge(he).from_vertex();
+                    face_v.push_back(from_v.idx());
+                    he = volumemesh->next_halfedge_in_halfface(he, hf);
+                } while (he != he_begin && face_v.size() < 10);
+                
+                // Check if vertex v_idx is NOT in this face
+                bool contains_v = std::find(face_v.begin(), face_v.end(), v_idx) != face_v.end();
+                
+                if (!contains_v && face_v.size() == 3) {
+                    // This is an opposite face - keep orientation
+                    ovm_opposite_faces.push_back({face_v[0], face_v[1], face_v[2]});
+                }
+            }
+        }
+        
+        // Collect opposite faces from our implementation (with orientation)
+        std::vector<std::tuple<unsigned, unsigned, unsigned>> our_opposite_faces;
+        unsigned offset = offsetCPU[v_idx];
+        unsigned count = adjacencyCPU[offset];
+        
+        for (unsigned i = 0; i < count; ++i) {
+            unsigned a = adjacencyCPU[offset + 1 + i * 3];
+            unsigned b = adjacencyCPU[offset + 1 + i * 3 + 1];
+            unsigned c = adjacencyCPU[offset + 1 + i * 3 + 2];
+            our_opposite_faces.push_back({a, b, c});
+        }
+        
+        // Compare with orientation
+        std::cout << "V" << v_idx << ": OVM=" << ovm_opposite_faces.size() 
+                  << ", Ours=" << our_opposite_faces.size();
+        
+        // Check if counts match
+        if (ovm_opposite_faces.size() != our_opposite_faces.size()) {
+            std::cout << " ✗ COUNT MISMATCH!\n";
+            EXPECT_EQ(ovm_opposite_faces.size(), our_opposite_faces.size()) 
+                << "Vertex " << v_idx << " opposite face count mismatch";
+            continue;
+        }
+        
+        // Check if all faces match with correct orientation
+        bool all_match = true;
+        std::vector<bool> ovm_matched(ovm_opposite_faces.size(), false);
+        
+        for (const auto& [a, b, c] : our_opposite_faces) {
+            bool found = false;
+            for (size_t j = 0; j < ovm_opposite_faces.size(); ++j) {
+                if (!ovm_matched[j]) {
+                    auto [oa, ob, oc] = ovm_opposite_faces[j];
+                    if (triangles_match_oriented(a, b, c, oa, ob, oc)) {
+                        ovm_matched[j] = true;
+                        found = true;
+                        break;
+                    }
+                }
+            }
+            if (!found) {
+                all_match = false;
+                std::cout << " ✗ ORIENTATION MISMATCH!\n";
+                std::cout << "  Missing oriented face: (" << a << "," << b << "," << c << ")\n";
+                std::cout << "  OVM faces:\n";
+                for (auto [oa, ob, oc] : ovm_opposite_faces) {
+                    std::cout << "    (" << oa << "," << ob << "," << oc << ")\n";
+                }
+                std::cout << "  Our faces:\n";
+                for (auto [ua, ub, uc] : our_opposite_faces) {
+                    std::cout << "    (" << ua << "," << ub << "," << uc << ")\n";
+                }
+                break;
+            }
+        }
+        
+        if (all_match) {
+            std::cout << " ✓\n";
+        }
+        
+        EXPECT_TRUE(all_match) 
+            << "Vertex " << v_idx << " opposite faces orientation mismatch";
+    }
+}
+
+TEST(VolumeAdjacency, CubeWithFiveTets)
+{
+    // A cube subdivided into 5 tetrahedra (correct subdivision)
+    Geometry mesh = Geometry::CreateMesh();
+    auto meshComp = mesh.get_component<MeshComponent>();
+
+    // Cube vertices
+    std::vector<glm::vec3> vertices = {
+        glm::vec3(0.0f, 0.0f, 0.0f),  // 0
+        glm::vec3(1.0f, 0.0f, 0.0f),  // 1
+        glm::vec3(1.0f, 1.0f, 0.0f),  // 2
+        glm::vec3(0.0f, 1.0f, 0.0f),  // 3
+        glm::vec3(0.0f, 0.0f, 1.0f),  // 4
+        glm::vec3(1.0f, 0.0f, 1.0f),  // 5
+        glm::vec3(1.0f, 1.0f, 1.0f),  // 6
+        glm::vec3(0.0f, 1.0f, 1.0f)   // 7
+    };
+
+    // 5 tetrahedra along diagonal (0,6) - standard cube subdivision
+    std::vector<int> faceVertexCounts(20, 3);
+    std::vector<int> faceVertexIndices = {
+        // Tet 1: (0,1,2,6)
+        1,2,6, 0,6,2, 0,1,6, 0,2,1,
+        // Tet 2: (0,4,5,6)
+        4,5,6, 0,6,5, 0,4,6, 0,5,4,
+        // Tet 3: (0,1,5,6)
+        1,5,6, 0,6,5, 0,1,6, 0,5,1,
+        // Tet 4: (0,2,3,6)
+        2,3,6, 0,6,3, 0,2,6, 0,3,2,
+        // Tet 5: (0,4,6,7)
+        4,6,7, 0,7,6, 0,4,7, 0,6,4
+    };
+
+    meshComp->set_vertices(vertices);
+    meshComp->set_face_vertex_counts(faceVertexCounts);
+    meshComp->set_face_vertex_indices(faceVertexIndices);
+
+    verify_against_openvolulemesh(mesh);
+}
+
+TEST(VolumeAdjacency, OctahedronWithEightTets)
+{
+    // Regular octahedron subdivided into 8 tetrahedra
+    Geometry mesh = Geometry::CreateMesh();
+    auto meshComp = mesh.get_component<MeshComponent>();
+
+    std::vector<glm::vec3> vertices = {
+        glm::vec3(0.0f, 0.0f, 0.0f),   // 0 center
+        glm::vec3(1.0f, 0.0f, 0.0f),   // 1
+        glm::vec3(0.0f, 1.0f, 0.0f),   // 2
+        glm::vec3(-1.0f, 0.0f, 0.0f),  // 3
+        glm::vec3(0.0f, -1.0f, 0.0f),  // 4
+        glm::vec3(0.0f, 0.0f, 1.0f),   // 5 top
+        glm::vec3(0.0f, 0.0f, -1.0f)   // 6 bottom
+    };
+
+    // 8 tetrahedra from center to each octahedron face
+    std::vector<int> faceVertexCounts(32, 3);
+    std::vector<int> faceVertexIndices = {
+        // Top pyramid (4 tets)
+        // Tet: (0,1,2,5)
+        1,2,5, 0,5,2, 0,1,5, 0,2,1,
+        // Tet: (0,2,3,5)
+        2,3,5, 0,5,3, 0,2,5, 0,3,2,
+        // Tet: (0,3,4,5)
+        3,4,5, 0,5,4, 0,3,5, 0,4,3,
+        // Tet: (0,4,1,5)
+        4,1,5, 0,5,1, 0,4,5, 0,1,4,
+        // Bottom pyramid (4 tets)
+        // Tet: (0,2,1,6)
+        2,1,6, 0,6,1, 0,2,6, 0,1,2,
+        // Tet: (0,3,2,6)
+        3,2,6, 0,6,2, 0,3,6, 0,2,3,
+        // Tet: (0,4,3,6)
+        4,3,6, 0,6,3, 0,4,6, 0,3,4,
+        // Tet: (0,1,4,6)
+        1,4,6, 0,6,4, 0,1,6, 0,4,1
+    };
+
+    meshComp->set_vertices(vertices);
+    meshComp->set_face_vertex_counts(faceVertexCounts);
+    meshComp->set_face_vertex_indices(faceVertexIndices);
+
+    verify_against_openvolulemesh(mesh);
+}
+
+TEST(VolumeAdjacency, PrismWithThreeTets)
+{
+    // Triangular prism subdivided into 3 tetrahedra
+    Geometry mesh = Geometry::CreateMesh();
+    auto meshComp = mesh.get_component<MeshComponent>();
+
+    std::vector<glm::vec3> vertices = {
+        // Bottom triangle
+        glm::vec3(0.0f, 0.0f, 0.0f),   // 0
+        glm::vec3(1.0f, 0.0f, 0.0f),   // 1
+        glm::vec3(0.5f, 1.0f, 0.0f),   // 2
+        // Top triangle
+        glm::vec3(0.0f, 0.0f, 1.0f),   // 3
+        glm::vec3(1.0f, 0.0f, 1.0f),   // 4
+        glm::vec3(0.5f, 1.0f, 1.0f)    // 5
+    };
+
+    // 3 tetrahedra subdividing the prism
+    std::vector<int> faceVertexCounts(12, 3);
+    std::vector<int> faceVertexIndices = {
+        // Tet 1: (0,1,2,3)
+        1,2,3, 0,3,2, 0,1,3, 0,2,1,
+        // Tet 2: (1,2,3,4)
+        2,3,4, 1,4,3, 1,2,4, 1,3,2,
+        // Tet 3: (2,3,4,5)
+        3,4,5, 2,5,4, 2,3,5, 2,4,3
+    };
+
+    meshComp->set_vertices(vertices);
+    meshComp->set_face_vertex_counts(faceVertexCounts);
+    meshComp->set_face_vertex_indices(faceVertexIndices);
+
+    verify_against_openvolulemesh(mesh);
 }
 
 int main(int argc, char** argv)

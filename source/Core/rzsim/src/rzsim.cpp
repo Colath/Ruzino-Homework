@@ -40,9 +40,9 @@ get_volume_adjacency_gpu(const Geometry& g)
     auto faceVertexIndices = mesh->get_face_vertex_indices();
     
     auto vertex_buffer = cuda::create_cuda_linear_buffer(vertices);
-    auto tet_buffer = cuda::create_cuda_linear_buffer(faceVertexIndices);
+    auto triangle_buffer = cuda::create_cuda_linear_buffer(faceVertexIndices);
     
-    return rzsim_cuda::compute_volume_adjacency_gpu(vertex_buffer, tet_buffer);
+    return rzsim_cuda::compute_volume_adjacency_gpu(vertex_buffer, triangle_buffer);
 }
 
 std::tuple<std::vector<unsigned>, std::vector<unsigned>>
