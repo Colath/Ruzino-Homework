@@ -365,7 +365,7 @@ class FEMSolver3D : public ElementSolver {
         if (!mesh_comp_)
             return;
         auto geom_ptr = const_cast<Geometry*>(&geometry_);
-        volumemesh_ = operand_to_openvolulemesh(geom_ptr);
+        volumemesh_ = operand_to_openvolumemesh(geom_ptr);
 
         // Validate the volume mesh
 //        validate_volume_mesh();

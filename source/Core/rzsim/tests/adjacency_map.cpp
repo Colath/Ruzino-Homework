@@ -403,7 +403,7 @@ TEST(VolumeAdjacency, TwoTetrahedra)
 // Compare our adjacency results with OpenVolumeMesh
 void verify_against_openvolulemesh(const Geometry& mesh)
 {
-    auto volumemesh = operand_to_openvolulemesh(const_cast<Geometry*>(&mesh));
+    auto volumemesh = operand_to_openvolumemesh(const_cast<Geometry*>(&mesh));
     auto [adjacencyCPU, offsetCPU] = get_volume_adjacency(mesh);
     
     std::cout << "\n=== OpenVolumeMesh Validation ===\n";

@@ -225,12 +225,15 @@ has_edge_fast(const Edge* edges, unsigned num_edges, unsigned v1, unsigned v2)
 // Triangle structure for deduplication (normalized form)
 struct Triangle {
     unsigned v0, v1, v2;
+    unsigned original_index; // Index in original triangle buffer
 
-    __host__ __device__ Triangle() : v0(0), v1(0), v2(0)
+    __host__ __device__ Triangle() : v0(0), v1(0), v2(0), original_index(0)
     {
     }
 
-    __host__ __device__ Triangle(unsigned a, unsigned b, unsigned c)
+    __host__ __device__
+    Triangle(unsigned a, unsigned b, unsigned c, unsigned orig_idx)
+        : original_index(orig_idx)
     {
         // Normalize: sort vertices in ascending order (orientation-independent)
         // This treats (a,b,c) and (a,c,b) as the same triangle
@@ -273,7 +276,7 @@ __global__ void normalize_triangles_kernel(
     unsigned v1 = triangles[tri_idx * 3 + 1];
     unsigned v2 = triangles[tri_idx * 3 + 2];
 
-    normalized[tri_idx] = Triangle(v0, v1, v2);
+    normalized[tri_idx] = Triangle(v0, v1, v2, tri_idx);
 }
 
 // Kernel to extract all edges from triangles
@@ -411,22 +414,23 @@ compute_volume_adjacency_gpu(
         thrust::distance(normalized_triangles.begin(), new_tri_end);
     normalized_triangles.resize(num_unique_triangles);
 
-    // Convert back to flat buffer: copy triangle data in interleaved format
+    // Convert back to flat buffer: use original_index to preserve orientation
     thrust::device_vector<unsigned> unique_tri_buffer(num_unique_triangles * 3);
     auto unique_tri_ptr = thrust::raw_pointer_cast(unique_tri_buffer.data());
     auto norm_tri_ptr_const =
         thrust::raw_pointer_cast(normalized_triangles.data());
 
-    // Use a kernel to properly copy the data
+    // Use a kernel to copy the original triangle data (preserving orientation)
     blocks = (num_unique_triangles + threads - 1) / threads;
     thrust::for_each(
         thrust::device,
         thrust::counting_iterator<unsigned>(0),
         thrust::counting_iterator<unsigned>(num_unique_triangles),
-        [unique_tri_ptr, norm_tri_ptr_const] __device__(unsigned i) {
-            unique_tri_ptr[i * 3 + 0] = norm_tri_ptr_const[i].v0;
-            unique_tri_ptr[i * 3 + 1] = norm_tri_ptr_const[i].v1;
-            unique_tri_ptr[i * 3 + 2] = norm_tri_ptr_const[i].v2;
+        [unique_tri_ptr, norm_tri_ptr_const, tri_ptr] __device__(unsigned i) {
+            unsigned orig_idx = norm_tri_ptr_const[i].original_index;
+            unique_tri_ptr[i * 3 + 0] = tri_ptr[orig_idx * 3 + 0];
+            unique_tri_ptr[i * 3 + 1] = tri_ptr[orig_idx * 3 + 1];
+            unique_tri_ptr[i * 3 + 2] = tri_ptr[orig_idx * 3 + 2];
         });
     cudaDeviceSynchronize();
 
