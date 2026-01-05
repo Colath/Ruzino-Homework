@@ -12,7 +12,8 @@ RUZINO_NAMESPACE_OPEN_SCOPE
 class Geometry;
 
 struct RZSIM_API ReducedOrderedBasis {
-    ReducedOrderedBasis(const Geometry& g, int num_modes = 10);
+    // dimension: 2 for surface mesh (triangles/quads), 3 for volume mesh (tetrahedra)
+    ReducedOrderedBasis(const Geometry& g, int num_modes = 10, int dimension = 2);
 
     // Compute eigenvalue decomposition and store the first N eigenvectors
     void compute_eigenmodes(int num_modes);
