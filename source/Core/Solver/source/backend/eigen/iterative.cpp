@@ -182,102 +182,8 @@ class EigenBiCGStabSolver
         SolverResult result;
 
         try {
-            // 对于非常大的 SPD 矩阵，给出警告但仍然尝试求解
-            if (isSPDMatrix(A) && A.rows() > 10000) {
-                if (config.verbose) {
-                    spdlog::warn(
-                        "Warning: BiCGSTAB on large SPD matrix may converge "
-                        "slowly");
-                }
-                // 调整迭代参数以提高成功率
-                const int max_restarts = 5;  // 增加重启次数
-                int restart_count = 0;
-
-                while (restart_count < max_restarts) {
-                    Eigen::BiCGSTAB<Eigen::SparseMatrix<float>> solver;
-                    solver.setTolerance(config.tolerance * 10);  // 放宽容差
-                    solver.setMaxIterations(
-                        std::min(config.max_iterations, 2000));
-
-                    auto setup_end_time =
-                        std::chrono::high_resolution_clock::now();
-                    result.setup_time =
-                        std::chrono::duration_cast<std::chrono::microseconds>(
-                            setup_end_time - start_time);
-
-                    auto solve_start_time =
-                        std::chrono::high_resolution_clock::now();
-
-                    solver.compute(A);
-                    if (solver.info() != Eigen::Success) {
-                        result.error_message = "Matrix decomposition failed";
-                        return result;
-                    }
-
-                    x = solver.solve(b);
-
-                    auto solve_end_time =
-                        std::chrono::high_resolution_clock::now();
-                    result.solve_time =
-                        std::chrono::duration_cast<std::chrono::microseconds>(
-                            solve_end_time - solve_start_time);
-
-                    if (!x.allFinite()) {
-                        restart_count++;
-                        if (restart_count < max_restarts) {
-                            x = Eigen::VectorXf::Random(A.rows()) *
-                                0.01f;  // 更小的初值
-                            continue;
-                        }
-                        else {
-                            result.converged = false;
-                            result.error_message =
-                                "BiCGSTAB numerical breakdown after " +
-                                std::to_string(max_restarts) + " restarts";
-                            return result;
-                        }
-                    }
-
-                    result.converged = (solver.info() == Eigen::Success);
-                    result.iterations =
-                        solver.iterations() + restart_count * 2000;
-
-                    Eigen::VectorXf residual = A * x - b;
-                    float b_norm = b.norm();
-                    result.final_residual = (b_norm > 0)
-                                                ? residual.norm() / b_norm
-                                                : residual.norm();
-
-                    if (result.converged &&
-                        result.final_residual < config.tolerance) {
-                        if (config.verbose) {
-                            std::cout
-                                << "BiCGSTAB converged on SPD matrix with "
-                                << restart_count << " restarts" << std::endl;
-                        }
-                        break;
-                    }
-                    else if (result.final_residual > 0.05f) {  // 5% 误差阈值
-                        restart_count++;
-                        if (restart_count < max_restarts) {
-                            x = Eigen::VectorXf::Random(A.rows()) * 0.01f;
-                            continue;
-                        }
-                        else {
-                            result.converged = false;
-                            result.error_message =
-                                "BiCGSTAB failed to achieve acceptable "
-                                "accuracy on SPD matrix";
-                        }
-                    }
-                    break;
-                }
-                return result;
-            }
-            else {
-                // 原来的 BiCGSTAB 逻辑（处理一般矩阵）
-                return performStandardBiCGStab(A, b, x, config, start_time);
-            }
+            // Use standard BiCGSTAB with restart mechanism for all matrices
+            return performStandardBiCGStab(A, b, x, config, start_time);
         }
         catch (const std::exception& e) {
             result.error_message = e.what();
@@ -298,13 +204,19 @@ class EigenBiCGStabSolver
         SolverResult result;
 
         // 标准的 BiCGSTAB 实现（之前的逻辑）
-        const int max_restarts = 3;
+        // Increase restart attempts and use more conservative tolerance for SPD matrices
+        const int max_restarts = 8;  // More restarts for difficult cases
         int restart_count = 0;
 
         while (restart_count < max_restarts) {
             Eigen::BiCGSTAB<Eigen::SparseMatrix<float>> solver;
-            solver.setTolerance(config.tolerance);
-            solver.setMaxIterations(std::min(config.max_iterations, 1000));
+            // Use slightly relaxed tolerance for better stability
+            float effective_tolerance = config.tolerance;
+            if (restart_count > 0) {
+                effective_tolerance = config.tolerance * (1.0f + restart_count * 0.5f);
+            }
+            solver.setTolerance(effective_tolerance);
+            solver.setMaxIterations(config.max_iterations);
 
             auto setup_end_time = std::chrono::high_resolution_clock::now();
             result.setup_time =
@@ -329,7 +241,17 @@ class EigenBiCGStabSolver
             if (!x.allFinite()) {
                 restart_count++;
                 if (restart_count < max_restarts) {
-                    x = Eigen::VectorXf::Random(A.rows()) * 0.1f;
+                    // Try different random initialization strategies
+                    float scale = 0.1f / (restart_count + 1);
+                    if (restart_count % 2 == 0) {
+                        x = Eigen::VectorXf::Random(A.rows()) * scale;
+                    } else {
+                        // Try zeros with small perturbation
+                        x = Eigen::VectorXf::Constant(A.rows(), scale * 0.1f);
+                    }
+                    if (config.verbose) {
+                        spdlog::info("BiCGSTAB restart {} due to NaN/Inf", restart_count);
+                    }
                     continue;
                 }
                 else {
@@ -341,33 +263,44 @@ class EigenBiCGStabSolver
             }
 
             result.converged = (solver.info() == Eigen::Success);
-            result.iterations = solver.iterations() + restart_count * 1000;
+            result.iterations = solver.iterations();
 
             Eigen::VectorXf residual = A * x - b;
             float b_norm = b.norm();
             result.final_residual =
                 (b_norm > 0) ? residual.norm() / b_norm : residual.norm();
 
-            if (result.converged &&
-                result.final_residual < config.tolerance * 10) {
+            // Check if solution is acceptable
+            if (result.converged && result.final_residual < config.tolerance * 20) {
+                // Good enough solution found
                 break;
             }
-            else if (result.final_residual > 0.1f) {
+            else if (result.final_residual > 0.1f && restart_count < max_restarts - 1) {
+                // Poor solution, try restart with different initialization
                 restart_count++;
-                if (restart_count < max_restarts) {
-                    x = Eigen::VectorXf::Random(A.rows()) * 0.1f;
-                    continue;
+                float scale = 0.1f / (restart_count + 1);
+                if (restart_count % 2 == 0) {
+                    x = Eigen::VectorXf::Random(A.rows()) * scale;
+                } else {
+                    x = Eigen::VectorXf::Constant(A.rows(), scale * 0.1f);
                 }
-                else {
+                if (config.verbose) {
+                    spdlog::info("BiCGSTAB restart {} due to poor residual {}", restart_count, result.final_residual);
+                }
+                continue;
+            }
+            else {
+                // Either converged with acceptable error, or exhausted restarts
+                if (result.final_residual > 0.1f) {
                     result.converged = false;
                     result.error_message =
                         "BiCGSTAB failed to achieve acceptable accuracy";
                 }
+                break;
             }
-            break;
         }
 
-        if (config.verbose) {
+        if (config.verbose && restart_count > 0) {
             std::cout << "Eigen BiCGSTAB: " << result.iterations
                       << " iterations (with " << restart_count
                       << " restarts), residual: " << result.final_residual

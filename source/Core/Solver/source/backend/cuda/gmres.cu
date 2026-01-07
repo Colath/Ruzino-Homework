@@ -401,9 +401,16 @@ class CudaGMRESSolver : public LinearSolver {
         try {
             int n = A.rows();
             int nnz = A.nonZeros();
-            // 进一步减小重启大小以提高效率
-            int restart =
-                std::min(10, std::max(3, n / 200));  // 更激进的重启大小
+            // Adaptive restart size based on problem size and sparsity
+            // For small problems, use larger restart to ensure convergence
+            int restart;
+            if (n <= 500) {
+                restart = std::min(100, std::max(30, n / 5));  // Generous for small problems
+            } else if (n <= 2000) {
+                restart = std::min(80, std::max(20, n / 25));
+            } else {
+                restart = std::min(50, std::max(10, n / 50));  // Original for large problems
+            }
 
             if (config.verbose) {
                 std::cout << "CUDA GMRES: n=" << n << ", nnz=" << nnz

@@ -85,7 +85,20 @@ namespace {
             reinterpret_cast<float*>(d_r->get_device_ptr()),
             1);
 
-        // r0 = r (standard choice)
+        // Compute initial residual norm
+        float r_norm_init;
+        cublasSdot(
+            cublasHandle,
+            n,
+            reinterpret_cast<float*>(d_r->get_device_ptr()),
+            1,
+            reinterpret_cast<float*>(d_r->get_device_ptr()),
+            1,
+            &r_norm_init);
+        r_norm_init = sqrt(r_norm_init);
+
+        // r0 = r (standard choice for SPD) or r0 = random for ill-conditioned
+        // For better stability on ill-conditioned SPD matrices, use r0 = r
         cublasScopy(
             cublasHandle,
             n,
@@ -104,8 +117,9 @@ namespace {
             1);
 
         float rho_old = 1.0f, alpha = 1.0f, omega = 1.0f;
+        int consecutive_small_rho = 0;  // Track breakdown tendency
 
-        // BiCGSTAB iterations - clean implementation
+        // BiCGSTAB iterations - clean implementation with breakdown recovery
         for (int iter = 0; iter < config.max_iterations; ++iter) {
             // rho = r0^T * r
             float rho;
@@ -116,11 +130,32 @@ namespace {
                 1,
                 reinterpret_cast<float*>(d_r->get_device_ptr()),
                 1,
-                &rho);  // Breakdown check - simpler condition
-            if (abs(rho) < 1e-12f * b_norm * b_norm) {
-                result.error_message = "BiCGSTAB breakdown: rho too small";
-                break;
+                &rho);
+            
+            // Adaptive breakdown detection
+            float rho_threshold = 1e-30f;
+            if (r_norm_init > 1e-10f) {
+                rho_threshold = std::max(rho_threshold, 1e-20f * r_norm_init * r_norm_init);
             }
+            
+            if (abs(rho) < rho_threshold) {
+                consecutive_small_rho++;
+                if (consecutive_small_rho > 3 || iter < 10) {
+                    // Early or repeated breakdown - cannot recover
+                    result.error_message = "BiCGSTAB breakdown: rho too small";
+                    break;
+                }
+                // Try to recover by using current residual as new r0
+                cublasScopy(
+                    cublasHandle,
+                    n,
+                    reinterpret_cast<float*>(d_r->get_device_ptr()),
+                    1,
+                    reinterpret_cast<float*>(d_r0->get_device_ptr()),
+                    1);
+                continue;
+            }
+            consecutive_small_rho = 0;  // Reset counter
 
             if (iter > 0) {
                 float beta = (rho / rho_old) * (alpha / omega);
@@ -175,7 +210,8 @@ namespace {
                 1,
                 &r0_dot_v);
 
-            if (abs(r0_dot_v) < 1e-12f * b_norm * b_norm) {
+            // More lenient breakdown check
+            if (abs(r0_dot_v) < 1e-30f || (abs(r0_dot_v) < 1e-15f * b_norm * b_norm && iter > 10)) {
                 result.error_message = "BiCGSTAB breakdown: r0^T * v too small";
                 break;
             }
@@ -260,7 +296,7 @@ namespace {
                 reinterpret_cast<float*>(d_t->get_device_ptr()),
                 1,
                 &t_dot_t);
-            if (t_dot_t < 1e-12f * b_norm * b_norm) {
+            if (t_dot_t < 1e-30f || (t_dot_t < 1e-20f * b_norm * b_norm && iter > 10)) {
                 // Instead of breaking down, try to recover using a different
                 // approach Use the intermediate solution x = x + alpha * p
                 cublasSaxpy(

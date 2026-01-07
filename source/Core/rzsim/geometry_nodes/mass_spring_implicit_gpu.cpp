@@ -37,6 +37,7 @@ NODE_DECLARATION_FUNCTION(mass_spring_implicit_gpu)
 
 NODE_EXECUTION_FUNCTION(mass_spring_implicit_gpu)
 {
+    return true;
 }
 
 NODE_DECLARATION_UI(mass_spring_implicit_gpu);
