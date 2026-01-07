@@ -401,6 +401,9 @@ NODE_EXECUTION_FUNCTION(mass_spring_implicit)
     float restitution = params.get_input<float>("Ground Restitution");
     bool flip_normal = params.get_input<bool>("Flip Normal");
     float dt = global_payload.delta_time;
+    
+    printf("[CPU Params] mass=%.2f, k=%.1f, damp=%.3f, maxIter=%d, tol=%.2e, g=%.2f, rest=%.2f, dt=%.6f\n",
+        mass, stiffness, damping, max_iterations, tolerance, gravity, restitution, dt);
 
     // Get mesh component
     auto mesh_component = input_geom.get_component<MeshComponent>();
@@ -476,6 +479,12 @@ NODE_EXECUTION_FUNCTION(mass_spring_implicit)
         "Implicit solver: {} particles, {} springs",
         num_particles,
         storage.springs.size());
+    
+    // Debug: print first 3 particles before simulation
+    printf("[CPU Before] p[0]=(%.6f, %.6f, %.6f), p[1]=(%.6f, %.6f, %.6f), p[2]=(%.6f, %.6f, %.6f)\n",
+        x(0), x(1), x(2), x(3), x(4), x(5), x(6), x(7), x(8));
+    printf("[CPU Before] v[0]=(%.6f, %.6f, %.6f), v[1]=(%.6f, %.6f, %.6f)\n",
+        v(0), v(1), v(2), v(3), v(4), v(5));
 
     // Solve using Newton's method
     Eigen::VectorXd x_new = x;
@@ -495,6 +504,10 @@ NODE_EXECUTION_FUNCTION(mass_spring_implicit)
     if (!converged) {
         spdlog::warn("Newton solver failed to converge");
     }
+
+    // Debug
+    double x_diff_norm = (x_new - x_n).norm();
+    printf("[CPU Debug] ||x_new - x_n|| = %.6e\n", x_diff_norm);
 
     // Update velocity BEFORE collision handling: v = (x_new - x_n) / dt
     // This captures the velocity based on Newton's solution
@@ -530,6 +543,12 @@ NODE_EXECUTION_FUNCTION(mass_spring_implicit)
         storage.velocities[i].y = v(i * 3 + 1);
         storage.velocities[i].z = v(i * 3 + 2);
     }
+    
+    // Debug: print first 3 particles after simulation
+    printf("[CPU After]  p[0]=(%.6f, %.6f, %.6f), p[1]=(%.6f, %.6f, %.6f), p[2]=(%.6f, %.6f, %.6f)\n",
+        x_new(0), x_new(1), x_new(2), x_new(3), x_new(4), x_new(5), x_new(6), x_new(7), x_new(8));
+    printf("[CPU After]  v[0]=(%.6f, %.6f, %.6f), v[1]=(%.6f, %.6f, %.6f)\n",
+        v(0), v(1), v(2), v(3), v(4), v(5));
 
     if (num_collisions > 0) {
         spdlog::debug("Ground collisions: {} particles", num_collisions);

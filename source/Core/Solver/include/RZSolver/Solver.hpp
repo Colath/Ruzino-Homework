@@ -49,6 +49,23 @@ public:
         const SolverConfig& config = SolverConfig{}
     ) = 0;
     
+    // GPU-only interface: solve directly with GPU buffers (CSR format)
+    // A: CSR sparse matrix (row_offsets, col_indices, values)
+    // b: dense vector on GPU
+    // x: dense vector on GPU (solution output)
+    virtual SolverResult solveGPU(
+        int n,
+        int nnz,
+        const int* d_row_offsets,
+        const int* d_col_indices,
+        const float* d_values,
+        const float* d_b,
+        float* d_x,
+        const SolverConfig& config = SolverConfig{}
+    ) {
+        throw std::runtime_error(getName() + " does not support GPU-only interface");
+    }
+    
     virtual std::string getName() const = 0;
     virtual bool isIterative() const = 0;
     virtual bool requiresGPU() const = 0;

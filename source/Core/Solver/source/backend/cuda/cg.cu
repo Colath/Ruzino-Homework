@@ -1,11 +1,14 @@
 #include <cublas_v2.h>
 #include <cuda_runtime.h>
 #include <cusparse.h>
+#include <thrust/device_ptr.h>
+#include <thrust/fill.h>
 
 #include <RHI/cuda.hpp>
 #include <RHI/internal/cuda_extension.hpp>
 #include <RZSolver/Solver.hpp>
 #include <iostream>
+
 
 RUZINO_NAMESPACE_OPEN_SCOPE
 
@@ -39,9 +42,14 @@ namespace {
 
         // Compute ||b|| for relative residual
         float b_norm;
-        cublasSdot(cublasHandle, n,
-                  reinterpret_cast<float*>(d_b->get_device_ptr()), 1,
-                  reinterpret_cast<float*>(d_b->get_device_ptr()), 1, &b_norm);
+        cublasSdot(
+            cublasHandle,
+            n,
+            reinterpret_cast<float*>(d_b->get_device_ptr()),
+            1,
+            reinterpret_cast<float*>(d_b->get_device_ptr()),
+            1,
+            &b_norm);
         b_norm = sqrt(b_norm);
 
         if (b_norm == 0.0f) {
@@ -52,35 +60,65 @@ namespace {
         }
 
         // r = b - A*x
-        cublasScopy(cublasHandle, n,
-                   reinterpret_cast<float*>(d_b->get_device_ptr()), 1,
-                   reinterpret_cast<float*>(d_r->get_device_ptr()), 1);
+        cublasScopy(
+            cublasHandle,
+            n,
+            reinterpret_cast<float*>(d_b->get_device_ptr()),
+            1,
+            reinterpret_cast<float*>(d_r->get_device_ptr()),
+            1);
 
-        cusparseSpMV(cusparseHandle, CUSPARSE_OPERATION_NON_TRANSPOSE,
-                    &one, matA_desc, vecX_desc, &zero, vecAp_desc,
-                    CUDA_R_32F, CUSPARSE_SPMV_ALG_DEFAULT,
-                    (void*)dBuffer->get_device_ptr());
+        cusparseSpMV(
+            cusparseHandle,
+            CUSPARSE_OPERATION_NON_TRANSPOSE,
+            &one,
+            matA_desc,
+            vecX_desc,
+            &zero,
+            vecAp_desc,
+            CUDA_R_32F,
+            CUSPARSE_SPMV_ALG_DEFAULT,
+            (void*)dBuffer->get_device_ptr());
 
-        cublasSaxpy(cublasHandle, n, &minus_one,
-                   reinterpret_cast<float*>(d_Ap->get_device_ptr()), 1,
-                   reinterpret_cast<float*>(d_r->get_device_ptr()), 1);
+        cudaError_t sync_err = cudaDeviceSynchronize();
+        if (sync_err != cudaSuccess) {
+            result.error_message =
+                std::string("SpMV sync error: ") + cudaGetErrorString(sync_err);
+            result.converged = false;
+            return result;
+        }
+
+        cublasSaxpy(
+            cublasHandle,
+            n,
+            &minus_one,
+            reinterpret_cast<float*>(d_Ap->get_device_ptr()),
+            1,
+            reinterpret_cast<float*>(d_r->get_device_ptr()),
+            1);
 
         // 简化预条件：z = r（不用复杂的对角预条件）
-        cublasScopy(cublasHandle, n,
-                   reinterpret_cast<float*>(d_r->get_device_ptr()), 1,
-                   reinterpret_cast<float*>(d_z->get_device_ptr()), 1);
+        cublasScopy(
+            cublasHandle,
+            n,
+            reinterpret_cast<float*>(d_r->get_device_ptr()),
+            1,
+            reinterpret_cast<float*>(d_z->get_device_ptr()),
+            1);
 
         // 如果需要对角预条件，可以用GPU kernel
         if (config.use_preconditioner) {
             // 获取device指针用于GPU kernel
             float* z_ptr = reinterpret_cast<float*>(d_z->get_device_ptr());
             float* r_ptr = reinterpret_cast<float*>(d_r->get_device_ptr());
-            float* diag_ptr = reinterpret_cast<float*>(d_diagonal->get_device_ptr());
-            
-            Ruzino::cuda::GPUParallelFor("CG_diagonal_precond", n, 
-                GPU_LAMBDA_Ex(int i) {
+            float* diag_ptr =
+                reinterpret_cast<float*>(d_diagonal->get_device_ptr());
+
+            Ruzino::cuda::GPUParallelFor(
+                "CG_diagonal_precond", n, GPU_LAMBDA_Ex(int i) {
                     // z[i] = r[i] / diagonal[i]
-                    z_ptr[i] = (diag_ptr[i] != 0.0f) ? r_ptr[i] / diag_ptr[i] : r_ptr[i];
+                    z_ptr[i] = (diag_ptr[i] != 0.0f) ? r_ptr[i] / diag_ptr[i]
+                                                     : r_ptr[i];
                 });
         }
 
@@ -105,13 +143,17 @@ namespace {
             &rzold);
 
         float initial_residual = sqrt(rzold);
-        if (config.verbose) {
-            std::cout << "CG: Initial residual norm: " << initial_residual
-                      << std::endl;
-        }
 
         // Check if already converged
         if (initial_residual / b_norm < config.tolerance) {
+            // Synchronize to check for any GPU errors before returning
+            cudaError_t sync_err = cudaDeviceSynchronize();
+            if (sync_err != cudaSuccess) {
+                result.error_message =
+                    std::string("GPU error: ") + cudaGetErrorString(sync_err);
+                result.converged = false;
+                return result;
+            }
             result.converged = true;
             result.iterations = 0;
             result.final_residual = initial_residual / b_norm;
@@ -193,16 +235,24 @@ namespace {
                 // 获取device指针用于GPU kernel
                 float* z_ptr = reinterpret_cast<float*>(d_z->get_device_ptr());
                 float* r_ptr = reinterpret_cast<float*>(d_r->get_device_ptr());
-                float* diag_ptr = reinterpret_cast<float*>(d_diagonal->get_device_ptr());
-                
+                float* diag_ptr =
+                    reinterpret_cast<float*>(d_diagonal->get_device_ptr());
+
                 Ruzino::cuda::GPUParallelFor(
                     "CG_diagonal_precond", n, GPU_LAMBDA_Ex(int i) {
-                        z_ptr[i] = (diag_ptr[i] != 0.0f) ? r_ptr[i] / diag_ptr[i] : r_ptr[i];
+                        z_ptr[i] = (diag_ptr[i] != 0.0f)
+                                       ? r_ptr[i] / diag_ptr[i]
+                                       : r_ptr[i];
                     });
-            } else {
-                cublasScopy(cublasHandle, n,
-                           reinterpret_cast<float*>(d_r->get_device_ptr()), 1,
-                           reinterpret_cast<float*>(d_z->get_device_ptr()), 1);
+            }
+            else {
+                cublasScopy(
+                    cublasHandle,
+                    n,
+                    reinterpret_cast<float*>(d_r->get_device_ptr()),
+                    1,
+                    reinterpret_cast<float*>(d_z->get_device_ptr()),
+                    1);
             }
 
             // rznew = r^T * z
@@ -233,11 +283,6 @@ namespace {
                 result.converged = true;
                 result.iterations = iter + 1;
                 result.final_residual = relative_residual;
-                if (config.verbose) {
-                    std::cout << "CG converged in " << iter + 1
-                              << " iterations, residual: " << relative_residual
-                              << std::endl;
-                }
                 break;
             }
 
@@ -246,12 +291,6 @@ namespace {
                 float progress_rate =
                     relative_residual / (initial_residual / b_norm);
                 if (progress_rate > 0.99f) {  // 几乎没有进展
-                    if (config.verbose) {
-                        std::cout
-                            << "CG stagnation detected at iteration " << iter
-                            << ", relative residual: " << relative_residual
-                            << std::endl;
-                    }
                     // 不立即退出，给更多机会
                 }
             }
@@ -291,7 +330,7 @@ namespace {
 
         return result;
     }
-} // namespace
+}  // namespace
 
 class CudaCGSolver : public LinearSolver {
    private:
@@ -300,26 +339,30 @@ class CudaCGSolver : public LinearSolver {
     bool initialized = false;
 
     // Check if matrix is likely SPD
-    bool isLikelySPD(const Eigen::SparseMatrix<float>& A) {
-        if (A.rows() != A.cols()) return false;
-        
+    bool isLikelySPD(const Eigen::SparseMatrix<float>& A)
+    {
+        if (A.rows() != A.cols())
+            return false;
+
         // Quick symmetry check on a sample of entries
         int sample_size = std::min(100, (int)A.rows());
         for (int i = 0; i < sample_size; ++i) {
             for (int j = i + 1; j < sample_size; ++j) {
                 float aij = A.coeff(i, j);
                 float aji = A.coeff(j, i);
-                if (abs(aij - aji) > 1e-6f * std::max(abs(aij), abs(aji)) + 1e-10f) {
+                if (abs(aij - aji) >
+                    1e-6f * std::max(abs(aij), abs(aji)) + 1e-10f) {
                     return false;
                 }
             }
         }
-        
+
         // Check diagonal positivity
         for (int i = 0; i < sample_size; ++i) {
-            if (A.coeff(i, i) <= 0) return false;
+            if (A.coeff(i, i) <= 0)
+                return false;
         }
-        
+
         return true;
     }
 
@@ -353,7 +396,171 @@ class CudaCGSolver : public LinearSolver {
     bool requiresGPU() const override
     {
         return true;
-    }    SolverResult solve(
+    }
+
+    SolverResult solveGPU(
+        int n,
+        int nnz,
+        const int* d_row_offsets,
+        const int* d_col_indices,
+        const float* d_values,
+        const float* d_b,
+        float* d_x,
+        const SolverConfig& config = SolverConfig{}) override
+    {
+        auto start_time = std::chrono::high_resolution_clock::now();
+        SolverResult result;
+
+        try {
+            // Create cuSPARSE matrix descriptor from existing GPU data
+            cusparseSpMatDescr_t matA_desc;
+            cusparseCreateCsr(
+                &matA_desc,
+                n,
+                n,
+                nnz,
+                (void*)d_row_offsets,
+                (void*)d_col_indices,
+                (void*)d_values,
+                CUSPARSE_INDEX_32I,
+                CUSPARSE_INDEX_32I,
+                CUSPARSE_INDEX_BASE_ZERO,
+                CUDA_R_32F);
+
+            // Allocate temporary vectors
+            Ruzino::cuda::CUDALinearBufferDesc vec_desc;
+            vec_desc.element_count = n;
+            vec_desc.element_size = sizeof(float);
+
+            auto d_r = Ruzino::cuda::create_cuda_linear_buffer(vec_desc);
+            auto d_z = Ruzino::cuda::create_cuda_linear_buffer(vec_desc);
+            auto d_p_buf = Ruzino::cuda::create_cuda_linear_buffer(vec_desc);
+            auto d_Ap = Ruzino::cuda::create_cuda_linear_buffer(vec_desc);
+            auto d_diagonal = Ruzino::cuda::create_cuda_linear_buffer(vec_desc);
+
+            // Simple diagonal: just set to 1.0 (no preconditioning for diagonal
+            // matrix)
+            float* diag_dev =
+                reinterpret_cast<float*>(d_diagonal->get_device_ptr());
+            thrust::fill(
+                thrust::device_pointer_cast(diag_dev),
+                thrust::device_pointer_cast(diag_dev + n),
+                1.0f);
+
+            // Create vector descriptors
+            cusparseDnVecDescr_t vecX, vecB, vecR, vecZ, vecP, vecAp;
+            cusparseCreateDnVec(&vecX, n, (void*)d_x, CUDA_R_32F);
+            cusparseCreateDnVec(&vecB, n, (void*)d_b, CUDA_R_32F);
+            cusparseCreateDnVec(
+                &vecR, n, (void*)d_r->get_device_ptr(), CUDA_R_32F);
+            cusparseCreateDnVec(
+                &vecZ, n, (void*)d_z->get_device_ptr(), CUDA_R_32F);
+            cusparseCreateDnVec(
+                &vecP, n, (void*)d_p_buf->get_device_ptr(), CUDA_R_32F);
+            cusparseCreateDnVec(
+                &vecAp, n, (void*)d_Ap->get_device_ptr(), CUDA_R_32F);
+
+            // Query SpMV buffer size
+            size_t bufferSize = 0;
+            const float one = 1.0f;
+            const float zero = 0.0f;
+            cusparseSpMV_bufferSize(
+                cusparseHandle,
+                CUSPARSE_OPERATION_NON_TRANSPOSE,
+                (const void*)&one,
+                matA_desc,
+                vecP,
+                (const void*)&zero,
+                vecAp,
+                CUDA_R_32F,
+                CUSPARSE_SPMV_ALG_DEFAULT,
+                &bufferSize);
+
+            Ruzino::cuda::CUDALinearBufferDesc buffer_desc;
+            buffer_desc.element_count = bufferSize;
+            buffer_desc.element_size = 1;
+            auto dBuffer = Ruzino::cuda::create_cuda_linear_buffer(buffer_desc);
+
+            auto setup_end = std::chrono::high_resolution_clock::now();
+            result.setup_time =
+                std::chrono::duration_cast<std::chrono::microseconds>(
+                    setup_end - start_time);
+
+            // Call CG implementation (reuse existing logic)
+            {
+                // Create borrowed buffers in limited scope to ensure they
+                // destruct before cleanup
+                Ruzino::cuda::CUDALinearBufferDesc vec_existing_desc;
+                vec_existing_desc.element_count = n;
+                vec_existing_desc.element_size = sizeof(float);
+
+                auto d_x_buf = Ruzino::cuda::borrow_cuda_linear_buffer(
+                    vec_existing_desc, (void*)d_x);
+                auto d_b_buf = Ruzino::cuda::borrow_cuda_linear_buffer(
+                    vec_existing_desc, (void*)d_b);
+
+                result = performCGIterationsImpl(
+                    cublasHandle,
+                    cusparseHandle,
+                    config,
+                    n,
+                    matA_desc,
+                    vecX,
+                    vecB,
+                    vecR,
+                    vecZ,
+                    vecP,
+                    vecAp,
+                    d_diagonal,
+                    dBuffer,
+                    d_b_buf,
+                    d_x_buf,
+                    d_r,
+                    d_z,
+                    d_p_buf,
+                    d_Ap);
+
+                // Synchronize GPU before borrowed buffers destruct
+                cudaError_t sync_err = cudaDeviceSynchronize();
+                if (sync_err != cudaSuccess) {
+                    // Handle sync error if needed
+                }
+            }  // borrowed buffers destructed here, after sync
+
+            // Synchronize before cleanup to ensure all GPU operations are
+            // complete
+            cudaError_t final_sync_err = cudaDeviceSynchronize();
+            if (final_sync_err != cudaSuccess) {
+                if (result.error_message.empty()) {
+                    result.error_message = std::string("Final sync error: ") +
+                                           cudaGetErrorString(final_sync_err);
+                    result.converged = false;
+                }
+            }
+
+            // Cleanup
+            cusparseDestroyDnVec(vecX);
+            cusparseDestroyDnVec(vecB);
+            cusparseDestroyDnVec(vecR);
+            cusparseDestroyDnVec(vecZ);
+            cusparseDestroyDnVec(vecP);
+            cusparseDestroyDnVec(vecAp);
+            cusparseDestroySpMat(matA_desc);
+
+            auto end_time = std::chrono::high_resolution_clock::now();
+            result.solve_time =
+                std::chrono::duration_cast<std::chrono::microseconds>(
+                    end_time - setup_end);
+        }
+        catch (const std::exception& e) {
+            result.error_message =
+                std::string("GPU CG solve failed: ") + e.what();
+            result.converged = false;
+        }
+        return result;
+    }
+
+    SolverResult solve(
         const Eigen::SparseMatrix<float>& A,
         const Eigen::VectorXf& b,
         Eigen::VectorXf& x,
@@ -368,25 +575,16 @@ class CudaCGSolver : public LinearSolver {
 
             // Check if matrix is likely SPD (basic symmetry check)
             if (!isLikelySPD(A)) {
-                result.error_message = "CG requires symmetric positive definite matrix";
+                result.error_message =
+                    "CG requires symmetric positive definite matrix";
                 result.converged = false;
                 return result;
-            }            // Check if matrix is likely SPD (basic symmetry check)
-            if (!isLikelySPD(A)) {
-                result.error_message = "CG requires symmetric positive definite matrix";
-                result.converged = false;
-                return result;
-            }
-
-            if (config.verbose) {
-                std::cout << "CUDA CG: n=" << n << ", nnz=" << nnz << std::endl;
             }
 
             // Convert to CSR format
             std::vector<int> csrRowPtr(n + 1, 0);
             std::vector<int> csrColInd(nnz);
             std::vector<float> csrValues(nnz);
-            std::vector<float> diagonal(n, 1.0f);
 
             // First pass: count entries per row
             for (int k = 0; k < A.outerSize(); ++k) {
@@ -410,10 +608,6 @@ class CudaCGSolver : public LinearSolver {
                     int pos = current_pos[row]++;
                     csrValues[pos] = it.value();
                     csrColInd[pos] = it.col();
-
-                    if (it.row() == it.col()) {
-                        diagonal[row] = it.value();
-                    }
                 }
             }
 
@@ -422,134 +616,36 @@ class CudaCGSolver : public LinearSolver {
                 std::chrono::duration_cast<std::chrono::microseconds>(
                     setup_end_time - start_time);
 
-            // GPU setup
+            // Upload to GPU
             auto d_csrValues =
                 Ruzino::cuda::create_cuda_linear_buffer(csrValues);
             auto d_csrRowPtr =
                 Ruzino::cuda::create_cuda_linear_buffer(csrRowPtr);
             auto d_csrColInd =
                 Ruzino::cuda::create_cuda_linear_buffer(csrColInd);
-            auto d_diagonal =
-                Ruzino::cuda::create_cuda_linear_buffer(diagonal);
             auto d_b = Ruzino::cuda::create_cuda_linear_buffer<float>(n);
             auto d_x = Ruzino::cuda::create_cuda_linear_buffer<float>(n);
-            auto d_r = Ruzino::cuda::create_cuda_linear_buffer<float>(n);
-            auto d_z = Ruzino::cuda::create_cuda_linear_buffer<float>(n);
-            auto d_p = Ruzino::cuda::create_cuda_linear_buffer<float>(n);
-            auto d_Ap = Ruzino::cuda::create_cuda_linear_buffer<float>(n);
 
-            // Copy data to GPU
             d_b->assign_host_vector(
                 std::vector<float>(b.data(), b.data() + b.size()));
             d_x->assign_host_vector(
                 std::vector<float>(x.data(), x.data() + x.size()));
 
-            // Create descriptors
-            cusparseSpMatDescr_t matA_desc;
-            cusparseCreateCsr(
-                &matA_desc,
-                n,
+            // Call GPU solve
+            result = solveGPU(
                 n,
                 nnz,
-                reinterpret_cast<void*>(d_csrRowPtr->get_device_ptr()),
-                reinterpret_cast<void*>(d_csrColInd->get_device_ptr()),
-                reinterpret_cast<void*>(d_csrValues->get_device_ptr()),
-                CUSPARSE_INDEX_32I,
-                CUSPARSE_INDEX_32I,
-                CUSPARSE_INDEX_BASE_ZERO,
-                CUDA_R_32F);
+                reinterpret_cast<const int*>(d_csrRowPtr->get_device_ptr()),
+                reinterpret_cast<const int*>(d_csrColInd->get_device_ptr()),
+                reinterpret_cast<const float*>(d_csrValues->get_device_ptr()),
+                reinterpret_cast<const float*>(d_b->get_device_ptr()),
+                reinterpret_cast<float*>(d_x->get_device_ptr()),
+                config);
 
-            cusparseDnVecDescr_t vecX_desc, vecB_desc, vecR_desc, vecZ_desc,
-                vecP_desc, vecAp_desc;
-            cusparseCreateDnVec(
-                &vecX_desc,
-                n,
-                reinterpret_cast<void*>(d_x->get_device_ptr()),
-                CUDA_R_32F);
-            cusparseCreateDnVec(
-                &vecB_desc,
-                n,
-                reinterpret_cast<void*>(d_b->get_device_ptr()),
-                CUDA_R_32F);
-            cusparseCreateDnVec(
-                &vecR_desc,
-                n,
-                reinterpret_cast<void*>(d_r->get_device_ptr()),
-                CUDA_R_32F);
-            cusparseCreateDnVec(
-                &vecZ_desc,
-                n,
-                reinterpret_cast<void*>(d_z->get_device_ptr()),
-                CUDA_R_32F);
-            cusparseCreateDnVec(
-                &vecP_desc,
-                n,
-                reinterpret_cast<void*>(d_p->get_device_ptr()),
-                CUDA_R_32F);
-            cusparseCreateDnVec(
-                &vecAp_desc,
-                n,
-                reinterpret_cast<void*>(d_Ap->get_device_ptr()),
-                CUDA_R_32F);
-
-            // Allocate workspace
-            size_t bufferSize = 0;
-            const float one = 1.0f, zero = 0.0f; //, minus_one = -1.0f; // unused
-            cusparseSpMV_bufferSize(
-                cusparseHandle,
-                CUSPARSE_OPERATION_NON_TRANSPOSE,
-                &one,
-                matA_desc,
-                vecP_desc,
-                &zero,
-                vecAp_desc,
-                CUDA_R_32F,
-                CUSPARSE_SPMV_ALG_DEFAULT,
-                &bufferSize);
-            auto dBuffer =
-                Ruzino::cuda::create_cuda_linear_buffer<uint8_t>(bufferSize);
-
-            auto iteration_start_time =
-                std::chrono::high_resolution_clock::now();
-
-            // CG algorithm implementation
-            result = performCGIterations(
-                config,
-                n,
-                matA_desc,
-                vecX_desc,
-                vecB_desc,
-                vecR_desc,
-                vecZ_desc,
-                vecP_desc,
-                vecAp_desc,
-                d_diagonal,
-                dBuffer,
-                d_b,
-                d_x,
-                d_r,
-                d_z,
-                d_p,
-                d_Ap);
-
-            // Copy result back
+            // Download result
             auto result_vec = d_x->get_host_vector<float>();
             x = Eigen::Map<Eigen::VectorXf>(
                 result_vec.data(), result_vec.size());
-
-            auto iteration_end_time = std::chrono::high_resolution_clock::now();
-            result.solve_time =
-                std::chrono::duration_cast<std::chrono::microseconds>(
-                    iteration_end_time - iteration_start_time);
-
-            // Cleanup
-            cusparseDestroySpMat(matA_desc);
-            cusparseDestroyDnVec(vecX_desc);
-            cusparseDestroyDnVec(vecB_desc);
-            cusparseDestroyDnVec(vecR_desc);
-            cusparseDestroyDnVec(vecZ_desc);
-            cusparseDestroyDnVec(vecP_desc);
-            cusparseDestroyDnVec(vecAp_desc);
         }
         catch (const std::exception& e) {
             result.error_message = e.what();
@@ -557,33 +653,6 @@ class CudaCGSolver : public LinearSolver {
         }
 
         return result;
-    }
-
-    // 移到public以支持device lambda
-    SolverResult performCGIterations(
-        const SolverConfig& config,
-        int n,
-        cusparseSpMatDescr_t matA_desc,
-        cusparseDnVecDescr_t vecX_desc,
-        cusparseDnVecDescr_t vecB_desc,
-        cusparseDnVecDescr_t vecR_desc,
-        cusparseDnVecDescr_t vecZ_desc,
-        cusparseDnVecDescr_t vecP_desc,
-        cusparseDnVecDescr_t vecAp_desc,
-        Ruzino::cuda::CUDALinearBufferHandle d_diagonal,
-        Ruzino::cuda::CUDALinearBufferHandle dBuffer,
-        Ruzino::cuda::CUDALinearBufferHandle d_b,
-        Ruzino::cuda::CUDALinearBufferHandle d_x,
-        Ruzino::cuda::CUDALinearBufferHandle d_r,
-        Ruzino::cuda::CUDALinearBufferHandle d_z,
-        Ruzino::cuda::CUDALinearBufferHandle d_p,
-        Ruzino::cuda::CUDALinearBufferHandle d_Ap)
-    {
-        // 委托给静态函数
-        return performCGIterationsImpl(
-            cublasHandle, cusparseHandle, config, n, matA_desc,
-            vecX_desc, vecB_desc, vecR_desc, vecZ_desc, vecP_desc, vecAp_desc,
-            d_diagonal, dBuffer, d_b, d_x, d_r, d_z, d_p, d_Ap);
     }
 };
 

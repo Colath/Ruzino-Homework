@@ -4,7 +4,7 @@ RUZINO_ADD_LIB(
     rzsim_cuda
     SHARED
     WITH_CUDA
-    PUBLIC_LIBS RHI Eigen3::Eigen
+    PUBLIC_LIBS RHI Eigen3::Eigen RZSolver
 )
 
 target_compile_definitions(rzsim_cuda PRIVATE BUILD_RZSIM_CUDA_MODULE)
