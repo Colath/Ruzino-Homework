@@ -148,6 +148,9 @@ class ICUDALinearBuffer : public nvrhi::IResource {
         assign_host_data(host_data);
     }
 
+    // Device-to-device copy from another buffer
+    virtual void copy_from_device(ICUDALinearBuffer* src) = 0;
+
    protected:
     virtual thrust::host_vector<uint8_t> get_host_data() = 0;
     virtual void assign_host_data(const thrust::host_vector<uint8_t>& data) = 0;

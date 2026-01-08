@@ -41,6 +41,7 @@ NODE_DECLARATION_FUNCTION(mass_spring_implicit_gpu)
         .min(1.0f)
         .max(10000.0f);
     b.add_input<float>("Damping").default_val(1.0f).min(0.0f).max(1.0f);
+    b.add_input<int>("Substeps").default_val(1).min(1).max(20);
     b.add_input<int>("Newton Iterations").default_val(30).min(1).max(100);
     b.add_input<float>("Newton Tolerance")
         .default_val(1e-2f)
@@ -68,6 +69,7 @@ NODE_EXECUTION_FUNCTION(mass_spring_implicit_gpu)
     float mass = params.get_input<float>("Mass");
     float stiffness = params.get_input<float>("Stiffness");
     float damping = params.get_input<float>("Damping");
+    int substeps = params.get_input<int>("Substeps");
     int max_iterations = params.get_input<int>("Newton Iterations");
     float tolerance = params.get_input<float>("Newton Tolerance");
     tolerance = std::max(tolerance, 1e-6f);
@@ -160,272 +162,280 @@ NODE_EXECUTION_FUNCTION(mass_spring_implicit_gpu)
         dt);
 
     spdlog::info(
-        "[GPU] Implicit solver: {} particles, {} springs",
+        "[GPU] Implicit solver: {} particles, {} springs, {} substeps",
         num_particles,
-        storage.springs_buffer->getDesc().element_count / 2);
+        storage.springs_buffer->getDesc().element_count / 2,
+        substeps);
 
-    // Setup external forces on GPU
-    rzsim_cuda::setup_external_forces_gpu(
-        mass, gravity, num_particles, d_f_ext);
-
-    // Compute x_tilde = x + dt * v on GPU
-    rzsim_cuda::explicit_step_gpu(
-        d_positions, d_velocities, dt, num_particles, d_next_positions);
-
-    // Newton's method iterations
-    // Initialize x_new = x_tilde (predictive position) for better convergence
-    auto d_x_new = cuda::create_cuda_linear_buffer<float>(num_particles * 3);
-    auto x_tilde_host = d_next_positions->get_host_vector<float>();
-    d_x_new->assign_host_vector(x_tilde_host);
-
-    spdlog::info(
-        "[GPU] Starting Newton iterations, max_iter={}", max_iterations);
-
-    bool converged = false;
-    for (int iter = 0; iter < max_iterations; iter++) {
-        spdlog::info("[GPU] === Newton iteration {} ===", iter);
-
-        // Create fresh buffer for Newton direction each iteration to avoid warm
-        // start issues
-        auto d_p = cuda::create_cuda_linear_buffer<float>(num_particles * 3);
-
-        // Compute gradient at current x_new
-        rzsim_cuda::compute_gradient_gpu(
-            d_x_new,
-            d_next_positions,  // x_tilde (unchanged)
-            d_M_diag,
-            d_f_ext,
-            d_springs,
-            d_rest_lengths,
-            stiffness,
-            dt,
-            num_particles,
-            d_gradients);
-
-        // Check gradient norm for convergence (computed on GPU)
-        float grad_norm =
-            rzsim_cuda::compute_vector_norm_gpu(d_gradients, num_particles * 3);
-
-        // Check for convergence
-        if (!std::isfinite(grad_norm)) {
-            spdlog::error(
-                "[GPU] Gradient contains NaN/Inf at iteration {}", iter);
-            break;
+    // Substep loop
+    float dt_sub = dt / substeps;
+    for (int substep = 0; substep < substeps; ++substep) {
+        if (substeps > 1) {
+            spdlog::info("[GPU] === Substep {}/{} ===", substep + 1, substeps);
         }
 
-        auto dof = num_particles * 3;
+        // Setup external forces on GPU
+        rzsim_cuda::setup_external_forces_gpu(
+            mass, gravity, num_particles, d_f_ext);
 
-        grad_norm = grad_norm / dof;
+        // Compute x_tilde = x + dt_sub * v on GPU
+        rzsim_cuda::explicit_step_gpu(
+            d_positions, d_velocities, dt_sub, num_particles, d_next_positions);
 
-        // Converge when gradient is 1/1000 of initial gradient
-        if (iter > 0 && grad_norm < tolerance) {
-            spdlog::info(
-                "[GPU] Converged at iteration {} with grad_norm={:.6e}",
-                iter,
-                grad_norm);
-            converged = true;
-            break;
-        }
-
-        // Assemble Hessian matrix
-        auto hessian = rzsim_cuda::assemble_hessian_gpu(
-            d_x_new,
-            d_M_diag,
-            d_springs,
-            d_rest_lengths,
-            stiffness,
-            dt,
-            num_particles);
-
-        // Get Hessian data for printing
-        auto row_offsets_host = hessian.row_offsets->get_host_vector<int>();
-        auto col_indices_host = hessian.col_indices->get_host_vector<int>();
-        auto values_host = hessian.values->get_host_vector<float>();
-
-        // Solve H * p = -grad using CUDA CG
-        auto solver = Ruzino::Solver::SolverFactory::create(
-            Ruzino::Solver::SolverType::CUDA_CG);
-
-        // Adaptive CG tolerance based on gradient magnitude
-        // CG residual should be 0.1% of gradient norm, but not too small
-        float cg_tol = std::max(1e-9f, grad_norm * 1e-4f);
-
-        Ruzino::Solver::SolverConfig solver_config;
-        solver_config.tolerance = cg_tol;
-        solver_config.max_iterations = 1000;
-        solver_config.use_preconditioner = true;
-        solver_config.verbose =
-            (iter <= 1);  // Verbose for first TWO iterations
-
-        if (iter <= 1) {
-            printf(
-                "[GPU] Iter %d: CG tolerance set to %.6e (grad_norm = "
-                "%.6e)\n",
-                iter,
-                cg_tol,
-                grad_norm);
-        }
-
-        // Negate gradient for RHS: -grad (do on GPU)
-        auto d_neg_grad =
+        // Newton's method iterations
+        // Initialize x_new = x_tilde (predictive position) for better
+        // convergence
+        auto d_x_new =
             cuda::create_cuda_linear_buffer<float>(num_particles * 3);
-
-        rzsim_cuda::negate_gpu(d_gradients, d_neg_grad, num_particles * 3);
-
-        // Solve on GPU
-        auto result = solver->solveGPU(
-            hessian.num_rows,
-            hessian.nnz,
-            reinterpret_cast<const int*>(hessian.row_offsets->get_device_ptr()),
-            reinterpret_cast<const int*>(hessian.col_indices->get_device_ptr()),
-            reinterpret_cast<const float*>(hessian.values->get_device_ptr()),
-            reinterpret_cast<const float*>(d_neg_grad->get_device_ptr()),
-            reinterpret_cast<float*>(d_p->get_device_ptr()),
-            solver_config);
-
-        if (!result.converged) {
-            spdlog::error(
-                "[GPU] Newton solve failed at iteration {}: {} (iters={}, "
-                "residual={:.6e})",
-                iter,
-                result.error_message,
-                result.iterations,
-                result.final_residual);
-            break;
-        }
+        d_x_new->copy_from_device(d_next_positions.Get());
 
         spdlog::info(
-            "[GPU] Newton iter {}: grad_norm={:.6e}, CG_iters={}",
-            iter,
-            grad_norm / dt,
-            result.iterations);
+            "[GPU] Starting Newton iterations, max_iter={}", max_iterations);
 
-        // Line search with energy descent
-        float E_current = rzsim_cuda::compute_energy_gpu(
-            d_x_new,
-            d_next_positions,  // x_tilde
-            d_M_diag,
-            d_f_ext,
-            d_springs,
-            d_rest_lengths,
-            stiffness,
-            dt,
-            num_particles);
+        bool converged = false;
+        for (int iter = 0; iter < max_iterations; iter++) {
+            spdlog::info("[GPU] === Newton iteration {} ===", iter);
 
-        float alpha = 1.0f;
-        auto d_x_candidate =
-            cuda::create_cuda_linear_buffer<float>(num_particles * 3);
+            // Create fresh buffer for Newton direction each iteration to avoid
+            // warm start issues
+            auto d_p =
+                cuda::create_cuda_linear_buffer<float>(num_particles * 3);
 
-        int ls_iter = 0;
-        float E_candidate =
-            std::numeric_limits<float>::infinity();  // Start with +infinity so
-                                                     // first check passes
-
-        while (E_candidate > E_current && ls_iter < 50) {
-            // x_candidate = x_new + alpha * p (computed on GPU)
-            rzsim_cuda::axpy_gpu(
-                alpha, d_p, d_x_new, d_x_candidate, num_particles * 3);
-
-            E_candidate = rzsim_cuda::compute_energy_gpu(
-                d_x_candidate,
-                d_next_positions,
+            // Compute gradient at current x_new
+            rzsim_cuda::compute_gradient_gpu(
+                d_x_new,
+                d_next_positions,  // x_tilde (unchanged)
                 d_M_diag,
                 d_f_ext,
                 d_springs,
                 d_rest_lengths,
                 stiffness,
-                dt,
-                num_particles);
+                dt_sub,
+                num_particles,
+                d_gradients);
 
-            if (E_candidate <= E_current) {
-                // Accept step - copy result directly on GPU
-                spdlog::info(
-                    "[GPU] Iter {}: Line search accepted at LS iter {}, "
-                    "alpha={:.3e}",
-                    iter,
-                    ls_iter,
-                    alpha);
+            // Check gradient norm for convergence (computed on GPU)
+            float grad_norm = rzsim_cuda::compute_vector_norm_gpu(
+                d_gradients, num_particles * 3);
 
-                // Copy d_x_candidate to d_x_new on GPU
-                float* x_cand_ptr = d_x_candidate->get_device_ptr<float>();
-                float* x_new_ptr = d_x_new->get_device_ptr<float>();
-                cudaMemcpy(
-                    x_new_ptr,
-                    x_cand_ptr,
-                    num_particles * 3 * sizeof(float),
-                    cudaMemcpyDeviceToDevice);
+            // Check for convergence
+            if (!std::isfinite(grad_norm)) {
+                spdlog::error(
+                    "[GPU] Gradient contains NaN/Inf at iteration {}", iter);
                 break;
             }
 
-            alpha *= 0.5f;
-            ls_iter++;
-        }
+            auto dof = num_particles * 3;
 
-        if (alpha < 1e-7f) {
-            spdlog::warn(
-                "[GPU] Iter {}: Line search failed after {} attempts, could "
-                "not reduce energy (final alpha={:.3e})",
-                iter,
-                ls_iter,
-                alpha);
-            // Do not accept step if we couldn't find energy descent
-            // This prevents divergence - we should break from Newton iterations
-            break;
-        }
-    }
+            grad_norm = grad_norm / dof;
 
-    if (!converged) {
-        spdlog::warn(
-            "[GPU] Newton method did not converge in {} iterations",
-            max_iterations);
-    }
-
-    // Update velocities: v = (x_new - x_n) / dt and apply damping
-    auto x_new_final = d_x_new->get_host_vector<float>();
-    auto x_n_host = d_positions->get_host_vector<glm::vec3>();
-    std::vector<glm::vec3> v_new(num_particles);
-    for (int i = 0; i < num_particles; i++) {
-        v_new[i].x = (x_new_final[i * 3 + 0] - x_n_host[i].x) / dt * damping;
-        v_new[i].y = (x_new_final[i * 3 + 1] - x_n_host[i].y) / dt * damping;
-        v_new[i].z = (x_new_final[i * 3 + 2] - x_n_host[i].z) / dt * damping;
-    }
-
-    // Handle ground collision (z = 0)
-    int num_collisions = 0;
-    for (int i = 0; i < num_particles; i++) {
-        if (x_new_final[i * 3 + 2] < 0.0f) {  // Penetrating ground
-            // Project position to ground
-            x_new_final[i * 3 + 2] = 0.0f;
-
-            // Apply collision response to velocity
-            if (v_new[i].z < 0.0f) {  // Moving downward
-                v_new[i].z = -v_new[i].z * restitution;
-                float friction = 0.8f;
-                v_new[i].x *= friction;
-                v_new[i].y *= friction;
+            // Converge when gradient is 1/1000 of initial gradient
+            if (iter > 0 && grad_norm < tolerance) {
+                spdlog::info(
+                    "[GPU] Converged at iteration {} with grad_norm={:.6e}",
+                    iter,
+                    grad_norm);
+                converged = true;
+                break;
             }
-            num_collisions++;
+
+            // Assemble Hessian matrix
+            auto hessian = rzsim_cuda::assemble_hessian_gpu(
+                d_x_new,
+                d_M_diag,
+                d_springs,
+                d_rest_lengths,
+                stiffness,
+                dt_sub,
+                num_particles);
+
+            // Get Hessian data for printing
+            auto row_offsets_host = hessian.row_offsets->get_host_vector<int>();
+            auto col_indices_host = hessian.col_indices->get_host_vector<int>();
+            auto values_host = hessian.values->get_host_vector<float>();
+
+            // Solve H * p = -grad using CUDA CG
+            auto solver = Ruzino::Solver::SolverFactory::create(
+                Ruzino::Solver::SolverType::CUDA_CG);
+
+            // Adaptive CG tolerance based on gradient magnitude
+            // CG residual should be 0.1% of gradient norm, but not too small
+            float cg_tol = std::max(1e-9f, grad_norm * 1e-4f);
+
+            Ruzino::Solver::SolverConfig solver_config;
+            solver_config.tolerance = cg_tol;
+            solver_config.max_iterations = 1000;
+            solver_config.use_preconditioner = true;
+            solver_config.verbose =
+                (iter <= 1);  // Verbose for first TWO iterations
+
+            if (iter <= 1) {
+                printf(
+                    "[GPU] Iter %d: CG tolerance set to %.6e (grad_norm = "
+                    "%.6e)\n",
+                    iter,
+                    cg_tol,
+                    grad_norm);
+            }
+
+            // Negate gradient for RHS: -grad (do on GPU)
+            auto d_neg_grad =
+                cuda::create_cuda_linear_buffer<float>(num_particles * 3);
+
+            rzsim_cuda::negate_gpu(d_gradients, d_neg_grad, num_particles * 3);
+
+            // Solve on GPU
+            auto result = solver->solveGPU(
+                hessian.num_rows,
+                hessian.nnz,
+                reinterpret_cast<const int*>(
+                    hessian.row_offsets->get_device_ptr()),
+                reinterpret_cast<const int*>(
+                    hessian.col_indices->get_device_ptr()),
+                reinterpret_cast<const float*>(
+                    hessian.values->get_device_ptr()),
+                reinterpret_cast<const float*>(d_neg_grad->get_device_ptr()),
+                reinterpret_cast<float*>(d_p->get_device_ptr()),
+                solver_config);
+
+            if (!result.converged) {
+                spdlog::error(
+                    "[GPU] Newton solve failed at iteration {}: {} (iters={}, "
+                    "residual={:.6e})",
+                    iter,
+                    result.error_message,
+                    result.iterations,
+                    result.final_residual);
+                break;
+            }
+
+            spdlog::info(
+                "[GPU] Newton iter {}: grad_norm={:.6e}, CG_iters={}",
+                iter,
+                grad_norm / dt,
+                result.iterations);
+
+            // Line search with energy descent
+            float E_current = rzsim_cuda::compute_energy_gpu(
+                d_x_new,
+                d_next_positions,  // x_tilde
+                d_M_diag,
+                d_f_ext,
+                d_springs,
+                d_rest_lengths,
+                stiffness,
+                dt_sub,
+                num_particles);
+
+            float alpha = 1.0f;
+            auto d_x_candidate =
+                cuda::create_cuda_linear_buffer<float>(num_particles * 3);
+
+            int ls_iter = 0;
+            float E_candidate =
+                std::numeric_limits<float>::infinity();  // Start with +infinity
+                                                         // so first check
+                                                         // passes
+
+            while (E_candidate > E_current && ls_iter < 50) {
+                // x_candidate = x_new + alpha * p (computed on GPU)
+                rzsim_cuda::axpy_gpu(
+                    alpha, d_p, d_x_new, d_x_candidate, num_particles * 3);
+
+                E_candidate = rzsim_cuda::compute_energy_gpu(
+                    d_x_candidate,
+                    d_next_positions,
+                    d_M_diag,
+                    d_f_ext,
+                    d_springs,
+                    d_rest_lengths,
+                    stiffness,
+                    dt_sub,
+                    num_particles);
+
+                if (E_candidate <= E_current) {
+                    // Accept step - copy result directly on GPU
+                    spdlog::info(
+                        "[GPU] Iter {}: Line search accepted at LS iter {}, "
+                        "alpha={:.3e}",
+                        iter,
+                        ls_iter,
+                        alpha);
+
+                    // Copy d_x_candidate to d_x_new on GPU
+                    float* x_cand_ptr = d_x_candidate->get_device_ptr<float>();
+                    float* x_new_ptr = d_x_new->get_device_ptr<float>();
+                    cudaMemcpy(
+                        x_new_ptr,
+                        x_cand_ptr,
+                        num_particles * 3 * sizeof(float),
+                        cudaMemcpyDeviceToDevice);
+                    break;
+                }
+
+                alpha *= 0.5f;
+                ls_iter++;
+            }
         }
-    }
 
-    if (num_collisions > 0) {
-        spdlog::debug("[GPU] Ground collisions: {} particles", num_collisions);
-    }
+        if (!converged) {
+            spdlog::warn(
+                "[GPU] Newton method did not converge in {} iterations",
+                max_iterations);
+        }
 
-    // Convert to output format
-    std::vector<glm::vec3> new_positions(num_particles);
-    for (int i = 0; i < num_particles; i++) {
-        new_positions[i].x = x_new_final[i * 3 + 0];
-        new_positions[i].y = x_new_final[i * 3 + 1];
-        new_positions[i].z = x_new_final[i * 3 + 2];
-    }
+        // Update velocities: v = (x_new - x_n) / dt_sub and apply damping
+        auto x_new_final = d_x_new->get_host_vector<float>();
+        auto x_n_host = d_positions->get_host_vector<glm::vec3>();
+        std::vector<glm::vec3> v_new(num_particles);
+        for (int i = 0; i < num_particles; i++) {
+            v_new[i].x =
+                (x_new_final[i * 3 + 0] - x_n_host[i].x) / dt_sub * damping;
+            v_new[i].y =
+                (x_new_final[i * 3 + 1] - x_n_host[i].y) / dt_sub * damping;
+            v_new[i].z =
+                (x_new_final[i * 3 + 2] - x_n_host[i].z) / dt_sub * damping;
+        }
 
-    d_velocities->assign_host_vector(v_new);
-    d_positions->assign_host_vector(new_positions);
+        // Handle ground collision (z = 0)
+        int num_collisions = 0;
+        for (int i = 0; i < num_particles; i++) {
+            if (x_new_final[i * 3 + 2] < 0.0f) {  // Penetrating ground
+                // Project position to ground
+                x_new_final[i * 3 + 2] = 0.0f;
+
+                // Apply collision response to velocity
+                if (v_new[i].z < 0.0f) {  // Moving downward
+                    v_new[i].z = -v_new[i].z * restitution;
+                    float friction = 0.8f;
+                    v_new[i].x *= friction;
+                    v_new[i].y *= friction;
+                }
+                num_collisions++;
+            }
+        }
+
+        if (num_collisions > 0) {
+            spdlog::debug(
+                "[GPU] Ground collisions: {} particles", num_collisions);
+        }
+
+        // Convert to output format
+        std::vector<glm::vec3> new_positions(num_particles);
+        for (int i = 0; i < num_particles; i++) {
+            new_positions[i].x = x_new_final[i * 3 + 0];
+            new_positions[i].y = x_new_final[i * 3 + 1];
+            new_positions[i].z = x_new_final[i * 3 + 2];
+        }
+
+        d_velocities->assign_host_vector(v_new);
+        d_positions->assign_host_vector(new_positions);
+    }  // End substep loop
 
     // Update geometry with new positions
+    auto final_positions = d_positions->get_host_vector<glm::vec3>();
     if (mesh_component) {
-        mesh_component->set_vertices(new_positions);
+        mesh_component->set_vertices(final_positions);
 
         // Recalculate normals
         std::vector<glm::vec3> normals;
@@ -438,8 +448,8 @@ NODE_EXECUTION_FUNCTION(mass_spring_implicit_gpu)
                 int i1 = face_vertex_indices[idx + 1];
                 int i2 = face_vertex_indices[idx + 2];
 
-                glm::vec3 edge1 = new_positions[i1] - new_positions[i0];
-                glm::vec3 edge2 = new_positions[i2] - new_positions[i0];
+                glm::vec3 edge1 = final_positions[i1] - final_positions[i0];
+                glm::vec3 edge2 = final_positions[i2] - final_positions[i0];
                 glm::vec3 normal = glm::cross(
                     flip_normal ? edge1 : edge2, flip_normal ? edge2 : edge1);
 
@@ -464,7 +474,7 @@ NODE_EXECUTION_FUNCTION(mass_spring_implicit_gpu)
     }
     else {
         auto points_component = input_geom.get_component<PointsComponent>();
-        points_component->set_vertices(new_positions);
+        points_component->set_vertices(final_positions);
     }
 
     params.set_output<Geometry>("Geometry", std::move(input_geom));

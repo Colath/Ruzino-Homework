@@ -482,6 +482,7 @@ struct CUDALinearBufferView : RefCounter<ICUDALinearBuffer> {
    protected:
     thrust::host_vector<uint8_t> get_host_data() override;
     void assign_host_data(const thrust::host_vector<uint8_t>& data) override;
+    void copy_from_device(ICUDALinearBuffer* src) override;
 
    private:
     void* cuda_ptr;
@@ -865,6 +866,22 @@ void CUDALinearBufferView::assign_host_data(
 {
     assert(data.size() == desc.element_size * desc.element_count);
     cudaMemcpy(cuda_ptr, data.data(), data.size(), cudaMemcpyHostToDevice);
+}
+
+void CUDALinearBufferView::copy_from_device(ICUDALinearBuffer* src)
+{
+    auto src_desc = src->getDesc();
+    
+    // Ensure buffers have compatible sizes
+    size_t src_bytes = src_desc.element_count * src_desc.element_size;
+    size_t dst_bytes = desc.element_count * desc.element_size;
+    size_t copy_bytes = std::min(src_bytes, dst_bytes);
+    
+    cudaMemcpy(
+        cuda_ptr,
+        reinterpret_cast<const void*>(src->get_device_ptr()),
+        copy_bytes,
+        cudaMemcpyDeviceToDevice);
 }
 
 CUDASurfaceObject::CUDASurfaceObject(const CUDASurfaceObjectDesc& in_desc)
