@@ -25,9 +25,6 @@ struct MassSpringImplicitGPUStorage {
     cuda::CUDALinearBufferHandle gradients_buffer;
     cuda::CUDALinearBufferHandle f_ext_buffer;
 
-    // Edge offsets for Hessian structure
-    cuda::CUDALinearBufferHandle edge_offsets_buffer;
-
     // NEW: Pre-built CSR structure (built once, reused forever)
     rzsim_cuda::CSRStructure hessian_structure;
     cuda::CUDALinearBufferHandle
@@ -170,40 +167,6 @@ NODE_EXECUTION_FUNCTION(mass_spring_implicit_gpu)
         storage.hessian_values = cuda::create_cuda_linear_buffer<float>(
             storage.hessian_structure.nnz);
 
-        // Allocate edge_offsets_buffer for Hessian updates
-        // This is computed during hessian structure build, we need to recreate
-        // it
-        auto d_edge_counts =
-            cuda::create_cuda_linear_buffer<int>(num_particles);
-        // Count edges where j > i for each vertex (simplified host version for
-        // initialization)
-        std::vector<int> edge_counts_host(num_particles, 0);
-        auto vertex_offsets_host =
-            storage.vertex_offsets_buffer->get_host_vector<int>();
-        auto adjacent_vertices_host =
-            storage.adjacent_vertices_buffer->get_host_vector<int>();
-
-        for (int i = 0; i < num_particles; i++) {
-            int start = vertex_offsets_host[i];
-            int end = vertex_offsets_host[i + 1];
-            for (int idx = start; idx < end; idx++) {
-                int j = adjacent_vertices_host[idx];
-                if (j > i)
-                    edge_counts_host[i]++;
-            }
-        }
-
-        // Compute prefix sum for edge offsets
-        std::vector<int> edge_offsets_host(num_particles + 1);
-        edge_offsets_host[0] = 0;
-        for (int i = 0; i < num_particles; i++) {
-            edge_offsets_host[i + 1] =
-                edge_offsets_host[i] + edge_counts_host[i];
-        }
-
-        storage.edge_offsets_buffer =
-            cuda::create_cuda_linear_buffer(edge_offsets_host);
-
         // Allocate temporary buffers for Newton iterations (reused)
         storage.x_new_buffer =
             cuda::create_cuda_linear_buffer<float>(num_particles * 3);
@@ -298,7 +261,6 @@ NODE_EXECUTION_FUNCTION(mass_spring_implicit_gpu)
                 d_M_diag,
                 storage.adjacent_vertices_buffer,
                 storage.vertex_offsets_buffer,
-                storage.edge_offsets_buffer,
                 d_rest_lengths,
                 stiffness,
                 dt_sub,

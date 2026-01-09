@@ -96,7 +96,6 @@ void update_hessian_values_gpu(
     cuda::CUDALinearBufferHandle M_diag,
     cuda::CUDALinearBufferHandle adjacent_vertices,
     cuda::CUDALinearBufferHandle vertex_offsets,
-    cuda::CUDALinearBufferHandle edge_offsets,
     cuda::CUDALinearBufferHandle rest_lengths,
     float stiffness,
     float dt,
