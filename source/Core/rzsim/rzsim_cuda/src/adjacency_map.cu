@@ -559,13 +559,18 @@ compute_volume_adjacency_gpu(
         num_vertices * sizeof(unsigned),
         cudaMemcpyDeviceToDevice);
 
-    // Calculate total number of tetrahedra (sum of all face counts)
-    unsigned total_elements = thrust::reduce(
+    // Calculate total number of tetrahedra
+    // Each tetrahedron has 4 vertices, and each vertex records one opposite face
+    // So total_face_counts = 4 * num_tetrahedra
+    // Therefore: num_tetrahedra = total_face_counts / 4
+    unsigned total_face_counts = thrust::reduce(
         thrust::device,
         face_counts.begin(),
         face_counts.end(),
         0u,
         thrust::plus<unsigned>());
+    
+    unsigned total_elements = total_face_counts / 4;
 
     return std::make_tuple(adjacency_buffer, offset_buffer, total_elements);
 }
