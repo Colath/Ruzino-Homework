@@ -166,6 +166,24 @@ void axpy_nh_gpu(
 RZSIM_CUDA_API
 float compute_vector_norm_nh_gpu(cuda::CUDALinearBufferHandle vec, int size);
 
+// Update velocities and apply damping: v = (x_new - x_old) / dt * damping
+RZSIM_CUDA_API
+void update_velocities_nh_gpu(
+    cuda::CUDALinearBufferHandle x_new,
+    cuda::CUDALinearBufferHandle x_old,
+    float dt,
+    float damping,
+    int num_particles,
+    cuda::CUDALinearBufferHandle velocities);
+
+// Handle ground collision with restitution
+RZSIM_CUDA_API
+void handle_ground_collision_nh_gpu(
+    cuda::CUDALinearBufferHandle positions,
+    cuda::CUDALinearBufferHandle velocities,
+    float restitution,
+    int num_particles);
+
 }  // namespace rzsim_cuda
 
 RUZINO_NAMESPACE_CLOSE_SCOPE

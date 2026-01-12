@@ -727,20 +727,6 @@ __device__ void compute_element_hessian(
             }
         }
     }
-    
-    // Verify symmetry of element stiffness matrix (debug only)
-    #ifdef DEBUG_HESSIAN_SYMMETRY
-    for (int i = 0; i < 12; i++) {
-        for (int j = i + 1; j < 12; j++) {
-            float diff = fabsf(K_elem(i,j) - K_elem(j,i));
-            float mag = fmaxf(fabsf(K_elem(i,j)), fabsf(K_elem(j,i)));
-            if (mag > 1e-10f && diff > 1e-4f * mag) {
-                printf("[HESSIAN] Asymmetry at K(%d,%d): %.6e vs K(%d,%d): %.6e, diff=%.6e\\n",
-                       i, j, K_elem(i,j), j, i, K_elem(j,i), diff);
-            }
-        }
-    }
-    #endif
 }
 
 // Binary search for entry position (same as mass-spring)
@@ -1459,6 +1445,55 @@ float compute_vector_norm_nh_gpu(cuda::CUDALinearBufferHandle vec, int size)
         thrust::plus<float>());
 
     return sqrtf(sum_sq);
+}
+
+// Update velocities: v = (x_new - x_old) / dt * damping
+void update_velocities_nh_gpu(
+    cuda::CUDALinearBufferHandle x_new,
+    cuda::CUDALinearBufferHandle x_old,
+    float dt,
+    float damping,
+    int num_particles,
+    cuda::CUDALinearBufferHandle velocities)
+{
+    const float* x_new_ptr = x_new->get_device_ptr<float>();
+    const float* x_old_ptr = x_old->get_device_ptr<float>();
+    float* v_ptr = velocities->get_device_ptr<float>();
+
+    float inv_dt_damped = damping / dt;
+
+    cuda::GPUParallelFor(
+        "update_velocities_nh",
+        num_particles * 3,
+        [=] __device__(int i) {
+            v_ptr[i] = (x_new_ptr[i] - x_old_ptr[i]) * inv_dt_damped;
+        });
+}
+
+// Handle ground collision (z = 0) with restitution
+void handle_ground_collision_nh_gpu(
+    cuda::CUDALinearBufferHandle positions,
+    cuda::CUDALinearBufferHandle velocities,
+    float restitution,
+    int num_particles)
+{
+    float* pos_ptr = positions->get_device_ptr<float>();
+    float* vel_ptr = velocities->get_device_ptr<float>();
+
+    cuda::GPUParallelFor(
+        "handle_ground_collision_nh",
+        num_particles,
+        [=] __device__(int i) {
+            int z_idx = i * 3 + 2;
+            if (pos_ptr[z_idx] < 0.0f) {
+                pos_ptr[z_idx] = 0.0f;
+                
+                // Reflect velocity with restitution
+                if (vel_ptr[z_idx] < 0.0f) {
+                    vel_ptr[z_idx] = -vel_ptr[z_idx] * restitution;
+                }
+            }
+        });
 }
 
 }  // namespace rzsim_cuda
