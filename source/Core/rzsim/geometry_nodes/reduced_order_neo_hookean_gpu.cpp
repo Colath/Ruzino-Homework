@@ -17,12 +17,13 @@
 NODE_DEF_OPEN_SCOPE
 
 // Storage for persistent GPU simulation state
-struct NeoHookeanGPUStorage {
+struct ReducedNeoHookeanGPUStorage {
     cuda::CUDALinearBufferHandle positions_buffer;
     cuda::CUDALinearBufferHandle velocities_buffer;
     cuda::CUDALinearBufferHandle next_positions_buffer;
     cuda::CUDALinearBufferHandle mass_matrix_buffer;
     cuda::CUDALinearBufferHandle gradients_buffer;
+    cuda::CUDALinearBufferHandle f_ext_buffer;
 
     // Mesh topology buffers (cached)
     cuda::CUDALinearBufferHandle face_vertex_indices_buffer;
@@ -49,6 +50,7 @@ struct NeoHookeanGPUStorage {
     // Temporary buffers for energy computation
     cuda::CUDALinearBufferHandle inertial_terms_buffer;
     cuda::CUDALinearBufferHandle element_energies_buffer;
+    cuda::CUDALinearBufferHandle potential_terms_buffer;
 
     // Reuse solver instance
     std::unique_ptr<Ruzino::Solver::LinearSolver> solver;
@@ -102,15 +104,12 @@ struct NeoHookeanGPUStorage {
             num_particles, glm::vec3(0.0f));
         velocities_buffer = cuda::create_cuda_linear_buffer(initial_velocities);
 
-        next_positions_buffer =
-            cuda::create_cuda_linear_buffer<float>(num_particles * 3);
-        gradients_buffer =
-            cuda::create_cuda_linear_buffer<float>(num_particles * 3);
+        auto dof = num_particles * 3;
 
-        // Mass matrix will be computed from density and volumes after reference
-        // data is ready
-        mass_matrix_buffer =
-            cuda::create_cuda_linear_buffer<float>(num_particles * 3);
+        next_positions_buffer = cuda::create_cuda_linear_buffer<float>(dof);
+        gradients_buffer = cuda::create_cuda_linear_buffer<float>(dof);
+        f_ext_buffer = cuda::create_cuda_linear_buffer<float>(dof);
+        mass_matrix_buffer = cuda::create_cuda_linear_buffer<float>(dof);
 
         // Compute lumped mass matrix from density and element volumes
         // For each element: m_elem = density * volume
@@ -131,21 +130,16 @@ struct NeoHookeanGPUStorage {
             cuda::create_cuda_linear_buffer<float>(hessian_structure.nnz);
 
         // Allocate temporary buffers for Newton iterations
-        x_new_buffer =
-            cuda::create_cuda_linear_buffer<float>(num_particles * 3);
-        newton_direction_buffer =
-            cuda::create_cuda_linear_buffer<float>(num_particles * 3);
-        neg_gradient_buffer =
-            cuda::create_cuda_linear_buffer<float>(num_particles * 3);
-        x_candidate_buffer =
-            cuda::create_cuda_linear_buffer<float>(num_particles * 3);
+        x_new_buffer = cuda::create_cuda_linear_buffer<float>(dof);
+        newton_direction_buffer = cuda::create_cuda_linear_buffer<float>(dof);
+        neg_gradient_buffer = cuda::create_cuda_linear_buffer<float>(dof);
+        x_candidate_buffer = cuda::create_cuda_linear_buffer<float>(dof);
 
         // Allocate temporary buffers for energy computation
-        inertial_terms_buffer =
-            cuda::create_cuda_linear_buffer<float>(num_particles * 3);
+        inertial_terms_buffer = cuda::create_cuda_linear_buffer<float>(dof);
         element_energies_buffer =
             cuda::create_cuda_linear_buffer<float>(num_elements);
-
+        potential_terms_buffer = cuda::create_cuda_linear_buffer<float>(dof);
         // Create solver instance
         solver = Ruzino::Solver::SolverFactory::create(
             Ruzino::Solver::SolverType::CUDA_CG);
@@ -154,9 +148,11 @@ struct NeoHookeanGPUStorage {
     }
 };
 
-NODE_DECLARATION_FUNCTION(neo_hookean_gpu)
+NODE_DECLARATION_FUNCTION(reduced_order_neo_hookean_gpu)
 {
     b.add_input<Geometry>("Geometry");
+    b.add_input<std::shared_ptr<ReducedOrderedBasis>>("Reduced Basis");
+
     b.add_input<float>("Density").default_val(1000.0f).min(1.0f).max(10000.0f);
     b.add_input<float>("Young's Modulus").default_val(5e4f).min(1e3f).max(1e9f);
     b.add_input<float>("Poisson's Ratio")
@@ -180,10 +176,10 @@ NODE_DECLARATION_FUNCTION(neo_hookean_gpu)
     b.add_output<Geometry>("Geometry");
 }
 
-NODE_EXECUTION_FUNCTION(neo_hookean_gpu)
+NODE_EXECUTION_FUNCTION(reduced_order_neo_hookean_gpu)
 {
     auto& global_payload = params.get_global_payload<GeomPayload&>();
-    auto& storage = params.get_storage<NeoHookeanGPUStorage&>();
+    auto& storage = params.get_storage<ReducedNeoHookeanGPUStorage&>();
 
     // Get inputs
     auto input_geom = params.get_input<Geometry>("Geometry");
@@ -253,6 +249,7 @@ NODE_EXECUTION_FUNCTION(neo_hookean_gpu)
     auto d_next_positions = storage.next_positions_buffer;
     auto d_M_diag = storage.mass_matrix_buffer;
     auto d_gradients = storage.gradients_buffer;
+    auto d_f_ext = storage.f_ext_buffer;
 
     // Substep loop
     float dt_sub = dt / substeps;
@@ -262,6 +259,16 @@ NODE_EXECUTION_FUNCTION(neo_hookean_gpu)
     int max_line_search_iterations = 0;
 
     for (int substep = 0; substep < substeps; ++substep) {
+        // Setup external forces on GPU (using proper FEM integration)
+        rzsim_cuda::setup_external_forces_fem_gpu(
+            *storage.volume_adjacency,
+            storage.volumes_buffer,
+            density,
+            gravity,
+            num_particles,
+            storage.num_elements,
+            d_f_ext);
+
         // Compute x_tilde = x + dt_sub * v on GPU
         rzsim_cuda::explicit_step_nh_gpu(
             d_positions, d_velocities, dt_sub, num_particles, d_next_positions);
@@ -516,5 +523,5 @@ NODE_EXECUTION_FUNCTION(neo_hookean_gpu)
     return true;
 }
 
-NODE_DECLARATION_UI(neo_hookean_gpu);
+NODE_DECLARATION_UI(reduced_order_neo_hookean_gpu);
 NODE_DEF_CLOSE_SCOPE

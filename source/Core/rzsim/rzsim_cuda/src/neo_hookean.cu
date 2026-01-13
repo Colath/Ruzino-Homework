@@ -377,7 +377,7 @@ __device__ void add_element_gradient(
     }
 }
 
-// Gradient kernel
+// Gradient kernel - only inertial term
 __global__ void compute_gradient_nh_kernel(
     const float* x_curr,
     const float* x_tilde,
@@ -404,14 +404,9 @@ __global__ void compute_gradient_nh_kernel(
         M_diag[i * 3 + 1] * (x_curr[i * 3 + 1] - x_tilde[i * 3 + 1]);
     grad[i * 3 + 2] =
         M_diag[i * 3 + 2] * (x_curr[i * 3 + 2] - x_tilde[i * 3 + 2]);
-
-    // Subtract external forces (with dt² scaling like mass-spring)
-    grad[i * 3 + 0] -= dt * dt * f_ext[i * 3 + 0];
-    grad[i * 3 + 1] -= dt * dt * f_ext[i * 3 + 1];
-    grad[i * 3 + 2] -= dt * dt * f_ext[i * 3 + 2];
 }
 
-// Accumulate elastic forces from elements
+// Accumulate elastic forces from elements (now includes gravity)
 __global__ void accumulate_elastic_forces_kernel(
     const float* x_curr,
     const unsigned* adjacency,
@@ -422,6 +417,8 @@ __global__ void accumulate_elastic_forces_kernel(
     const float* volumes,
     float mu,
     float lambda,
+    float density,
+    float gravity,
     float dt,
     int num_elements,
     int num_particles,
@@ -483,13 +480,21 @@ __global__ void accumulate_elastic_forces_kernel(
         return;
     }
 
-    // Add elastic forces to gradient
-    // Like mass-spring: gradient includes dt² scaling for elastic term
+    // Compute gravity force per vertex: F_g = (density * volume / 4) * gravity (lumped FEM)
+    float gravity_force_z = (density * volume / 4.0f) * gravity;
+
+    // Add elastic forces + gravity to gradient
+    // gradient includes dt² scaling for both elastic and gravity terms
     for (int i = 0; i < 4; i++) {
         for (int j = 0; j < 3; j++) {
             int idx = tet[i] * 3 + j;
             if (idx >= 0 && idx < num_particles * 3) {
-                atomicAdd(&grad[idx], dt * dt * grad_local[i * 3 + j]);
+                float force = dt * dt * grad_local[i * 3 + j];
+                // Add gravity force (negative z direction)
+                if (j == 2) {
+                    force -= dt * dt * gravity_force_z;
+                }
+                atomicAdd(&grad[idx], force);
             }
         }
     }
@@ -499,12 +504,13 @@ void compute_gradient_nh_gpu(
     cuda::CUDALinearBufferHandle x_curr,
     cuda::CUDALinearBufferHandle x_tilde,
     cuda::CUDALinearBufferHandle M_diag,
-    cuda::CUDALinearBufferHandle f_ext,
     const VolumeAdjacencyMap& volume_adjacency,
     cuda::CUDALinearBufferHandle Dm_inv,
     cuda::CUDALinearBufferHandle volumes,
     float mu,
     float lambda,
+    float density,
+    float gravity,
     float dt,
     int num_particles,
     int num_elements,
@@ -514,13 +520,13 @@ void compute_gradient_nh_gpu(
     int num_blocks_particles = (num_particles + block_size - 1) / block_size;
     int num_blocks_elements = (num_elements + block_size - 1) / block_size;
 
-    // First pass: inertial and external forces
+    // First pass: inertial term only
     compute_gradient_nh_kernel<<<num_blocks_particles, block_size>>>(
         x_curr->get_device_ptr<float>(),
         x_tilde->get_device_ptr<float>(),
         M_diag->get_device_ptr<float>(),
-        f_ext->get_device_ptr<float>(),
-        nullptr,  // Not used in this kernel
+        nullptr,  // No longer used
+        nullptr,
         Dm_inv->get_device_ptr<float>(),
         volumes->get_device_ptr<float>(),
         mu,
@@ -530,7 +536,7 @@ void compute_gradient_nh_gpu(
         num_elements,
         grad->get_device_ptr<float>());
 
-    // Second pass: elastic forces
+    // Second pass: elastic forces + gravity
     accumulate_elastic_forces_kernel<<<num_blocks_elements, block_size>>>(
         x_curr->get_device_ptr<float>(),
         volume_adjacency.adjacency_buffer()->get_device_ptr<unsigned>(),
@@ -541,6 +547,8 @@ void compute_gradient_nh_gpu(
         volumes->get_device_ptr<float>(),
         mu,
         lambda,
+        density,
+        gravity,
         dt,
         num_elements,
         num_particles,
@@ -1072,6 +1080,8 @@ __global__ void compute_element_energy_kernel(
     const float* volumes,
     float mu,
     float lambda,
+    float density,
+    float gravity,
     int num_elements,
     float* element_energies)
 {
@@ -1096,56 +1106,66 @@ __global__ void compute_element_energy_kernel(
     Eigen::Matrix3f F;
     compute_deformation_gradient(x_curr, tet, Dm_inv_local, F);
 
+    // Elastic energy density
     float psi = neo_hookean_energy_density(F, mu, lambda);
-    element_energies[elem_idx] = volume * psi;
+    
+    // Gravitational potential energy: U_g = -density * volume * gravity * z_center
+    float z_center = 0.25f * (x_curr[tet[0] * 3 + 2] + 
+                               x_curr[tet[1] * 3 + 2] + 
+                               x_curr[tet[2] * 3 + 2] + 
+                               x_curr[tet[3] * 3 + 2]);
+    float gravitational_potential = -density * volume * gravity * z_center;
+    
+    // Total energy: elastic + gravitational
+    element_energies[elem_idx] = volume * psi + gravitational_potential;
 }
 
 float compute_energy_nh_gpu(
     cuda::CUDALinearBufferHandle x_curr,
     cuda::CUDALinearBufferHandle x_tilde,
     cuda::CUDALinearBufferHandle M_diag,
-    cuda::CUDALinearBufferHandle f_ext,
     const VolumeAdjacencyMap& volume_adjacency,
     cuda::CUDALinearBufferHandle Dm_inv,
     cuda::CUDALinearBufferHandle volumes,
     float mu,
     float lambda,
+    float density,
+    float gravity,
     float dt,
     int num_particles,
     int num_elements,
     cuda::CUDALinearBufferHandle d_inertial_terms,
-    cuda::CUDALinearBufferHandle d_element_energies,
-    cuda::CUDALinearBufferHandle d_potential_terms)
+    cuda::CUDALinearBufferHandle d_element_energies)
 {
-    int n = num_particles * 3;
+    const int n = num_particles * 3;
+    const float dt2 = dt * dt;
 
-    float* x_ptr = x_curr->get_device_ptr<float>();
-    float* x_tilde_ptr = x_tilde->get_device_ptr<float>();
-    float* M_ptr = M_diag->get_device_ptr<float>();
-    float* f_ptr = f_ext->get_device_ptr<float>();
+    const float* x_ptr = x_curr->get_device_ptr<float>();
+    const float* x_tilde_ptr = x_tilde->get_device_ptr<float>();
+    const float* M_ptr = M_diag->get_device_ptr<float>();
 
     float* inertial_ptr = d_inertial_terms->get_device_ptr<float>();
     float* element_energy_ptr = d_element_energies->get_device_ptr<float>();
-    float* potential_ptr = d_potential_terms->get_device_ptr<float>();
 
-    // Compute inertial energy: 1/2 * M * (x - x_tilde)² (like mass-spring)
+    // Inertial energy: 1/2 * (x - x_tilde)^T * M * (x - x_tilde)
     cuda::GPUParallelFor(
         "compute_inertial_energy_nh", n, [=] __device__(int i) {
-            float diff = x_ptr[i] - x_tilde_ptr[i];
+            const float diff = x_ptr[i] - x_tilde_ptr[i];
             inertial_ptr[i] = 0.5f * M_ptr[i] * diff * diff;
         });
 
-    thrust::device_ptr<float> d_inertial_thrust(inertial_ptr);
-    float E_inertial = thrust::reduce(
-        thrust::device, d_inertial_thrust, d_inertial_thrust + n);
+    const float E_inertial = thrust::reduce(
+        thrust::device,
+        thrust::device_ptr<float>(inertial_ptr),
+        thrust::device_ptr<float>(inertial_ptr) + n);
 
-    // Compute elastic energy
+    // Elastic + gravitational energy: sum over elements
     cudaMemset(element_energy_ptr, 0, num_elements * sizeof(float));
 
-    int block_size = 256;
-    int num_blocks = (num_elements + block_size - 1) / block_size;
-
-    compute_element_energy_kernel<<<num_blocks, block_size>>>(
+    constexpr int block_size = 256;
+    compute_element_energy_kernel<<<
+        (num_elements + block_size - 1) / block_size,
+        block_size>>>(
         x_ptr,
         volume_adjacency.adjacency_buffer()->get_device_ptr<unsigned>(),
         volume_adjacency.offsets_buffer()->get_device_ptr<unsigned>(),
@@ -1155,30 +1175,20 @@ float compute_energy_nh_gpu(
         volumes->get_device_ptr<float>(),
         mu,
         lambda,
+        density,
+        gravity,
         num_elements,
         element_energy_ptr);
 
     cudaDeviceSynchronize();
 
-    thrust::device_ptr<float> d_element_thrust(element_energy_ptr);
-    float E_elastic = thrust::reduce(
-        thrust::device, d_element_thrust, d_element_thrust + num_elements);
+    const float E_combined = thrust::reduce(
+        thrust::device,
+        thrust::device_ptr<float>(element_energy_ptr),
+        thrust::device_ptr<float>(element_energy_ptr) + num_elements);
 
-    // Compute potential energy: -dt² * f^T * x (like mass-spring)
-    cuda::GPUParallelFor(
-        "compute_potential_energy_nh", n, [=] __device__(int i) {
-            potential_ptr[i] = -dt * dt * x_ptr[i] * f_ptr[i];
-        });
-
-    thrust::device_ptr<float> d_potential_thrust(potential_ptr);
-    float E_potential = thrust::reduce(
-        thrust::device, d_potential_thrust, d_potential_thrust + n);
-
-    // Total energy (like mass-spring): E = 1/2*M*(x-x_tilde)² + dt²*Ψ(x) -
-    // dt²*f^T*x
-    float total_energy = E_inertial + dt * dt * E_elastic + E_potential;
-
-    return total_energy;
+    // Total implicit Euler energy: E = 1/2*(x-x̃)^T*M*(x-x̃) + dt²*(Ψ_elastic + U_gravity)
+    return E_inertial + dt2 * E_combined;
 }
 
 // ============================================================================

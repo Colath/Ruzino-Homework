@@ -69,13 +69,14 @@ void compute_gradient_nh_gpu(
     cuda::CUDALinearBufferHandle x_curr,
     cuda::CUDALinearBufferHandle x_tilde,
     cuda::CUDALinearBufferHandle M_diag,
-    cuda::CUDALinearBufferHandle f_ext,
     const VolumeAdjacencyMap& volume_adjacency,
     cuda::CUDALinearBufferHandle Dm_inv,      // [9 * num_elements] inverse
                                               // reference shape matrices
     cuda::CUDALinearBufferHandle volumes,     // [num_elements] rest volumes
     float mu,                                 // Lamé parameter
     float lambda,                             // Lamé parameter
+    float density,                            // Material density
+    float gravity,                            // Gravity magnitude
     float dt,
     int num_particles,
     int num_elements,
@@ -110,18 +111,18 @@ float compute_energy_nh_gpu(
     cuda::CUDALinearBufferHandle x_curr,
     cuda::CUDALinearBufferHandle x_tilde,
     cuda::CUDALinearBufferHandle M_diag,
-    cuda::CUDALinearBufferHandle f_ext,
     const VolumeAdjacencyMap& volume_adjacency,
     cuda::CUDALinearBufferHandle Dm_inv,
     cuda::CUDALinearBufferHandle volumes,
     float mu,
     float lambda,
+    float density,
+    float gravity,
     float dt,
     int num_particles,
     int num_elements,
     cuda::CUDALinearBufferHandle inertial_terms,
-    cuda::CUDALinearBufferHandle element_energies,
-    cuda::CUDALinearBufferHandle potential_terms);
+    cuda::CUDALinearBufferHandle element_energies);
 
 // Compute reference shape matrices Dm and their inverses for all tetrahedra
 // Returns: (Dm_inv, volumes, element_to_vertex, element_to_local_face)
