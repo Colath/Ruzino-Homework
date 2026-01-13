@@ -274,6 +274,8 @@ void GPUSceneAssember::fill_instances(
     compute_context.dispatch(
         {}, filler_program_vars, instance_indices.size(), 64);
     compute_context.finish();
+
+    device->waitForIdle();
 }
 
 void GPUSceneAssember::compute_sphere_aabbs(
