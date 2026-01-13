@@ -28,22 +28,6 @@
 using namespace Ruzino;
 using namespace pxr;
 
-std::string LoadJSONScript(const std::string& filename)
-{
-    std::ifstream file(filename);
-    if (!file.is_open()) {
-        throw std::runtime_error(
-            "Could not open JSON script file: " + filename);
-    }
-
-    std::string content;
-    std::string line;
-    while (std::getline(file, line)) {
-        content += line + "\n";
-    }
-    return content;
-}
-
 int main(int argc, char* argv[])
 {
     // 禁止 abort 弹窗，改为直接退出
@@ -57,7 +41,6 @@ int main(int argc, char* argv[])
     // Parse command line using cmdparser
     cmdline::parser parser;
     parser.add<std::string>("usd", 'u', "USD scene file", true);
-    parser.add<std::string>("json", 'j', "JSON node script", false, "");
     parser.add<int>(
         "frames",
         'f',
@@ -76,7 +59,6 @@ int main(int argc, char* argv[])
 
     // Extract settings
     std::string usd_file = parser.get<std::string>("usd");
-    std::string json_script = parser.get<std::string>("json");
     bool verbose = parser.exist("verbose");
     int num_frames = parser.get<int>("frames");
     float fps = parser.get<float>("fps");
@@ -87,11 +69,6 @@ int main(int argc, char* argv[])
         std::cerr << "Error: USD file not found: " << usd_file << std::endl;
         return 1;
     }
-    if (!json_script.empty() && !std::filesystem::exists(json_script)) {
-        std::cerr << "Error: JSON script not found: " << json_script
-                  << std::endl;
-        return 1;
-    }
 
     // Initialize logging
     spdlog::set_level(verbose ? spdlog::level::info : spdlog::level::warn);
@@ -99,9 +76,6 @@ int main(int argc, char* argv[])
 
     spdlog::info("Starting simulation...");
     spdlog::info("USD file: {}", usd_file);
-    if (!json_script.empty()) {
-        spdlog::info("JSON script: {}", json_script);
-    }
     spdlog::info("Frames: {}", num_frames);
     spdlog::info("FPS: {} (dt={:.4f}s)", fps, delta_time);
 
@@ -114,13 +88,6 @@ int main(int argc, char* argv[])
         if (!stage) {
             throw std::runtime_error(
                 "Failed to load USD stage from " + usd_file);
-        }
-
-        // Load and apply JSON script if provided
-        if (!json_script.empty()) {
-            std::string nodes_json = LoadJSONScript(json_script);
-            // Note: Node system should be accessible without renderer
-            // This may need adjustment based on your architecture
         }
         
         printf("Starting simulation...\n");

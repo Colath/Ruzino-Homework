@@ -757,6 +757,10 @@ float3 sample_standard_surface(
     inout uint seed,
     out float pdf)
 {
+    if (transmission > 0.0)
+        if (eta_flipped > 0.0)
+            specular_IOR = 1.0 / specular_IOR;
+
     if (opacity.r < 0.25f) {
         pdf = 1.0f;
         V = normalize(V);
@@ -825,7 +829,7 @@ float3 sample_standard_surface(
     float coat_fresnel = fresnel_dielectric(coat_NdotV, coat_IOR);
 
     // Compute base layer properties
-    float eta = eta_flipped != 0 ? (1.0 / specular_IOR) : specular_IOR;
+    float eta = specular_IOR;
     float base_fresnel = fresnel_dielectric(NdotV, eta);
 
     // Layered sampling weights

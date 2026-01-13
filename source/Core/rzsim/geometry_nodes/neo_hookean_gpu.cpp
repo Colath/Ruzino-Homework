@@ -343,7 +343,7 @@ NODE_EXECUTION_FUNCTION(neo_hookean_gpu)
 
             // Solve H * p = -grad using CUDA CG
             // Use tight tolerance for better symmetry preservation
-            float cg_tol = std::max(1e-7f, grad_norm * 0.1f);
+            float cg_tol = std::max(1e-8f, grad_norm * 1e-3f);
 
             Ruzino::Solver::SolverConfig solver_config;
             solver_config.tolerance = cg_tol;
