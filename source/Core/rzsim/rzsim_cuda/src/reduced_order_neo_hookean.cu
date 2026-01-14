@@ -12,7 +12,6 @@
 #include "rzsim_cuda/adjacency_map.cuh"
 #include "rzsim_cuda/reduced_order_neo_hookean.cuh"
 
-
 // Include glm after CUDA headers to avoid conflicts
 #ifndef __CUDACC__
 #include <glm/glm.hpp>
@@ -273,17 +272,42 @@ void compute_reduced_gradient_gpu(
     const float* grad_x_ptr = grad_x->get_device_ptr<float>();
     float* grad_q_ptr = grad_q->get_device_ptr<float>();
 
-    cuda::GPUParallelFor(
-        "compute_reduced_gradient", reduced_dof, [=] __device__(int idx) {
-            float sum = 0.0f;
+    // Use cuBLAS for matrix-vector multiply: grad_q = J^T * grad_x
+    // J is row-major [full_dof, reduced_dof]
+    // For row-major matrix, J^T * x uses CUBLAS_OP_N
+    cublasHandle_t handle;
+    cublasStatus_t status = cublasCreate(&handle);
+    if (status != CUBLAS_STATUS_SUCCESS) {
+        printf("[ReducedOrder] Failed to create cuBLAS handle: %d\n", status);
+        return;
+    }
 
-            // grad_q[idx] = J[:, idx]^T * grad_x = sum_i J[i, idx] * grad_x[i]
-            for (int i = 0; i < full_dof; ++i) {
-                sum += jacobian_ptr[i * reduced_dof + idx] * grad_x_ptr[i];
-            }
+    float alpha = 1.0f;
+    float beta = 0.0f;
 
-            grad_q_ptr[idx] = sum;
-        });
+    // grad_q[reduced_dof] = J^T[reduced_dof, full_dof] * grad_x[full_dof]
+    status = cublasSgemv(
+        handle,
+        CUBLAS_OP_N,  // No transpose (for row-major J^T)
+        reduced_dof,  // m: rows of op(A)
+        full_dof,     // n: cols of op(A)
+        &alpha,
+        jacobian_ptr,  // A: J in row-major
+        reduced_dof,   // lda: leading dimension
+        grad_x_ptr,    // x
+        1,             // incx
+        &beta,
+        grad_q_ptr,  // y
+        1);          // incy
+
+    if (status != CUBLAS_STATUS_SUCCESS) {
+        printf(
+            "[ReducedOrder] cublasSgemv failed in compute_reduced_gradient: "
+            "%d\n",
+            status);
+    }
+
+    cublasDestroy(handle);
 }
 
 void compute_reduced_neg_gradient_gpu(
@@ -300,18 +324,40 @@ void compute_reduced_neg_gradient_gpu(
     const float* grad_x_ptr = grad_x->get_device_ptr<float>();
     float* neg_grad_q_ptr = neg_grad_q->get_device_ptr<float>();
 
-    cuda::GPUParallelFor(
-        "compute_reduced_neg_gradient", reduced_dof, [=] __device__(int idx) {
-            float sum = 0.0f;
+    // Use cuBLAS for matrix-vector multiply: neg_grad_q = -J^T * grad_x
+    cublasHandle_t handle;
+    cublasStatus_t status = cublasCreate(&handle);
+    if (status != CUBLAS_STATUS_SUCCESS) {
+        printf("[ReducedOrder] Failed to create cuBLAS handle: %d\n", status);
+        return;
+    }
 
-            // neg_grad_q[idx] = -J[:, idx]^T * grad_x = -sum_i J[i, idx] *
-            // grad_x[i]
-            for (int i = 0; i < full_dof; ++i) {
-                sum += jacobian_ptr[i * reduced_dof + idx] * grad_x_ptr[i];
-            }
+    float alpha = -1.0f;  // Negative for negation
+    float beta = 0.0f;
 
-            neg_grad_q_ptr[idx] = -sum;  // Negate the result
-        });
+    // neg_grad_q[reduced_dof] = -J^T[reduced_dof, full_dof] * grad_x[full_dof]
+    status = cublasSgemv(
+        handle,
+        CUBLAS_OP_N,  // No transpose (for row-major J^T)
+        reduced_dof,  // m: rows of op(A)
+        full_dof,     // n: cols of op(A)
+        &alpha,
+        jacobian_ptr,  // A: J in row-major
+        reduced_dof,   // lda: leading dimension
+        grad_x_ptr,    // x
+        1,             // incx
+        &beta,
+        neg_grad_q_ptr,  // y
+        1);              // incy
+
+    if (status != CUBLAS_STATUS_SUCCESS) {
+        printf(
+            "[ReducedOrder] cublasSgemv failed in "
+            "compute_reduced_neg_gradient: %d\n",
+            status);
+    }
+
+    cublasDestroy(handle);
 }
 
 // ============================================================================
@@ -332,16 +378,41 @@ void map_reduced_velocities_to_full_gpu(
     const float* q_dot_ptr = q_dot->get_device_ptr<float>();
     float* v_full_ptr = v_full->get_device_ptr<float>();
 
-    cuda::GPUParallelFor(
-        "map_reduced_velocities", full_dof, [=] __device__(int idx) {
-            float sum = 0.0f;
-            // v_full[idx] = J[idx, :] * q_dot = sum_j J[idx, j] * q_dot[j]
-            for (int j = 0; j < reduced_dof; ++j) {
-                sum += jacobian_ptr[idx * reduced_dof + j] * q_dot_ptr[j];
-            }
+    // Use cuBLAS for matrix-vector multiply: v_full = J * q_dot
+    // J is row-major [full_dof, reduced_dof]
+    // For row-major matrix, J * x uses CUBLAS_OP_T
+    cublasHandle_t handle;
+    cublasStatus_t status = cublasCreate(&handle);
+    if (status != CUBLAS_STATUS_SUCCESS) {
+        printf("[ReducedOrder] Failed to create cuBLAS handle: %d\n", status);
+        return;
+    }
 
-            v_full_ptr[idx] = sum;
-        });
+    float alpha = 1.0f;
+    float beta = 0.0f;
+
+    // v_full[full_dof] = J[full_dof, reduced_dof] * q_dot[reduced_dof]
+    status = cublasSgemv(
+        handle,
+        CUBLAS_OP_T,  // Transpose (for row-major J)
+        reduced_dof,  // m: cols of J (before transpose)
+        full_dof,     // n: rows of J (before transpose)
+        &alpha,
+        jacobian_ptr,  // A: J in row-major
+        reduced_dof,   // lda: leading dimension
+        q_dot_ptr,     // x
+        1,             // incx
+        &beta,
+        v_full_ptr,  // y
+        1);          // incy
+
+    if (status != CUBLAS_STATUS_SUCCESS) {
+        printf(
+            "[ReducedOrder] cublasSgemv failed in map_reduced_velocities: %d\n",
+            status);
+    }
+
+    cublasDestroy(handle);
 }
 
 // ============================================================================
