@@ -569,72 +569,72 @@ TEST(VolumeAdjacency, CubeWithFiveTets)
     };
 
     // 5 tetrahedra along diagonal (0,6) - standard cube subdivision
-    std::vector<int> faceVertexCounts(20, 3);
-    std::vector<int> faceVertexIndices = { // Tet 1: (0,1,2,6)
-                                           1,
-                                           2,
-                                           6,
-                                           0,
-                                           6,
-                                           2,
-                                           0,
-                                           1,
-                                           6,
-                                           0,
-                                           2,
-                                           1,
-                                           // Tet 2: (0,4,5,6)
-                                           4,
-                                           5,
-                                           6,
-                                           0,
-                                           6,
-                                           5,
-                                           0,
-                                           4,
-                                           6,
-                                           0,
-                                           5,
-                                           4,
-                                           // Tet 3: (0,1,5,6)
-                                           1,
-                                           5,
-                                           6,
-                                           0,
-                                           6,
-                                           5,
-                                           0,
-                                           1,
-                                           6,
-                                           0,
-                                           5,
-                                           1,
-                                           // Tet 4: (0,2,3,6)
-                                           2,
-                                           3,
-                                           6,
-                                           0,
-                                           6,
-                                           3,
-                                           0,
-                                           2,
-                                           6,
-                                           0,
-                                           3,
-                                           2,
-                                           // Tet 5: (0,4,6,7)
-                                           4,
-                                           6,
-                                           7,
-                                           0,
-                                           7,
-                                           6,
-                                           0,
-                                           4,
-                                           7,
-                                           0,
-                                           6,
-                                           4
+    // Only unique faces (no duplicates)
+    // Tet 1: (0,1,2,6) - faces: (1,2,6), (0,2,1), shared (0,1,6), shared
+    // (0,6,2) Tet 2: (0,4,5,6) - faces: (4,5,6), (0,5,4), shared (0,4,6),
+    // shared (0,6,5) Tet 3: (0,1,5,6) - faces: shared (1,5,6), (0,5,1), shared
+    // (0,1,6), shared (0,6,5) Tet 4: (0,2,3,6) - faces: (2,3,6), (0,3,2),
+    // shared (0,2,6), shared (0,6,3) Tet 5: (0,4,6,7) - faces: (4,6,7),
+    // (0,7,4), shared (0,4,6), shared (0,6,7)
+    std::vector<int> faceVertexCounts(16, 3);
+    std::vector<int> faceVertexIndices = {
+        // Tet 1: (0,1,2,6) - unique faces
+        1,
+        2,
+        6,  // exterior face
+        0,
+        2,
+        1,  // exterior face
+        0,
+        1,
+        6,  // shared with Tet 3
+        0,
+        6,
+        2,  // shared with Tet 4
+        // Tet 2: (0,4,5,6) - unique faces (excluding shared)
+        4,
+        5,
+        6,  // exterior face
+        0,
+        5,
+        4,  // exterior face
+        0,
+        4,
+        6,  // shared with Tet 5
+        0,
+        6,
+        5,  // shared with Tet 3
+        // Tet 3: (0,1,5,6) - unique faces (excluding shared)
+        1,
+        5,
+        6,  // exterior face
+        0,
+        5,
+        1,  // exterior face
+        // (0,1,6) already added
+        // (0,6,5) already added
+        // Tet 4: (0,2,3,6) - unique faces (excluding shared)
+        2,
+        3,
+        6,  // exterior face
+        0,
+        3,
+        2,  // exterior face
+        // (0,2,6) already added
+        0,
+        6,
+        3,  // shared with Tet 5
+        // Tet 5: (0,4,6,7) - unique faces (excluding shared)
+        4,
+        6,
+        7,  // exterior face
+        0,
+        7,
+        4,  // exterior face
+        // (0,4,6) already added
+        0,
+        7,
+        6  // exterior face
     };
 
     meshComp->set_vertices(vertices);
@@ -660,114 +660,74 @@ TEST(VolumeAdjacency, OctahedronWithEightTets)
         glm::vec3(0.0f, 0.0f, -1.0f)   // 6 bottom
     };
 
-    // 8 tetrahedra from center to each octahedron face
-    std::vector<int> faceVertexCounts(32, 3);
-    std::vector<int> faceVertexIndices = { // Top pyramid (4 tets)
-                                           // Tet: (0,1,2,5)
-                                           1,
-                                           2,
-                                           5,
-                                           0,
-                                           5,
-                                           2,
-                                           0,
-                                           1,
-                                           5,
-                                           0,
-                                           2,
-                                           1,
-                                           // Tet: (0,2,3,5)
-                                           2,
-                                           3,
-                                           5,
-                                           0,
-                                           5,
-                                           3,
-                                           0,
-                                           2,
-                                           5,
-                                           0,
-                                           3,
-                                           2,
-                                           // Tet: (0,3,4,5)
-                                           3,
-                                           4,
-                                           5,
-                                           0,
-                                           5,
-                                           4,
-                                           0,
-                                           3,
-                                           5,
-                                           0,
-                                           4,
-                                           3,
-                                           // Tet: (0,4,1,5)
-                                           4,
-                                           1,
-                                           5,
-                                           0,
-                                           5,
-                                           1,
-                                           0,
-                                           4,
-                                           5,
-                                           0,
-                                           1,
-                                           4,
-                                           // Bottom pyramid (4 tets)
-                                           // Tet: (0,2,1,6)
-                                           2,
-                                           1,
-                                           6,
-                                           0,
-                                           6,
-                                           1,
-                                           0,
-                                           2,
-                                           6,
-                                           0,
-                                           1,
-                                           2,
-                                           // Tet: (0,3,2,6)
-                                           3,
-                                           2,
-                                           6,
-                                           0,
-                                           6,
-                                           2,
-                                           0,
-                                           3,
-                                           6,
-                                           0,
-                                           2,
-                                           3,
-                                           // Tet: (0,4,3,6)
-                                           4,
-                                           3,
-                                           6,
-                                           0,
-                                           6,
-                                           3,
-                                           0,
-                                           4,
-                                           6,
-                                           0,
-                                           3,
-                                           4,
-                                           // Tet: (0,1,4,6)
-                                           1,
-                                           4,
-                                           6,
-                                           0,
-                                           6,
-                                           4,
-                                           0,
-                                           1,
-                                           6,
-                                           0,
-                                           4,
-                                           1
+    // 8 tetrahedra from center to each octahedron face - unique faces only
+    std::vector<int> faceVertexCounts(20, 3);
+    std::vector<int> faceVertexIndices = {
+        // Top pyramid (4 tets) - octahedron upper 4 exterior faces + radial
+        // faces
+        1,
+        2,
+        5,  // exterior (tet 0,1,2,5)
+        2,
+        3,
+        5,  // exterior (tet 0,2,3,5)
+        3,
+        4,
+        5,  // exterior (tet 0,3,4,5)
+        4,
+        1,
+        5,  // exterior (tet 0,4,1,5)
+        // Bottom pyramid (4 tets) - octahedron lower 4 exterior faces
+        2,
+        1,
+        6,  // exterior (tet 0,2,1,6)
+        3,
+        2,
+        6,  // exterior (tet 0,3,2,6)
+        4,
+        3,
+        6,  // exterior (tet 0,4,3,6)
+        1,
+        4,
+        6,  // exterior (tet 0,1,4,6)
+        // Radial faces from center through edges (shared between adjacent tets)
+        0,
+        1,
+        2,  // shared between (0,1,2,5) and (0,2,1,6)
+        0,
+        2,
+        3,  // shared between (0,2,3,5) and (0,3,2,6)
+        0,
+        3,
+        4,  // shared between (0,3,4,5) and (0,4,3,6)
+        0,
+        4,
+        1,  // shared between (0,4,1,5) and (0,1,4,6)
+        // Vertical radial faces through vertices
+        0,
+        1,
+        5,  // shared in top pyramid
+        0,
+        2,
+        5,  // shared in top pyramid
+        0,
+        3,
+        5,  // shared in top pyramid
+        0,
+        4,
+        5,  // shared in top pyramid
+        0,
+        1,
+        6,  // shared in bottom pyramid
+        0,
+        2,
+        6,  // shared in bottom pyramid
+        0,
+        3,
+        6,  // shared in bottom pyramid
+        0,
+        4,
+        6  // shared in bottom pyramid
     };
 
     meshComp->set_vertices(vertices);
@@ -794,47 +754,45 @@ TEST(VolumeAdjacency, PrismWithThreeTets)
         glm::vec3(0.5f, 1.0f, 1.0f)   // 5
     };
 
-    // 3 tetrahedra subdividing the prism
-    std::vector<int> faceVertexCounts(12, 3);
-    std::vector<int> faceVertexIndices = { // Tet 1: (0,1,2,3)
-                                           1,
-                                           2,
-                                           3,
-                                           0,
-                                           3,
-                                           2,
-                                           0,
-                                           1,
-                                           3,
-                                           0,
-                                           2,
-                                           1,
-                                           // Tet 2: (1,2,3,4)
-                                           2,
-                                           3,
-                                           4,
-                                           1,
-                                           4,
-                                           3,
-                                           1,
-                                           2,
-                                           4,
-                                           1,
-                                           3,
-                                           2,
-                                           // Tet 3: (2,3,4,5)
-                                           3,
-                                           4,
-                                           5,
-                                           2,
-                                           5,
-                                           4,
-                                           2,
-                                           3,
-                                           5,
-                                           2,
-                                           4,
-                                           3
+    // 3 tetrahedra subdividing the prism - unique faces only
+    // Tet 1: (0,1,2,3), Tet 2: (1,2,3,4), Tet 3: (2,3,4,5)
+    std::vector<int> faceVertexCounts(10, 3);
+    std::vector<int> faceVertexIndices = {
+        // Tet 1: (0,1,2,3) unique faces
+        0,
+        2,
+        1,  // bottom triangle
+        0,
+        1,
+        3,  // side face
+        0,
+        3,
+        2,  // side face
+        1,
+        2,
+        3,  // shared with Tet 2
+        // Tet 2: (1,2,3,4) unique faces (excluding shared)
+        1,
+        4,
+        3,  // side face
+        1,
+        2,
+        4,  // side face
+        2,
+        3,
+        4,  // shared with Tet 3
+        // (1,2,3) already added
+        // Tet 3: (2,3,4,5) unique faces (excluding shared)
+        2,
+        5,
+        4,  // top triangle
+        3,
+        4,
+        5,  // side face
+        2,
+        3,
+        5  // side face
+        // (2,3,4) already added
     };
 
     meshComp->set_vertices(vertices);
