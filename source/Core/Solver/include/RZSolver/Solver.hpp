@@ -17,6 +17,7 @@ enum class SolverType {
     CUDA_BICGSTAB,
     CUDA_GMRES,   // 新增
     CUSOLVER_QR,  // cuSOLVER-based QR direct solver
+    CUSOLVER_CHOLESKY,  // cuSOLVER-based Cholesky direct solver
     EIGEN_ITERATIVE_CG,
     EIGEN_ITERATIVE_BICGSTAB,
     EIGEN_DIRECT_LU,
