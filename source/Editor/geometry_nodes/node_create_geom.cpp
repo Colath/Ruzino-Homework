@@ -238,6 +238,31 @@ NODE_EXECUTION_FUNCTION(create_cube)
     return true;
 }
 
+NODE_DECLARATION_FUNCTION(create_cube2)
+{
+    b.add_input<float>("min x").min(-20).max(20).default_val(-1.0f);
+    b.add_input<float>("min y").min(-20).max(20).default_val(-1.0f);
+    b.add_input<float>("min z").min(-20).max(20).default_val(-1.0f);
+    b.add_input<float>("max x").min(-20).max(20).default_val(1.0f);
+    b.add_input<float>("max y").min(-20).max(20).default_val(1.0f);
+    b.add_input<float>("max z").min(-20).max(20).default_val(1.0f);
+    b.add_output<Geometry>("Geometry");
+}
+
+NODE_EXECUTION_FUNCTION(create_cube2)
+{
+    float minx = params.get_input<float>("min x");
+    float miny = params.get_input<float>("min y");
+    float minz = params.get_input<float>("min z");
+    float maxx = params.get_input<float>("max x");
+    float maxy = params.get_input<float>("max y");
+    float maxz = params.get_input<float>("max z");
+
+    Geometry geometry = create_cube2(minx, miny, minz, maxx, maxy, maxz);
+    params.set_output("Geometry", std::move(geometry));
+    return true;
+}
+
 NODE_DECLARATION_FUNCTION(create_box_grid)
 {
     b.add_input<int>("resolution_x").min(1).max(50).default_val(2);

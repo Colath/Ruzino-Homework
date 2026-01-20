@@ -41,7 +41,7 @@ NODE_DECLARATION_FUNCTION(bss_deducer)
     b.add_input<int>("Eigenfunction Index").default_val(0).min(0).max(3);
     b.add_input<std::string>("Result Name").default_val("eigenfunction");
     b.add_input<std::string>("Model Path")
-        .default_val("mesh_growing_y_neg_20260119_015826");
+        .default_val("mesh_deform_dirichlet_20260120_113410");
     b.add_output<Geometry>("Geometry");
     b.add_output<std::shared_ptr<ReducedOrderedBasis>>("Reduced Basis");
 }
@@ -162,10 +162,14 @@ NODE_EXECUTION_FUNCTION(bss_deducer)
         // Send shape code to Python
         if (has_shape_code_2) {
             // Send two shape codes as a list
-            std::vector<float> shape_codes = {shape_code, shape_code_2};
+            std::vector<float> shape_codes = { shape_code, shape_code_2 };
             python::send("shape_code_values", shape_codes);
-            spdlog::info("Using dual shape codes: [{:.2f}, {:.2f}]", shape_code, shape_code_2);
-        } else {
+            spdlog::info(
+                "Using dual shape codes: [{:.2f}, {:.2f}]",
+                shape_code,
+                shape_code_2);
+        }
+        else {
             // Send single shape code
             python::send("shape_code_value", shape_code);
         }
@@ -176,24 +180,28 @@ NODE_EXECUTION_FUNCTION(bss_deducer)
 
         for (int i = 0; i < eigenfunction_count; i++) {
             // Call Python inference function for each eigenfunction
-            std::string inference_code = 
+            std::string inference_code =
                 "import numpy as np\n"
                 "import torch\n";
-            
+
             if (has_shape_code_2) {
-                inference_code += 
+                inference_code +=
                     "inference_result_" + std::to_string(i) +
                     " = deducer.run_inference_on_vertices("
-                    "vertices_cuda, eigenfunction_idx=" + std::to_string(i) +
-                    ", shape_code=torch.tensor(shape_code_values, device='cuda'))";
-            } else {
-                inference_code += 
+                    "vertices_cuda, eigenfunction_idx=" +
+                    std::to_string(i) +
+                    ", shape_code=torch.tensor(shape_code_values, "
+                    "device='cuda'))";
+            }
+            else {
+                inference_code +=
                     "inference_result_" + std::to_string(i) +
                     " = deducer.run_inference_on_vertices("
-                    "vertices_cuda, eigenfunction_idx=" + std::to_string(i) +
+                    "vertices_cuda, eigenfunction_idx=" +
+                    std::to_string(i) +
                     ", shape_code=torch.tensor([shape_code_value]))";
             }
-            
+
             python::call<void>(inference_code);
 
             // Retrieve results as vector<float>
@@ -242,28 +250,6 @@ NODE_EXECUTION_FUNCTION(bss_deducer)
                 "Added eigenfunction {} as '{}' vertex attribute",
                 eigenfunction_idx,
                 result_name);
-        }
-
-        // Test: Save OBJ file using basis_set.save_obj()
-        spdlog::info("[BssDeducer] Testing save_obj functionality...");
-        try {
-            if (has_shape_code_2) {
-                python::send("test_shape_codes", std::vector<float>{shape_code, shape_code_2});
-                std::string test_result = python::call<std::string>(
-                    "deducer.test_save_obj(shape_code_value=test_shape_codes, "
-                    "output_filename='test_shape_dual.obj')");
-                spdlog::info("[BssDeducer] save_obj result: {}", test_result);
-            } else {
-                python::send("test_shape_code", shape_code);
-                std::string test_result = python::call<std::string>(
-                    "deducer.test_save_obj(shape_code_value=test_shape_code, "
-                    "output_filename='test_shape_" +
-                    std::to_string(shape_code).substr(0, 4) + ".obj')");
-                spdlog::info("[BssDeducer] save_obj result: {}", test_result);
-            }
-        }
-        catch (const std::exception& e) {
-            spdlog::error("[BssDeducer] Failed to test save_obj: {}", e.what());
         }
     }
     catch (const std::exception& e) {

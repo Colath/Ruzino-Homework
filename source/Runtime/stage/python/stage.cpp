@@ -28,7 +28,6 @@
 #include <cstddef>
 #include <limits>
 
-
 // Boost.Python headers for interop
 // CRITICAL: USD uses renamed Boost (pxr_boost) not standard boost
 // We need to use pxr namespace aliases
@@ -38,20 +37,18 @@
 #include <pxr/base/tf/weakPtr.h>
 #include <pxr/usd/usd/stage.h>
 
+#include <entt/meta/factory.hpp>
+#include <entt/meta/meta.hpp>
 #include <pxr/external/boost/python.hpp>
 #include <pxr/external/boost/python/extract.hpp>
 #include <pxr/external/boost/python/object.hpp>
-
-#include <entt/meta/factory.hpp>
-#include <entt/meta/meta.hpp>
 
 #include "GCore/geom_payload.hpp"
 #include "nodes/core/api.hpp"
 #include "stage/stage.hpp"
 
-
 // Need animation.h for Stage implementation details
-#include "../source/animation.h"
+#include "stage/animation.h"
 
 namespace nb = nanobind;
 namespace bp = pxr::pxr_boost::python;  // USD uses renamed Boost
@@ -283,35 +280,35 @@ NB_MODULE(stage_py, m)
      */
     m.def(
         "register_geom_payload_type",
-        []() {
-            Ruzino::register_cpp_type<GeomPayload>();
-        },
+        []() { Ruzino::register_cpp_type<GeomPayload>(); },
         "Register GeomPayload type in entt meta system for node graph usage");
 
     /**
-     * Create meta_any from GeomPayload for use with NodeSystem::set_global_params
-     * This is the bridge function that allows type-erased parameter passing
+     * Create meta_any from GeomPayload for use with
+     * NodeSystem::set_global_params This is the bridge function that allows
+     * type-erased parameter passing
      */
     m.def(
         "create_meta_any_from_payload",
         [](const GeomPayload& payload) -> entt::meta_any {
             // Ensure type is registered with the correct context
             Ruzino::register_cpp_type<GeomPayload>();
-            
+
             // Create meta_any with the GeomPayload using the same context
             // CRITICAL: Must use the same entt context as the node system!
             auto& ctx = Ruzino::get_entt_ctx();
             auto type = entt::resolve<GeomPayload>(ctx);
-            
+
             if (!type) {
                 throw std::runtime_error(
                     "GeomPayload type not registered in entt meta system");
             }
-            
+
             // Create meta_any with explicit context
-            return entt::meta_any{ctx, payload};
+            return entt::meta_any{ ctx, payload };
         },
         nb::arg("payload"),
-        "Create entt::meta_any from GeomPayload for use with NodeSystem::set_global_params. "
+        "Create entt::meta_any from GeomPayload for use with "
+        "NodeSystem::set_global_params. "
         "This automatically registers the type if not already registered.");
 }

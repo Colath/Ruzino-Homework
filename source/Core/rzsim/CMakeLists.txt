@@ -18,6 +18,8 @@ add_subdirectory(renderer_nodes)
 add_subdirectory(geometry_nodes)
 
 target_link_libraries(bss_deducer PRIVATE  rzpython)
+target_link_libraries(shape_space_geometry_gen PRIVATE  rzpython)
+target_link_libraries(nn_boundary_detector PRIVATE  rzpython)
 
 # Tests
 target_link_libraries(reduced_basis_simple_test PRIVATE rzsim geometry igl_core)

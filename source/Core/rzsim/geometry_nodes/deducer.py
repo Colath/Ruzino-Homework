@@ -260,3 +260,65 @@ def test_save_obj(shape_code_value=0.5, output_filename="test_basis_set.obj"):
         import traceback
 
         return f"Error in test_save_obj: {str(e)}\n{traceback.format_exc()}"
+
+
+def detect_dirichlet_boundary(vertices_cuda, shape_code_value=None, distance_threshold=1e-6):
+    """
+    Detect which vertices are on Dirichlet boundary using basis_set.is_on_dirichlet_boundary
+    
+    Args:
+        vertices_cuda: CUDA torch tensor of shape (N, 3) - vertex positions
+        shape_code_value: Shape code value(s) - can be single float or list of floats
+        distance_threshold: Distance threshold for boundary detection (default: 1e-6)
+    
+    Returns:
+        CPU numpy array with 1.0 for boundary vertices, 0.0 for interior vertices
+    """
+    global _basis_set, _device
+    
+    if _basis_set is None:
+        raise RuntimeError("basis_set not initialized. Call initialize_basis_set first.")
+    
+    # Ensure vertices are on the correct device and shape
+    if vertices_cuda.ndim == 1:
+        vertices_cuda = vertices_cuda.reshape(-1, 3)
+    
+    vertices_cuda = vertices_cuda.to(_device)
+    num_vertices = vertices_cuda.shape[0]
+    
+    # Prepare shape code - same format as inference
+    if shape_code_value is None:
+        shape_code = torch.tensor([0.0], device=_device)
+    elif isinstance(shape_code_value, (list, tuple)):
+        shape_code = torch.tensor(shape_code_value, device=_device)
+    else:
+        shape_code = torch.tensor([float(shape_code_value)], device=_device)
+    
+    print(f"Detecting Dirichlet boundary for {num_vertices} vertices with shape_code={shape_code_value}, threshold={distance_threshold}")
+    
+    # Call basis_set's is_on_dirichlet_boundary method directly
+    with torch.no_grad():
+        boundary_result = _basis_set.is_on_dirichlet_boundary(
+            shape_code=shape_code,
+            sample_points=vertices_cuda,
+            distance_threshold=distance_threshold
+        )
+    
+    # Check if result is boolean or float tensor
+    if boundary_result.dtype == torch.bool:
+        # Convert boolean to float (1.0 for True, 0.0 for False)
+        boundary_values = boundary_result.float().cpu().numpy()
+    else:
+        # Already float, just ensure it's 0.0 or 1.0
+        boundary_values = boundary_result.cpu().numpy()
+    
+    # Ensure it's 1D
+    if boundary_values.ndim > 1:
+        boundary_values = boundary_values.squeeze()
+    if boundary_values.ndim == 0:
+        boundary_values = np.array([float(boundary_values)])
+    
+    num_boundary = int(np.sum(boundary_values > 0.5))
+    print(f"Found {num_boundary} / {num_vertices} vertices on Dirichlet boundary")
+    
+    return boundary_values

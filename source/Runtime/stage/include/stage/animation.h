@@ -12,7 +12,7 @@ class Stage;
 RUZINO_NAMESPACE_OPEN_SCOPE
 namespace animation {
 
-class WithDynamicLogic {
+class STAGE_API WithDynamicLogic {
    public:
     WithDynamicLogic(Stage* stage);
     virtual ~WithDynamicLogic() = default;
@@ -22,7 +22,7 @@ class WithDynamicLogic {
     Stage* stage_;
 };
 
-class WithDynamicLogicPrim : public WithDynamicLogic {
+class STAGE_API WithDynamicLogicPrim : public WithDynamicLogic {
    public:
     WithDynamicLogicPrim(Stage* stage) : WithDynamicLogic(stage)
     {
@@ -41,16 +41,27 @@ class WithDynamicLogicPrim : public WithDynamicLogic {
         return prim_render_time >= prim_current_time;
     }
 
-    pxr::UsdTimeCode get_prim_current_time() const { return prim_current_time; }
-    void set_prim_current_time(pxr::UsdTimeCode time) { prim_current_time = time; }
+    pxr::UsdTimeCode get_prim_current_time() const
+    {
+        return prim_current_time;
+    }
+    void set_prim_current_time(pxr::UsdTimeCode time)
+    {
+        prim_current_time = time;
+    }
 
-    pxr::UsdTimeCode get_prim_render_time() const { return prim_render_time; }
-    void set_prim_render_time(pxr::UsdTimeCode time) { prim_render_time = time; }
+    pxr::UsdTimeCode get_prim_render_time() const
+    {
+        return prim_render_time;
+    }
+    void set_prim_render_time(pxr::UsdTimeCode time)
+    {
+        prim_render_time = time;
+    }
 
-   private:
-    // 清除prim及其子prim的所有时间采样数据
     void clear_time_samples(const pxr::UsdPrim& prim) const;
 
+   private:
     mutable bool simulation_begun = false;
 
     pxr::UsdPrim prim;

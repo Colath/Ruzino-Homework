@@ -98,6 +98,7 @@ struct ReducedNeoHookeanGPUStorage {
         const std::vector<glm::vec3>& positions,
         const std::vector<int>& face_vertex_indices,
         const std::vector<int>& face_counts,
+        const std::vector<float>& surface_of_vol,
         float density,
         std::shared_ptr<Ruzino::ReducedOrderedBasis> reduced_basis)
     {
@@ -404,10 +405,13 @@ NODE_EXECUTION_FUNCTION(reduced_order_neo_hookean_gpu)
     // Initialize buffers only once or when particle count changes
     // ALWAYS use rest pose (input_geom positions) for reference configuration
     if (!storage.initialized || storage.num_particles != num_particles) {
+        auto surface_of_vol =
+            mesh_component->get_face_scalar_quantity("surface_of_vol");
         storage.initialize(
             positions,  // Use rest pose for Dm_inv, volumes calculation
             face_vertex_indices,
             face_counts,
+            surface_of_vol,
             density,
             reduced_basis);
     }
@@ -959,6 +963,7 @@ NODE_EXECUTION_FUNCTION(reduced_order_neo_hookean_gpu)
             storage.positions_buffer,
             storage.face_vertex_indices_buffer,
             storage.face_counts_buffer,
+            storage.surface_of_vol_buffer,
             flip_normal,
             storage.normals_buffer);
 
