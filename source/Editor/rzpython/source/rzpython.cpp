@@ -82,7 +82,6 @@ void initialize()
 
     initialized = true;
 
-    import("GUI_py");
     // Simple and robust output capture
     python::call<void>(
         "import sys\n"

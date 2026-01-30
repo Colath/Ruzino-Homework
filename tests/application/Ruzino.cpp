@@ -321,9 +321,12 @@ int main(int argc, char* argv[])
         std::make_unique<PythonConsoleWidgetFactory>();
     window->register_openable_widget(
         std::move(python_console_factory), { "Tools", "Python Console" });
+    python::import("GUI_py");
+    python::import("stage_py");
 
     // Add Python reference to window for console access
     python::reference("window", window.get());
+    python::reference("stage", stage.get());
 
     // Register File menu actions
     window->register_menu_action("file_open", [&stage, &window]() {
