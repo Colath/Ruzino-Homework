@@ -462,8 +462,7 @@ HdSprim* Hd_RUZINO_RenderDelegate::CreateFallbackSprim(const TfToken& typeId)
         return new Hd_RUZINO_Disk_Light(SdfPath::EmptyPath(), typeId);
     }
     else if (typeId == HdPrimTypeTokens->cylinderLight) {
-        auto light =
-            new Hd_RUZINO_Cylinder_Light(SdfPath::EmptyPath(), typeId);
+        auto light = new Hd_RUZINO_Cylinder_Light(SdfPath::EmptyPath(), typeId);
         lights.push_back(light);
         return new Hd_RUZINO_Cylinder_Light(SdfPath::EmptyPath(), typeId);
     }
@@ -626,6 +625,13 @@ bool Hd_RUZINO_RenderDelegate::Stop(bool blocking)
 {
     _renderThread.StopRender();
     return HdRenderDelegate::Stop(blocking);
+}
+bool Hd_RUZINO_RenderDelegate::IsParallelSyncEnabled(
+    const TfToken& primType) const
+{
+    // if (primType == HdPrimTypeTokens->material)
+    //     return true;
+    return HdRenderDelegate::IsParallelSyncEnabled(primType);
 }
 
 RUZINO_NAMESPACE_CLOSE_SCOPE

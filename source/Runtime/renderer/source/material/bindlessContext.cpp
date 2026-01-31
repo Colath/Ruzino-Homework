@@ -49,6 +49,8 @@ void BindlessContext::emitResourceBindings(
             if (type != Type::FILENAME) {
                 std::string dataFetch;
                 size_t numComponents = 0;
+                unsigned int startLocation =
+                    data_location;  // Record start location for mapping
 
                 if (type == Type::FLOAT) {
                     auto val = uniform->getValue()->asA<float>();
@@ -62,6 +64,12 @@ void BindlessContext::emitResourceBindings(
                                 std::to_string(data_location++) + "])";
 
                     numComponents = 1;
+                    // Record parameter mapping
+                    record_parameter_mapping(
+                        uniform->getVariable(),
+                        startLocation,
+                        type,
+                        sizeof(float));
                 }
                 else if (
                     type == Type::INTEGER || type == Type::STRING ||
@@ -112,6 +120,12 @@ void BindlessContext::emitResourceBindings(
                     dataFetch = "asint(data.data[" +
                                 std::to_string(data_location++) + "])";
                     numComponents = 1;
+                    // Record parameter mapping for INTEGER/BOOLEAN
+                    record_parameter_mapping(
+                        uniform->getVariable(),
+                        startLocation,
+                        type,
+                        sizeof(int));
                 }
                 else if (type == Type::VECTOR2) {
                     auto val = uniform->getValue()->asA<Vector2>();
@@ -127,6 +141,12 @@ void BindlessContext::emitResourceBindings(
 
                     data_location += 2;
                     numComponents = 2;
+                    // Record parameter mapping for VECTOR2
+                    record_parameter_mapping(
+                        uniform->getVariable(),
+                        startLocation,
+                        type,
+                        sizeof(Vector2));
                 }
                 else if (type == Type::VECTOR3 || type == Type::COLOR3) {
                     if (type == Type::COLOR3) {
@@ -154,6 +174,12 @@ void BindlessContext::emitResourceBindings(
                                 std::to_string(data_location + 2) + "]))";
                     data_location += 3;
                     numComponents = 3;
+                    // Record parameter mapping for VECTOR3/COLOR3
+                    record_parameter_mapping(
+                        uniform->getVariable(),
+                        startLocation,
+                        type,
+                        sizeof(Vector3));
                 }
                 else if (type == Type::COLOR4 || type == Type::VECTOR4) {
                     // Check if uniform has a value
@@ -204,6 +230,12 @@ void BindlessContext::emitResourceBindings(
                                 std::to_string(data_location + 3) + "]))";
                     data_location += 4;
                     numComponents = 4;
+                    // Record parameter mapping for VECTOR4/COLOR4
+                    record_parameter_mapping(
+                        uniform->getVariable(),
+                        startLocation,
+                        type,
+                        sizeof(Vector4));
                 }
                 else if (type == Type::MATRIX44) {
                     auto val = uniform->getValue()->asA<Matrix44>();
@@ -211,6 +243,7 @@ void BindlessContext::emitResourceBindings(
                         &material_data.data[data_location],
                         &val,
                         sizeof(Matrix44));
+                    unsigned int matrix_start = data_location;
                     dataFetch = "float4x4(";
                     for (int i = 0; i < 16; i++) {
                         dataFetch += "asfloat(data.data[" +
@@ -220,6 +253,12 @@ void BindlessContext::emitResourceBindings(
                     }
                     dataFetch += ")";
                     numComponents = 16;
+                    // Record parameter mapping for MATRIX44
+                    record_parameter_mapping(
+                        uniform->getVariable(),
+                        matrix_start,
+                        type,
+                        sizeof(Matrix44));
                 }
                 else if (type == Type::DISPLACEMENTSHADER) {
                     auto val = uniform->getValue();

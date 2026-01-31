@@ -14,6 +14,7 @@
 #include "bindlessContext.h"
 #include "hdMtlxFast.h"
 #include "materialFilter.h"
+#include "spdlog/spdlog.h"
 RUZINO_NAMESPACE_OPEN_SCOPE
 
 TF_DEFINE_PRIVATE_TOKENS(_tokens, (file)(sourceColorSpace)(raw)(srgb));
@@ -147,6 +148,26 @@ void Hd_RUZINO_MaterialX::Sync(
 
     HdMtlxTexturePrimvarData hdMtlxData;
 
+    // Compute network structure hash to detect if only parameters changed
+    size_t current_network_hash = compute_network_hash(netInterface);
+    bool network_structure_changed =
+        (current_network_hash != last_network_hash);
+
+    if (!network_structure_changed && can_use_incremental_update) {
+        // Only parameters changed, no need to regenerate shader
+        spdlog::info(
+            "MaterialX: Only parameters changed for material '{}', doing "
+            "incremental update",
+            GetId().GetText());
+
+        update_parameters_incremental(netInterface, hdMtlxData);
+        BuildGPUTextures(param);
+
+        *dirtyBits = HdChangeTracker::Clean;
+        return;
+    }
+
+    // Network structure changed or first time, do full shader generation
     MaterialX::ElementPtr mtlx_element =
         HdMtlxCreateMtlxDocumentFromHdNetworkFast(
             hdNetwork,
@@ -169,7 +190,12 @@ void Hd_RUZINO_MaterialX::Sync(
 
     CollectTextures(netInterface, hdMtlxData);
 
+    // Full shader generation with network structure changed
     MtlxGenerateShader(mtlx_element, netInterface, hdMtlxData);
+
+    // Update hash after successful shader generation
+    last_network_hash = current_network_hash;
+    can_use_incremental_update = true;
 
     BuildGPUTextures(param);
 
@@ -815,55 +841,22 @@ void Hd_RUZINO_MaterialX::MtlxGenerateShader(
                         geompropInput->getInterfaceName();
 
                     if (!interfaceName.empty()) {
-                        // geomprop has an interfacename reference - resolve it
-                        spdlog::info(
-                            "geompropvalue node '{}' has interfaceName='{}', "
-                            "resolving...",
-                            node->getName(),
-                            interfaceName);
-
                         auto ngInput = nodeGraph->getInput(interfaceName);
                         if (ngInput && ngInput->hasValueString()) {
-                            std::string resolvedValue =
-                                ngInput->getValueString();
-                            spdlog::info(
-                                "Resolved to value '{}'", resolvedValue);
-
-                            // Replace the interfacename reference with the
-                            // actual value
                             geompropInput->setInterfaceName("");
-                            geompropInput->setValue(resolvedValue, "string");
+                            geompropInput->setValue(
+                                ngInput->getValueString(), "string");
                         }
                         else {
-                            // Interface exists but no value, use default 'st'
                             geompropInput->setInterfaceName("");
                             geompropInput->setValue("st", "string");
                         }
                     }
-                    else if (geompropInput->hasValueString()) {
-                        // Already has a direct value, all good
-                        spdlog::info(
-                            "geompropvalue node '{}' already has geomprop = "
-                            "'{}'",
-                            node->getName(),
-                            geompropInput->getValueString());
-                    }
-                    else {
-                        // No interfacename and no value - use default
-                        spdlog::warn(
-                            "geompropvalue node '{}' has geomprop but no "
-                            "value, "
-                            "using default 'st'",
-                            node->getName());
+                    else if (!geompropInput->hasValueString()) {
                         geompropInput->setValue("st", "string");
                     }
                 }
                 else {
-                    // No geomprop input at all - shouldn't happen after our
-                    // fixes
-                    spdlog::error(
-                        "geompropvalue node '{}' has no geomprop input!",
-                        node->getName());
                     node->setInputValue("geomprop", "st", "string");
                 }
             }
@@ -905,6 +898,16 @@ void Hd_RUZINO_MaterialX::MtlxGenerateShader(
 
     ShaderGenerator& shader_generator_ =
         shader_gen_context_->getShaderGenerator();
+
+    // Clear parameter mappings before generating new shader
+    // (BindlessContext is shared globally, needs to be reset for each material)
+    BindlessContextPtr context =
+        shader_gen_context_->getUserData<BindlessContext>(
+            mx::HW::USER_DATA_BINDING_CONTEXT);
+    if (context) {
+        context->clear_parameter_mappings();
+    }
+
     {
         std::lock_guard lock(shadergen_mutex);
         try {
@@ -944,6 +947,15 @@ void Hd_RUZINO_MaterialX::MtlxGenerateShader(
             get_data_code = context->get_data_code();
             material_data = context->get_material_data();
             texture_id_locations = context->get_texture_id_locations();
+
+            // Cache parameter mappings for incremental updates
+            cached_parameter_mappings = context->get_parameter_mappings();
+
+            spdlog::info(
+                "MaterialX: Cached {} parameter mappings for incremental "
+                "updates",
+                cached_parameter_mappings.size());
+
             material_data_handle->write_data(&material_data);
 
             spdlog::info(
@@ -965,6 +977,170 @@ void Hd_RUZINO_MaterialX::upload_material_data()
     if (material_data_dirty && material_data_handle) {
         material_data_handle->write_data(&material_data);
         material_data_dirty = false;
+    }
+}
+
+size_t Hd_RUZINO_MaterialX::compute_network_hash(
+    const HdMaterialNetwork2Interface& netInterface)
+{
+    // Compute hash of network structure (node types, connections) but not
+    // parameter values
+    std::hash<std::string> hasher;
+    size_t hash_value = 0;
+
+    // Hash all node types
+    TfTokenVector nodeNames = netInterface.GetNodeNames();
+    for (const auto& nodeName : nodeNames) {
+        TfToken nodeType = netInterface.GetNodeType(nodeName);
+        hash_value ^= hasher(nodeType.GetString()) + 0x9e3779b9 +
+                      (hash_value << 6) + (hash_value >> 2);
+    }
+
+    // Hash all connections (structure) - just check node existence and types
+    // since HdMaterialNetwork2Interface doesn't provide direct connection
+    // queries
+    for (const auto& nodeName : nodeNames) {
+        TfTokenVector paramNames =
+            netInterface.GetAuthoredNodeParameterNames(nodeName);
+        for (const auto& paramName : paramNames) {
+            // Hash parameter names that are present (not values)
+            std::string paramStr =
+                nodeName.GetString() + ":" + paramName.GetString();
+            hash_value ^= hasher(paramStr) + 0x9e3779b9 + (hash_value << 6) +
+                          (hash_value >> 2);
+        }
+    }
+
+    return hash_value;
+}
+
+void Hd_RUZINO_MaterialX::update_parameters_incremental(
+    const HdMaterialNetwork2Interface& netInterface,
+    HdMtlxTexturePrimvarData& hdMtlxData)
+{
+    if (cached_parameter_mappings.empty()) {
+        spdlog::warn(
+            "MaterialX: No cached parameter mappings for material '{}', cannot "
+            "do incremental update",
+            GetId().GetText());
+        return;
+    }
+
+    spdlog::info(
+        "MaterialX: Updating {} parameter mappings for material '{}'",
+        cached_parameter_mappings.size(),
+        GetId().GetText());
+
+    // Get all nodes for parameter queries
+    TfTokenVector nodeNames = netInterface.GetNodeNames();
+
+    int updated_count = 0;
+    for (const auto& nodeName : nodeNames) {
+        // Get all parameters for this node
+        TfTokenVector paramNames =
+            netInterface.GetAuthoredNodeParameterNames(nodeName);
+
+        for (const auto& paramName : paramNames) {
+            // O(1) lookup in cached mappings
+            auto it = cached_parameter_mappings.find(paramName.GetString());
+            if (it == cached_parameter_mappings.end()) {
+                continue;  // Not a parameter we're tracking
+            }
+
+            const ParameterMapping& mapping = it->second;
+            VtValue paramValue =
+                netInterface.GetNodeParameterValue(nodeName, paramName);
+
+            if (paramValue.IsEmpty()) {
+                continue;
+            }
+
+            // Update material_data based on parameter type
+            using namespace MaterialX;
+            if (mapping.parameterType == Type::FLOAT) {
+                float val = paramValue.Get<float>();
+                memcpy(
+                    &material_data.data[mapping.dataLocation],
+                    &val,
+                    sizeof(float));
+                updated_count++;
+            }
+            else if (
+                mapping.parameterType == Type::INTEGER ||
+                mapping.parameterType == Type::BOOLEAN) {
+                int val = paramValue.Get<int>();
+                memcpy(
+                    &material_data.data[mapping.dataLocation],
+                    &val,
+                    sizeof(int));
+                updated_count++;
+            }
+            else if (mapping.parameterType == Type::VECTOR2) {
+                GfVec2f val = paramValue.Get<GfVec2f>();
+                memcpy(
+                    &material_data.data[mapping.dataLocation],
+                    val.data(),
+                    sizeof(float) * 2);
+                updated_count++;
+            }
+            else if (mapping.parameterType == Type::VECTOR3) {
+                GfVec3f val = paramValue.Get<GfVec3f>();
+                memcpy(
+                    &material_data.data[mapping.dataLocation],
+                    val.data(),
+                    sizeof(float) * 3);
+                updated_count++;
+            }
+            else if (mapping.parameterType == Type::VECTOR4) {
+                GfVec4f val = paramValue.Get<GfVec4f>();
+                memcpy(
+                    &material_data.data[mapping.dataLocation],
+                    val.data(),
+                    sizeof(float) * 4);
+                updated_count++;
+            }
+            else if (mapping.parameterType == Type::COLOR3) {
+                GfVec3f val = paramValue.Get<GfVec3f>();
+                memcpy(
+                    &material_data.data[mapping.dataLocation],
+                    val.data(),
+                    sizeof(float) * 3);
+                updated_count++;
+            }
+            else if (mapping.parameterType == Type::COLOR4) {
+                GfVec4f val = paramValue.Get<GfVec4f>();
+                memcpy(
+                    &material_data.data[mapping.dataLocation],
+                    val.data(),
+                    sizeof(float) * 4);
+                updated_count++;
+            }
+            else if (mapping.parameterType == Type::MATRIX44) {
+                GfMatrix4f val = paramValue.Get<GfMatrix4f>();
+                memcpy(
+                    &material_data.data[mapping.dataLocation],
+                    val.data(),
+                    sizeof(float) * 16);
+                updated_count++;
+            }
+        }
+    }
+
+    // Upload updated data to GPU
+    if (updated_count > 0) {
+        material_data_handle->write_data(&material_data);
+        spdlog::info(
+            "MaterialX: Incremental update wrote {} parameters to GPU for "
+            "material '{}'",
+            updated_count,
+            GetId().GetText());
+    }
+    else {
+        spdlog::info(
+            "MaterialX: Incremental parameter update completed - {} parameters "
+            "checked for material '{}'",
+            updated_count,
+            GetId().GetText());
     }
 }
 

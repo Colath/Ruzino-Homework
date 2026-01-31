@@ -1,6 +1,7 @@
 #pragma once
 #include "MaterialXCore/Document.h"
 #include "MaterialXGenShader/Library.h"
+#include "bindlessContext.h"
 #include "material.h"
 
 namespace pxr {
@@ -45,6 +46,14 @@ class HD_RUZINO_API Hd_RUZINO_MaterialX : public Hd_RUZINO_Material {
     // Flag to track if material data needs to be uploaded to GPU
     bool material_data_dirty = false;
 
+    // Network structure hash for detecting if only parameters changed
+    size_t last_network_hash = 0;
+    // Flag to track if we can do incremental parameter update instead of full
+    // shader regeneration
+    bool can_use_incremental_update = false;
+    // Cached parameter mappings from last shader generation (for O(1) lookup)
+    std::unordered_map<std::string, ParameterMapping> cached_parameter_mappings;
+
    private:
     void MtlxGenerateShader(
         MaterialX::ElementPtr mtlx_element,
@@ -64,6 +73,16 @@ class HD_RUZINO_API Hd_RUZINO_MaterialX : public Hd_RUZINO_Material {
     static std::unordered_map<std::string, MaterialX::NodeDefPtr>
         nodedef_cache_;
     static std::mutex nodedef_cache_mutex_;
+
+    // Helper method to compute network structure hash
+    size_t compute_network_hash(
+        const HdMaterialNetwork2Interface& netInterface);
+
+    // Helper method to update parameters incrementally without shader
+    // regeneration
+    void update_parameters_incremental(
+        const HdMaterialNetwork2Interface& netInterface,
+        HdMtlxTexturePrimvarData& hdMtlxData);
 };
 
 RUZINO_NAMESPACE_CLOSE_SCOPE

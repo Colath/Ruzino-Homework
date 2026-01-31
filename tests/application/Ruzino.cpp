@@ -154,6 +154,8 @@ int main(int argc, char* argv[])
 {
 #ifdef _DEBUG
     spdlog::set_level(spdlog::level::debug);
+#else
+    spdlog::set_level(spdlog::level::warn);
 #endif
     spdlog::set_pattern("%^[%T] %n: %v%$");
     auto window = std::make_unique<Window>();

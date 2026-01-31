@@ -24,6 +24,7 @@
 #ifndef Hd_RUZINO_RENDER_DELEGATE_H
 #define Hd_RUZINO_RENDER_DELEGATE_H
 
+#include "../nodes/shaders/shaders/Scene/SceneTypes.slang"
 #include "api.h"
 #include "nodes/system/node_system.hpp"
 #include "nvrhi/nvrhi.h"
@@ -32,8 +33,6 @@
 #include "pxr/pxr.h"
 #include "renderParam.h"
 #include "renderer.h"
-
-#include "../nodes/shaders/shaders/Scene/SceneTypes.slang"
 
 namespace Ruzino {
 class LensSystem;
@@ -44,7 +43,7 @@ RUZINO_NAMESPACE_OPEN_SCOPE
 class Hd_RUZINO_Material;
 class Hd_RUZINO_Light;
 using namespace pxr;
-#define Hd_RUZINO_RENDER_SETTINGS_TOKENS        \
+#define Hd_RUZINO_RENDER_SETTINGS_TOKENS         \
     (enableAmbientOcclusion)(enableSceneColors)( \
         ambientOcclusionSamples)(renderMode)
 // Also: HdRenderSettingsTokens->convergedSamplesPerPixel
@@ -102,6 +101,8 @@ class HD_RUZINO_API Hd_RUZINO_RenderDelegate final : public HdRenderDelegate {
     VtValue GetRenderSetting(TfToken const& key) const override;
     void SetRenderSetting(const TfToken& key, const VtValue& value) override;
     bool Stop(bool blocking) override;
+
+    bool IsParallelSyncEnabled(const TfToken& primType) const override;
 
    private:
     static const TfTokenVector SUPPORTED_RPRIM_TYPES;

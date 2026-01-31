@@ -9,6 +9,16 @@
 
 RUZINO_NAMESPACE_OPEN_SCOPE
 using namespace MaterialX;
+
+/// @struct ParameterMapping
+/// Maps a shader parameter to its location in the material data buffer
+/// Note: parameter name is stored as map key, not in struct
+struct ParameterMapping {
+    unsigned int dataLocation;
+    MaterialX::TypeDesc parameterType;
+    size_t parameterSize;  // Size in bytes
+};
+
 /// Shared pointer to a BindlessContext
 using BindlessContextPtr = std::shared_ptr<class BindlessContext>;
 
@@ -73,12 +83,38 @@ class BindlessContext : public HwResourceBindingContext {
         return texture_id_locations;
     }
 
+    // Get all parameter mappings for fast parameter updates (O(1) lookup)
+    const std::unordered_map<std::string, ParameterMapping>&
+    get_parameter_mappings() const
+    {
+        return parameter_mappings;
+    }
+
+    // Record a parameter mapping for later quick updates
+    void record_parameter_mapping(
+        const std::string& paramName,
+        unsigned int location,
+        MaterialX::TypeDesc type,
+        size_t size)
+    {
+        parameter_mappings[paramName] = { location, type, size };
+    }
+
+    // Clear parameter mappings (call this at the start of new shader
+    // generation)
+    void clear_parameter_mappings()
+    {
+        parameter_mappings.clear();
+    }
+
    private:
     std::string fetch_data = "";
     unsigned int data_location = 0;
     MaterialDataBlob material_data;
     // Maps texture variable name to its data location for storing texture ID
     std::unordered_map<std::string, unsigned int> texture_id_locations;
+    // Map of parameter names to mappings for O(1) incremental updates
+    std::unordered_map<std::string, ParameterMapping> parameter_mappings;
 };
 
 RUZINO_NAMESPACE_CLOSE_SCOPE
