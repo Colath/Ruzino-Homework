@@ -60,9 +60,9 @@ int main(int argc, char* argv[])
     python::initialize();
 
     // 禁止 abort 弹窗，改为直接退出
-    _set_abort_behavior(0, _WRITE_ABORT_MSG | _CALL_REPORTFAULT);
+    // _set_abort_behavior(0, _WRITE_ABORT_MSG | _CALL_REPORTFAULT);
     // 或者设置错误模式，避免 Windows 弹窗
-    _set_error_mode(_OUT_TO_STDERR);
+    // _set_error_mode(_OUT_TO_STDERR);
 
     // 解除 C++ 流与 C 流的同步以加速输出
     std::ios_base::sync_with_stdio(false);
