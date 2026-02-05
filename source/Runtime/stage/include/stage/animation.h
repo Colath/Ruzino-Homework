@@ -35,7 +35,7 @@ class STAGE_API WithDynamicLogicPrim : public WithDynamicLogic {
     void update(float delta_time) const override;
     static bool is_animatable(const pxr::UsdPrim& prim);
 
-    // 每个prim独立判断是否应该进行仿真
+    // Each prim independently decides whether simulation should proceed
     bool should_simulate() const
     {
         return prim_render_time >= prim_current_time;
@@ -70,7 +70,7 @@ class STAGE_API WithDynamicLogicPrim : public WithDynamicLogic {
     std::unique_ptr<NodeTreeExecutor> node_tree_executor;
     mutable std::string tree_desc_cache;
 
-    // 每个prim独立的时间码
+    // Each prim's independent time code
     mutable pxr::UsdTimeCode prim_current_time = pxr::UsdTimeCode(0.0f);
     mutable pxr::UsdTimeCode prim_render_time = pxr::UsdTimeCode(0.0f);
 

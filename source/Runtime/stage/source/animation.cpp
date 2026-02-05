@@ -105,10 +105,10 @@ void WithDynamicLogicPrim::update(float delta_time) const
         node_tree->deserialize(tree_desc_cache);
         node_tree_executor->mark_tree_structure_changed();
 
-        // 清除旧的时间采样数据
+        // Clear old time sample data
         clear_time_samples(prim);
 
-        // 重置该prim自己的时间状态
+        // Reset this prim's own time state
         prim_current_time = pxr::UsdTimeCode(0.0f);
         prim_render_time = pxr::UsdTimeCode(0.0f);
 
@@ -116,10 +116,10 @@ void WithDynamicLogicPrim::update(float delta_time) const
         simulation_begun = false;
     }
 
-    // 从Stage获取当前渲染时间，更新prim的渲染时间
+    // Get current render time from Stage, update prim's render time
     prim_render_time = stage_->get_render_time();
 
-    // 使用该prim自己的should_simulate判断
+    // Use this prim's own should_simulate to decide
     if (!should_simulate())
         return;
 
@@ -144,7 +144,7 @@ void WithDynamicLogicPrim::update(float delta_time) const
 #endif
     node_tree_executor->execute(node_tree.get());
 
-    // 更新该prim的仿真时间
+    // Update this prim's simulation time
     auto current = prim_current_time.GetValue();
     current += delta_time;
     prim_current_time = pxr::UsdTimeCode(current);
@@ -169,23 +169,24 @@ void WithDynamicLogicPrim::clear_time_samples(const pxr::UsdPrim& prim) const
         return;
     }
 
-    // 递归清除所有子prim的时间采样
+    // Recursively clear time samples for all child prims
     for (const auto& child : prim.GetChildren()) {
         clear_time_samples(child);
     }
 
-    // 清除当前prim所有属性的时间采样
+    // Clear time samples for all attributes of current prim
     for (const auto& attr : prim.GetAttributes()) {
-        // 跳过不应该清除的属性（配置相关的属性）
+        // Skip attributes that shouldn't be cleared (configuration-related
+        // attributes)
         const auto& attr_name = attr.GetName();
         if (attr_name == pxr::TfToken("node_json") ||
             attr_name == pxr::TfToken("Animatable")) {
             continue;
         }
 
-        // 检查属性是否有时间采样
+        // Check if attribute has time samples
         if (attr.GetNumTimeSamples() > 0) {
-            // 清除所有时间采样
+            // Clear all time samples
             attr.Clear();
         }
     }

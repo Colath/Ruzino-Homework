@@ -110,20 +110,11 @@ class STAGE_API Stage {
     void SaveAs(const std::string& new_path);
     bool OpenStage(const std::string& path);
 
-    // 获取特定prim的时间信息
-    bool get_prim_time_info(
-        const pxr::SdfPath& path,
-        pxr::UsdTimeCode& current_time,
-        pxr::UsdTimeCode& render_time) const;
-
-    // 设置特定prim的渲染时间
-    void set_prim_render_time(const pxr::SdfPath& path, pxr::UsdTimeCode time);
-
     // ========================================================================
     // ECS Interface
     // ========================================================================
 
-    // 获取 ECS registry
+    // Get ECS registry
     entt::registry& get_registry()
     {
         return registry_;
@@ -133,22 +124,19 @@ class STAGE_API Stage {
         return registry_;
     }
 
-    // 从 USD prim 创建 entity
-    entt::entity create_entity_from_prim(const pxr::UsdPrim& prim);
-
-    // 从 entity 获取 USD prim
+    // Get USD prim from entity
     pxr::UsdPrim get_prim_from_entity(entt::entity entity);
 
-    // 从 SdfPath 查找 entity
+    // Find entity by SdfPath
     entt::entity find_entity_by_path(const pxr::SdfPath& path);
 
-    // 同步所有 entity 到 USD
+    // Sync all entities to USD
     void sync_entities_to_usd();
 
-    // 从 USD 加载所有 prim 到 ECS
+    // Load all prims from USD to ECS
     void load_prims_to_ecs();
 
-    // 获取 systems
+    // Get systems
     ecs::AnimationSystem* get_animation_system()
     {
         return animation_system_.get();
@@ -162,19 +150,24 @@ class STAGE_API Stage {
         return physics_system_.get();
     }
 
-    // 获取 stage listener
+    // Get stage listener
     class StageListener* get_stage_listener()
     {
         return stage_listener_.get();
     }
 
-    // Debug: 获取和重置on_prim_changed计数器
-    static int get_on_prim_changed_counter();
-    static void reset_on_prim_changed_counter();
-
     bool save_on_destruct = true;
 
    private:
+    // Get prim time info (legacy animation system, internal use)
+    bool get_prim_time_info(
+        const pxr::SdfPath& path,
+        pxr::UsdTimeCode& current_time,
+        pxr::UsdTimeCode& render_time) const;
+
+    // Set prim render time (legacy animation system, internal use)
+    void set_prim_render_time(const pxr::SdfPath& path, pxr::UsdTimeCode time);
+
     std::string m_stage_path;
     pxr::UsdStageRefPtr stage;
     pxr::SdfPath create_editor_pending_path;
@@ -183,7 +176,8 @@ class STAGE_API Stage {
     template<typename T>
     T create_prim(const pxr::SdfPath& path, const std::string& baseName) const;
 
-    // 保留旧的 animatable_prims 以保持向后兼容（可以逐步迁移）
+    // Legacy animatable_prims for backward compatibility (can be migrated
+    // gradually)
     std::unordered_map<
         pxr::SdfPath,
         animation::WithDynamicLogicPrim,
@@ -213,16 +207,19 @@ class STAGE_API Stage {
     // Stage listener
     std::unique_ptr<class StageListener> stage_listener_;
 
-    // 防止循环：sync写入USD -> notice -> on_prim_changed -> 标记dirty ->
-    // 下次sync又写
+    // Prevent circular loop: sync writes to USD -> notice -> on_prim_changed ->
+    // mark dirty -> next sync writes again
     bool is_syncing_to_usd_ = false;
 
-    // ECS 回调函数 - 由 StageListener 调用
+    // Create entity from USD prim (internal use)
+    entt::entity create_entity_from_prim(const pxr::UsdPrim& prim);
+
+    // ECS callbacks - called by StageListener
     void on_prim_added(const pxr::UsdPrim& prim);
     void on_prim_removed(const pxr::SdfPath& path);
     void on_prim_changed(const pxr::SdfPath& path);
 
-    // 初始化 ECS 和 StageListener
+    // Initialize ECS and StageListener
     void initialize_ecs_systems();
 };
 

@@ -8,7 +8,7 @@ RUZINO_NAMESPACE_OPEN_SCOPE
 namespace ecs {
 
 // ============================================================================
-// UsdPrimComponent 同步方法实现
+// UsdPrimComponent sync method implementation
 // ============================================================================
 
 bool UsdPrimComponent::sync_to_geometry(

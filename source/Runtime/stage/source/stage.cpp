@@ -117,18 +117,18 @@ Stage::~Stage()
 
 void Stage::tick(float ellapsed_time)
 {
-    // 更新动画系统
+    // Update animation system
     if (animation_system_) {
         animation_system_->update(registry_, ellapsed_time);
     }
 
-    // 更新物理系统
+    // Update physics system
     if (physics_system_) {
         physics_system_->update(registry_, ellapsed_time);
     }
 
-    // 保留旧的动画逻辑以保持向后兼容
-    // （可以逐步迁移到 ECS）
+    // Keep legacy animation logic for backward compatibility
+    // (can be migrated to ECS gradually)
     for (auto&& prim : stage->Traverse()) {
         if (animation::WithDynamicLogicPrim::is_animatable(prim)) {
             if (animatable_prims.find(prim.GetPath()) ==
@@ -142,7 +142,7 @@ void Stage::tick(float ellapsed_time)
         }
     }
 
-    // 更新全局时间码
+    // Update global time code
     auto current = current_time_code.GetValue();
     current += ellapsed_time;
     current_time_code = pxr::UsdTimeCode(current);
@@ -212,8 +212,9 @@ pxr::UsdGeomSphere Stage::create_sphere(const pxr::SdfPath& path)
     auto sphere = create_prim<pxr::UsdGeomSphere>(path, "sphere");
     auto prim = sphere.GetPrim();
 
-    // 直接创建对应的entity
-    // 防止USD notice机制也触发创建（通过防重复检查）
+    // Create corresponding entity directly
+    // Prevent USD notice mechanism from also triggering creation (through
+    // duplicate check)
     if (prim.IsValid() && find_entity_by_path(prim.GetPath()) == entt::null) {
         on_prim_added(prim);
     }
@@ -489,7 +490,7 @@ void Stage::SaveAs(const std::string& new_path)
     std::filesystem::path abs_path =
         std::filesystem::path(new_path).lexically_normal();
 
-    // Export 会自动清理冗余数据
+    // Export will automatically clean up redundant data
     if (stage->Export(abs_path.string())) {
         m_stage_path = abs_path.string();
         // Reopen the stage at the new location
@@ -549,10 +550,11 @@ entt::entity Stage::create_entity_from_prim(const pxr::UsdPrim& prim)
         return entt::null;
     }
 
-    // 防止重复创建：检查该prim的path是否已在映射中
+    // Prevent duplicate creation: check if this prim's path is already in the
+    // mapping
     auto it = path_to_entity_.find(prim.GetPath());
     if (it != path_to_entity_.end()) {
-        return it->second;  // 已存在，返回现有entity
+        return it->second;  // Already exists, return existing entity
     }
 
     auto entity = usd_sync_system_->create_entity_from_prim(registry_, prim);
@@ -564,7 +566,7 @@ entt::entity Stage::create_entity_from_prim(const pxr::UsdPrim& prim)
         return entt::null;
     }
 
-    // 建立映射关系
+    // Establish mapping relationship
     entity_to_path_[entity] = prim.GetPath();
     path_to_entity_[prim.GetPath()] = entity;
 
@@ -602,19 +604,11 @@ void Stage::sync_entities_to_usd()
         return;
     }
 
-    // 设置标志：正在同步到USD，防止notice触发的循环
+    // Set flag: syncing to USD, prevent circular loop from notice
     is_syncing_to_usd_ = true;
-    std::cout
-        << "[DEBUG sync_entities_to_usd] 开始，设置is_syncing_to_usd_=true"
-        << std::endl;
-
     usd_sync_system_->sync(registry_, render_time_code);
-
-    // 清除标志
+    // Clear flag
     is_syncing_to_usd_ = false;
-    std::cout
-        << "[DEBUG sync_entities_to_usd] 完成，设置is_syncing_to_usd_=false"
-        << std::endl;
 }
 
 void Stage::load_prims_to_ecs()
@@ -623,31 +617,31 @@ void Stage::load_prims_to_ecs()
         return;
     }
 
-    // 清除现有的 ECS 数据
+    // Clear existing ECS data
     registry_.clear();
     entity_to_path_.clear();
     path_to_entity_.clear();
 
-    // 遍历所有 prim 并创建对应的 entity
+    // Traverse all prims and create corresponding entities
     for (const auto& prim : stage->Traverse()) {
         create_entity_from_prim(prim);
     }
 }
 
 // ============================================================================
-// ECS 回调函数实现
+// ECS callback function implementation
 // ============================================================================
 
 void Stage::initialize_ecs_systems()
 {
-    // 初始化 ECS systems
+    // Initialize ECS systems
     animation_system_ = std::make_unique<ecs::AnimationSystem>(this);
     usd_sync_system_ = std::make_unique<ecs::UsdSyncSystem>(this);
     physics_system_ = std::make_unique<ecs::PhysicsSystem>();
     scene_query_system_ =
         std::make_unique<ecs::SceneQuerySystem>(physics_system_.get());
 
-    // 初始化 StageListener - 完全依赖USD notice机制
+    // Initialize StageListener - fully depends on USD notice mechanism
     if (stage) {
         stage_listener_ = std::make_unique<StageListener>(stage);
         stage_listener_->SetPrimAddedCallback(
@@ -656,25 +650,26 @@ void Stage::initialize_ecs_systems()
             [this](const pxr::SdfPath& path) { on_prim_removed(path); });
         stage_listener_->SetPrimChangedCallback(
             [this](const pxr::SdfPath& path) { on_prim_changed(path); });
-        // 不调用 CapturePrimSnapshot - 完全依赖USD notice机制
-        // 这样新创建的空stage不会有任何预存的entities
+        // Don't call CapturePrimSnapshot - fully depend on USD notice mechanism
+        // This way a newly created empty stage won't have any pre-existing
+        // entities
     }
 }
 
 void Stage::on_prim_added(const pxr::UsdPrim& prim)
 {
-    // 防止重复创建：直接检查path_to_entity_map
+    // Prevent duplicate creation: check path_to_entity_ map directly
     if (path_to_entity_.find(prim.GetPath()) != path_to_entity_.end()) {
         return;
     }
 
-    // 为新增的 prim 创建 entity
+    // Create entity for newly added prim
     create_entity_from_prim(prim);
 }
 
 void Stage::on_prim_removed(const pxr::SdfPath& path)
 {
-    // 删除对应的 entity
+    // Delete corresponding entity
     auto entity = find_entity_by_path(path);
     if (entity != entt::null) {
         registry_.destroy(entity);
@@ -683,35 +678,23 @@ void Stage::on_prim_removed(const pxr::SdfPath& path)
     }
 }
 
-// Debug: 用于检测循环的静态计数器
-static thread_local int g_on_prim_changed_counter = 0;
-
 void Stage::on_prim_changed(const pxr::SdfPath& path)
 {
-    g_on_prim_changed_counter++;
-
-    std::cout << "[DEBUG on_prim_changed] 被调用 #" << g_on_prim_changed_counter
-              << ", path=" << path.GetString() << std::endl;
-
-    // 防止循环：如果正在sync到USD，不处理notice（因为这个修改就是sync触发的）
+    // Prevent circular loop: if syncing to USD, don't handle notice (because
+    // this change was triggered by sync)
     if (is_syncing_to_usd_) {
-        std::cout
-            << "[DEBUG on_prim_changed] 正在sync，忽略此notice（防止循环）"
-            << std::endl;
         return;
     }
 
     auto prim = stage->GetPrimAtPath(path);
     if (!prim) {
-        std::cout << "[DEBUG on_prim_changed] prim不存在，返回" << std::endl;
         return;
     }
 
-    // 查找或创建 entity
+    // Find or create entity
     auto entity = find_entity_by_path(path);
     if (entity == entt::null) {
-        std::cout << "[DEBUG on_prim_changed] entity不存在" << std::endl;
-        // 如果是几何 prim，自动创建 entity
+        // If it's a geometry prim, automatically create entity
         if (prim.IsA<pxr::UsdGeomMesh>()) {
             entity = create_entity_from_prim(prim);
             spdlog::info(
@@ -719,19 +702,15 @@ void Stage::on_prim_changed(const pxr::SdfPath& path)
                 path.GetString());
         }
         else {
-            std::cout << "[DEBUG on_prim_changed] 不是Mesh，返回" << std::endl;
             return;
         }
     }
-    else {
-        std::cout << "[DEBUG on_prim_changed] 找到entity" << std::endl;
-    }
 
-    // 如果是几何 prim，从 USD 同步到 GeometryComponent
+    // If it's a geometry prim, sync from USD to GeometryComponent
     if (prim.IsA<pxr::UsdGeomMesh>()) {
         auto& usd_comp = registry_.get<ecs::UsdPrimComponent>(entity);
 
-        // 创建或获取 GeometryComponent
+        // Create or get GeometryComponent
         if (!registry_.all_of<ecs::GeometryComponent>(entity)) {
             auto geometry = std::make_shared<Geometry>();
             registry_.emplace<ecs::GeometryComponent>(entity, geometry);
@@ -742,10 +721,10 @@ void Stage::on_prim_changed(const pxr::SdfPath& path)
             geom_comp.geometry = std::make_shared<Geometry>();
         }
 
-        // 从 USD 同步到 Geometry
+        // Sync from USD to Geometry
         usd_comp.sync_to_geometry(*geom_comp.geometry);
 
-        // 标记为脏，需要geometry更新
+        // Mark as dirty, needs geometry update
         if (!registry_.all_of<ecs::DirtyComponent>(entity)) {
             registry_.emplace<ecs::DirtyComponent>(entity);
         }
@@ -756,10 +735,8 @@ void Stage::on_prim_changed(const pxr::SdfPath& path)
             "[Stage] Synced geometry from USD for prim: {}", path.GetString());
     }
 
-    // 对于其他类型的prim（如Sphere, Cube等），也标记为脏
+    // For other types of prims (such as Sphere, Cube, etc.), also mark as dirty
     else if (prim.IsA<pxr::UsdGeomGprim>()) {
-        std::cout << "[DEBUG on_prim_changed] 是Gprim，标记为dirty"
-                  << std::endl;
         if (!registry_.all_of<ecs::DirtyComponent>(entity)) {
             registry_.emplace<ecs::DirtyComponent>(entity);
         }
@@ -768,20 +745,6 @@ void Stage::on_prim_changed(const pxr::SdfPath& path)
 
         spdlog::info("[Stage] Marked prim as dirty: {}", path.GetString());
     }
-    else {
-        std::cout << "[DEBUG on_prim_changed] 既不是Mesh也不是Gprim，不处理"
-                  << std::endl;
-    }
-}
-
-int Stage::get_on_prim_changed_counter()
-{
-    return g_on_prim_changed_counter;
-}
-
-void Stage::reset_on_prim_changed_counter()
-{
-    g_on_prim_changed_counter = 0;
 }
 
 RUZINO_NAMESPACE_CLOSE_SCOPE

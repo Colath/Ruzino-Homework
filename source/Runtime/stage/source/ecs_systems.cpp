@@ -25,7 +25,7 @@ AnimationSystem::AnimationSystem(Stage* stage) : stage_(stage)
 
 void AnimationSystem::update(entt::registry& registry, float delta_time)
 {
-    // 遍历所有拥有 AnimationComponent 和 UsdPrimComponent 的 entity
+    // Iterate all entities with AnimationComponent and UsdPrimComponent
     auto view = registry.view<AnimationComponent, UsdPrimComponent>();
 
     for (auto entity : view) {
@@ -47,7 +47,7 @@ void AnimationSystem::update_single_entity(
         return;
     }
 
-    // 检查节点树是否变化
+    // Check if node tree has changed
     auto json_attr = usd_prim.prim.GetAttribute(pxr::TfToken("node_json"));
     if (json_attr) {
         pxr::VtValue json;
@@ -59,25 +59,25 @@ void AnimationSystem::update_single_entity(
             anim.node_tree->deserialize(anim.tree_desc_cache);
             anim.node_tree_executor->mark_tree_structure_changed();
 
-            // 清除旧的时间采样数据
+            // Clear old time sample data
             clear_time_samples(usd_prim.prim);
 
-            // 重置时间状态
+            // Reset time state
             usd_prim.current_time = pxr::UsdTimeCode(0.0f);
             usd_prim.render_time = pxr::UsdTimeCode(0.0f);
             anim.simulation_begun = false;
         }
     }
 
-    // 更新渲染时间
+    // Update render time
     usd_prim.render_time = stage_->get_render_time();
 
-    // 检查是否应该进行仿真
+    // Check if simulation should proceed
     if (usd_prim.render_time < usd_prim.current_time) {
         return;
     }
 
-    // 执行节点树
+    // Execute node tree
     auto& payload = anim.node_tree_executor->get_global_payload<GeomPayload&>();
     payload.delta_time = delta_time;
 
@@ -96,12 +96,12 @@ void AnimationSystem::update_single_entity(
 
     anim.node_tree_executor->execute(anim.node_tree.get());
 
-    // 更新仿真时间
+    // Update simulation time
     auto current = usd_prim.current_time.GetValue();
     current += delta_time;
     usd_prim.current_time = pxr::UsdTimeCode(current);
 
-    // 标记为脏，需要同步到 USD
+    // Mark as dirty, needs to sync to USD
     if (!registry.all_of<DirtyComponent>(entity)) {
         registry.emplace<DirtyComponent>(entity);
     }
@@ -115,12 +115,12 @@ void AnimationSystem::clear_time_samples(const pxr::UsdPrim& prim) const
         return;
     }
 
-    // 递归清除所有子prim的时间采样
+    // Recursively clear time samples for all child prims
     for (const auto& child : prim.GetChildren()) {
         clear_time_samples(child);
     }
 
-    // 清除当前prim所有属性的时间采样
+    // Clear all attribute time samples for current prim
     for (const auto& attr : prim.GetAttributes()) {
         const auto& attr_name = attr.GetName();
         if (attr_name == pxr::TfToken("node_json") ||
@@ -144,62 +144,29 @@ UsdSyncSystem::UsdSyncSystem(Stage* stage) : stage_(stage)
 
 void UsdSyncSystem::sync(entt::registry& registry, pxr::UsdTimeCode time)
 {
-    // 同步所有脏 entity
+    // Sync all dirty entities
     auto view = registry.view<DirtyComponent, UsdPrimComponent>();
-
-    int dirty_count = 0;
-    for (auto entity : view) {
-        dirty_count++;
-    }
-    std::cout << "[DEBUG UsdSyncSystem::sync] 开始同步，发现 " << dirty_count
-              << " 个脏entity" << std::endl;
 
     int synced_count = 0;
     for (auto entity : view) {
         auto& dirty = view.get<DirtyComponent>(entity);
         auto& usd_prim = view.get<UsdPrimComponent>(entity);
 
-        std::cout << "[DEBUG UsdSyncSystem::sync] entity #"
-                  << (synced_count + 1)
-                  << ", prim=" << usd_prim.prim.GetPath().GetString()
-                  << ", needs_geometry_update=" << dirty.needs_geometry_update
-                  << std::endl;
-
-        // 如果 geometry 发生变化，同步到 USD
+        // If geometry has changed, sync to USD
         if (dirty.needs_geometry_update) {
-            std::cout
-                << "[DEBUG UsdSyncSystem::sync] needs_geometry_update=true"
-                << std::endl;
             if (registry.all_of<GeometryComponent>(entity)) {
                 auto& geom_comp = registry.get<GeometryComponent>(entity);
-                std::cout << "[DEBUG UsdSyncSystem::sync] 有GeometryComponent, "
-                             "geometry="
-                          << (geom_comp.geometry ? "存在" : "nullptr")
-                          << std::endl;
                 if (geom_comp.geometry) {
-                    std::cout << "[DEBUG UsdSyncSystem::sync] "
-                                 "调用sync_from_geometry写入USD"
-                              << std::endl;
                     usd_prim.sync_from_geometry(*geom_comp.geometry, time);
-                    std::cout
-                        << "[DEBUG UsdSyncSystem::sync] sync_from_geometry完成"
-                        << std::endl;
                 }
-            }
-            else {
-                std::cout << "[DEBUG UsdSyncSystem::sync] 没有GeometryComponent"
-                          << std::endl;
             }
         }
 
-        // 清除脏标记
-        std::cout << "[DEBUG UsdSyncSystem::sync] 清除脏标记" << std::endl;
+        // Clear dirty flags
         dirty.needs_geometry_update = false;
         dirty.needs_usd_sync = false;
         synced_count++;
     }
-    std::cout << "[DEBUG UsdSyncSystem::sync] 同步完成，处理了 " << synced_count
-              << " 个entity" << std::endl;
 }
 
 entt::entity UsdSyncSystem::create_entity_from_prim(
@@ -208,10 +175,10 @@ entt::entity UsdSyncSystem::create_entity_from_prim(
 {
     auto entity = registry.create();
 
-    // 添加 USD prim component
+    // Add USD prim component
     registry.emplace<UsdPrimComponent>(entity, prim);
 
-    // 检查是否有动画
+    // Check if it has animation
     auto animatable_attr = prim.GetAttribute(pxr::TfToken("Animatable"));
     if (animatable_attr) {
         bool is_animatable = false;
@@ -219,11 +186,11 @@ entt::entity UsdSyncSystem::create_entity_from_prim(
 
         if (is_animatable) {
             registry.emplace<AnimatableTag>(entity);
-            // 这里可以初始化 AnimationComponent
+            // Can initialize AnimationComponent here
         }
     }
 
-    // 可以添加其他 components...
+    // Can add other components...
 
     return entity;
 }
@@ -235,7 +202,7 @@ void UsdSyncSystem::update_prim_from_entity(
 {
     auto& usd_prim = registry.get<UsdPrimComponent>(entity);
 
-    // 同步 Geometry（包括 Transform）
+    // Sync Geometry (including Transform)
     if (registry.all_of<GeometryComponent>(entity)) {
         auto& geometry = registry.get<GeometryComponent>(entity);
         if (geometry.geometry) {
@@ -258,7 +225,7 @@ void UsdSyncSystem::sync_geometry(
 }
 
 // ============================================================================
-// Physics System Implementation (预留)
+// Physics System Implementation (reserved)
 // ============================================================================
 
 PhysicsSystem::PhysicsSystem()
@@ -276,7 +243,7 @@ bool PhysicsSystem::initialize()
         return true;
     }
 
-    // TODO: 初始化 PhysX SDK
+    // TODO: Initialize PhysX SDK
     // physics_sdk_ = PxCreatePhysics(...);
     // physics_scene_ = physics_sdk_->createScene(...);
 
@@ -290,7 +257,7 @@ void PhysicsSystem::shutdown()
         return;
     }
 
-    // TODO: 清理 PhysX 资源
+    // TODO: Cleanup PhysX resources
 
     initialized_ = false;
 }
@@ -301,11 +268,11 @@ void PhysicsSystem::update(entt::registry& registry, float delta_time)
         return;
     }
 
-    // TODO: 更新物理模拟
+    // TODO: Update physics simulation
     // physics_scene_->simulate(delta_time);
     // physics_scene_->fetchResults(true);
 
-    // 更新所有物理 entity 的 transform
+    // Update transform for all physics entities
     auto view =
         registry.view<PhysicsComponent, GeometryComponent, UsdPrimComponent>();
     for (auto entity : view) {
@@ -313,8 +280,8 @@ void PhysicsSystem::update(entt::registry& registry, float delta_time)
         auto& geom_comp = view.get<GeometryComponent>(entity);
         auto& usd_prim = view.get<UsdPrimComponent>(entity);
 
-        // TODO: 从 PhysX actor 获取变换并更新 Geometry 的 XformComponent
-        // if (physics.physics_actor && geom_comp.geometry) {
+        // TODO: Get transform from PhysX actor and update Geometry's
+        // XformComponent if (physics.physics_actor && geom_comp.geometry) {
         //     PxTransform px_transform =
         //     static_cast<PxRigidActor*>(physics.physics_actor)->getGlobalPose();
         //     auto xform_comp =
@@ -333,18 +300,18 @@ void PhysicsSystem::add_physics_actor(
     entt::registry& registry,
     entt::entity entity)
 {
-    // TODO: 创建 PhysX actor
+    // TODO: Create PhysX actor
 }
 
 void PhysicsSystem::remove_physics_actor(
     entt::registry& registry,
     entt::entity entity)
 {
-    // TODO: 销毁 PhysX actor
+    // TODO: Destroy PhysX actor
 }
 
 // ============================================================================
-// Scene Query System Implementation (预留)
+// Scene Query System Implementation (reserved)
 // ============================================================================
 
 SceneQuerySystem::SceneQuerySystem(PhysicsSystem* physics_system)
@@ -359,7 +326,7 @@ bool SceneQuerySystem::raycast(
     entt::entity& hit_entity,
     glm::vec3& hit_position)
 {
-    // TODO: 实现 raycast
+    // TODO: Implement raycast
     return false;
 }
 
@@ -368,7 +335,7 @@ bool SceneQuerySystem::overlap_sphere(
     float radius,
     std::vector<entt::entity>& overlapping_entities)
 {
-    // TODO: 实现 overlap test
+    // TODO: Implement overlap test
     return false;
 }
 
