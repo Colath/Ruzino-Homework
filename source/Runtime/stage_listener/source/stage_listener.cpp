@@ -20,22 +20,6 @@ StageListener::StageListener(const pxr::UsdStagePtr& stage) : stage_(stage)
         pxr::TfCreateWeakPtr(this), &StageListener::OnObjectsChanged, stage_);
 }
 
-void StageListener::CapturePrimSnapshot()
-{
-    std::lock_guard<std::mutex> lock(mutex_);
-    previousPrimPaths_.clear();
-    if (stage_) {
-        for (const auto& prim : stage_->Traverse()) {
-            previousPrimPaths_.insert(prim.GetPath());
-        }
-    }
-}
-
-std::mutex& StageListener::GetMutex()
-{
-    return mutex_;
-}
-
 void StageListener::GetDirtyPaths(DirtyPathSet& outDirtyPaths)
 {
     std::lock_guard<std::mutex> lock(mutex_);

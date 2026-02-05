@@ -25,10 +25,6 @@ class STAGE_LISTENER_API StageListener : public pxr::TfWeakBase {
 
     explicit StageListener(const pxr::UsdStagePtr& stage);
 
-    void CapturePrimSnapshot();
-
-    std::mutex& GetMutex();
-
     void GetDirtyPaths(DirtyPathSet& outDirtyPaths);
 
     // 注册回调函数
