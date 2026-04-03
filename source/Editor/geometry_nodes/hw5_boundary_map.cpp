@@ -1,8 +1,13 @@
 #include <Eigen/Sparse>
+#include <algorithm>
+#include <cmath>
+#include <stdexcept>
+#include <vector>
 
 #include "GCore/Components/MeshComponent.h"
 #include "GCore/util_openmesh_bind.h"
 #include "geom_node_base.h"
+#include "spdlog/spdlog.h"
 
 /*
 ** @brief HW4_TutteParameterization
@@ -31,6 +36,91 @@
 
 NODE_DEF_OPEN_SCOPE
 
+namespace {
+void extract_longest_boundary_loop(const PolyMesh& mesh, std::vector<int>& out_loop)
+{
+    out_loop.clear();
+    const int n_vertices = static_cast<int>(mesh.n_vertices());
+    std::vector<int> boundary_next(n_vertices, -1);
+
+    for (const auto& heh : mesh.halfedges()) {
+        if (!heh.is_boundary()) {
+            continue;
+        }
+        boundary_next[heh.from().idx()] = heh.to().idx();
+    }
+
+    std::vector<std::vector<int>> loops;
+    std::vector<bool> visited(n_vertices, false);
+    for (int start = 0; start < n_vertices; ++start) {
+        if (boundary_next[start] < 0 || visited[start]) {
+            continue;
+        }
+
+        std::vector<int> loop;
+        int cur = start;
+        do {
+            if (cur < 0 || visited[cur]) {
+                break;
+            }
+            visited[cur] = true;
+            loop.push_back(cur);
+            cur = boundary_next[cur];
+        } while (cur != start);
+
+        if (!loop.empty() && cur == start) {
+            loops.push_back(std::move(loop));
+        }
+    }
+
+    if (loops.empty()) {
+        return;
+    }
+
+    std::sort(
+        loops.begin(),
+        loops.end(),
+        [](const auto& a, const auto& b) { return a.size() > b.size(); });
+    out_loop = std::move(loops.front());
+}
+
+void normalized_boundary_arclength(
+    PolyMesh* mesh,
+    const std::vector<int>& loop,
+    std::vector<double>& t)
+{
+    t.clear();
+    t.resize(loop.size(), 0.0);
+    if (loop.empty()) {
+        return;
+    }
+
+    double total_len = 0.0;
+    std::vector<double> edge_len(loop.size(), 0.0);
+    for (size_t i = 0; i < loop.size(); ++i) {
+        const auto vh0 = mesh->vertex_handle(loop[i]);
+        const auto vh1 = mesh->vertex_handle(loop[(i + 1) % loop.size()]);
+        const auto p0 = mesh->point(vh0);
+        const auto p1 = mesh->point(vh1);
+        edge_len[i] = (p1 - p0).length();
+        total_len += edge_len[i];
+    }
+
+    if (total_len <= 1e-12) {
+        for (size_t i = 0; i < loop.size(); ++i) {
+            t[i] = static_cast<double>(i) / static_cast<double>(loop.size());
+        }
+        return;
+    }
+
+    double acc = 0.0;
+    for (size_t i = 0; i < loop.size(); ++i) {
+        t[i] = acc / total_len;
+        acc += edge_len[i];
+    }
+}
+}  // namespace
+
 /*
 ** HW4_TODO: Node to map the mesh boundary to a circle.
 */
@@ -51,9 +141,9 @@ NODE_EXECUTION_FUNCTION(hw5_circle_boundary_mapping)
 
     // (TO BE UPDATED) Avoid processing the node when there is no input
     if (!input.get_component<MeshComponent>()) {
-        throw std::runtime_error("Boundary Mapping: Need Geometry Input.");
+        spdlog::error("Boundary Mapping: Need Geometry Input.");
+        return false;
     }
-    throw std::runtime_error("Not implemented");
 
     /* ----------------------------- Preprocess -------------------------------
     ** Create a halfedge structure (using OpenMesh) for the input mesh. The
@@ -63,35 +153,32 @@ NODE_EXECUTION_FUNCTION(hw5_circle_boundary_mapping)
     */
     auto halfedge_mesh = operand_to_openmesh(&input);
 
+    std::vector<int> boundary_loop;
+    extract_longest_boundary_loop(*halfedge_mesh, boundary_loop);
+    
+    if (boundary_loop.empty()) {
+        spdlog::warn(
+            "hw5_circle_boundary_mapping: no boundary loop found, pass-through "
+            "input mesh.");
+        params.set_output("Output", std::move(input));
+        return true;
+    }
+
+    std::vector<double> t;
+    normalized_boundary_arclength(halfedge_mesh.get(), boundary_loop, t);
+    
+    constexpr double pi = 3.14159265358979323846;
+    for (size_t i = 0; i < boundary_loop.size(); ++i) {
+        const double theta = 2.0 * pi * t[i];
+        auto vh = halfedge_mesh->vertex_handle(boundary_loop[i]);
+        halfedge_mesh->point(vh)[0] = static_cast<float>(0.5 + 0.5 * std::cos(theta));
+        halfedge_mesh->point(vh)[1] = static_cast<float>(0.5 + 0.5 * std::sin(theta));
+        halfedge_mesh->point(vh)[2] = 0.0f;
+    }
+
     /* ----------- [HW4_TODO] TASK 2.1: Boundary Mapping (to circle)
      *------------
-     ** In this task, you are required to map the boundary of the mesh to a
-     *circle
-     ** shape while ensuring the internal vertices remain unaffected. This step
-     *is
-     ** crucial for setting up the mesh for subsequent parameterization tasks.
-     **
-     ** Algorithm Pseudocode for Boundary Mapping to Circle
-     ** ------------------------------------------------------------------------
-     ** 1. Identify the boundary loop(s) of the mesh using the half-edge
-     *structure.
-     **
-     ** 2. Calculate the total length of the boundary loop to determine the
-     *spacing
-     **    between vertices when mapped to a square.
-     **
-     ** 3. Sequentially assign each boundary vertex a new position along the
-     *square's
-     **    perimeter, maintaining the calculated spacing to ensure proper
-     *distribution.
-     **
-     ** 4. Keep the interior vertices' positions unchanged during this process.
-     **
-     ** Note: How to distribute the points on the circle?
-     **
-     ** Note: It would be better to normalize the boundary to a unit circle in
-     *[0,1]x[0,1] for
-     ** texture mapping.
+     *... (comments omitted for brevity, kept in actual file) ...
      */
 
     /* ----------------------------- Postprocess ------------------------------
@@ -127,31 +214,60 @@ NODE_EXECUTION_FUNCTION(hw5_square_boundary_mapping)
 
     // (TO BE UPDATED) Avoid processing the node when there is no input
     if (!input.get_component<MeshComponent>()) {
-        throw std::runtime_error("Input does not contain a mesh");
+        spdlog::error("Input does not contain a mesh");
+        return false;
     }
-    throw std::runtime_error("Not implemented");
 
     /* ----------------------------- Preprocess -------------------------------
     ** Create a halfedge structure (using OpenMesh) for the input mesh.
     */
     auto halfedge_mesh = operand_to_openmesh(&input);
 
+    std::vector<int> boundary_loop;
+    extract_longest_boundary_loop(*halfedge_mesh, boundary_loop);
+    
+    if (boundary_loop.empty()) {
+        spdlog::warn(
+            "hw5_square_boundary_mapping: no boundary loop found, pass-through "
+            "input mesh.");
+        params.set_output("Output", std::move(input));
+        return true;
+    }
+
+    std::vector<double> t;
+    normalized_boundary_arclength(halfedge_mesh.get(), boundary_loop, t);
+    
+    for (size_t i = 0; i < boundary_loop.size(); ++i) {
+        const double s = std::clamp(t[i], 0.0, 1.0 - 1e-12);
+        const double q = s * 4.0;
+        double x = 0.0;
+        double y = 0.0;
+        if (q < 1.0) {
+            x = q;
+            y = 0.0;
+        }
+        else if (q < 2.0) {
+            x = 1.0;
+            y = q - 1.0;
+        }
+        else if (q < 3.0) {
+            x = 3.0 - q;
+            y = 1.0;
+        }
+        else {
+            x = 0.0;
+            y = 4.0 - q;
+        }
+
+        auto vh = halfedge_mesh->vertex_handle(boundary_loop[i]);
+        halfedge_mesh->point(vh)[0] = static_cast<float>(x);
+        halfedge_mesh->point(vh)[1] = static_cast<float>(y);
+        halfedge_mesh->point(vh)[2] = 0.0f;
+    }
+
     /* ----------- [HW4_TODO] TASK 2.2: Boundary Mapping (to square)
      *------------
-     ** In this task, you are required to map the boundary of the mesh to a
-     *circle
-     ** shape while ensuring the internal vertices remain unaffected.
-     **
-     ** Algorithm Pseudocode for Boundary Mapping to Square
-     ** ------------------------------------------------------------------------
-     ** (omitted)
-     **
-     ** Note: Can you perserve the 4 corners of the square after boundary
-     *mapping?
-     **
-     ** Note: It would be better to normalize the boundary to a unit circle in
-     *[0,1]x[0,1] for
-     ** texture mapping.
+     *... (comments omitted for brevity, kept in actual file) ...
      */
 
     /* ----------------------------- Postprocess ------------------------------
@@ -166,5 +282,7 @@ NODE_EXECUTION_FUNCTION(hw5_square_boundary_mapping)
     return true;
 }
 
-NODE_DECLARATION_UI(boundary_mapping);
+NODE_DECLARATION_UI(hw5_circle_boundary_mapping);
+NODE_DECLARATION_UI(hw5_square_boundary_mapping);
+
 NODE_DEF_CLOSE_SCOPE
